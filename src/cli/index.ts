@@ -9,12 +9,9 @@ import { registerReportCommand } from "./commands/report.js";
 import { registerCheckpointCommand } from "./commands/checkpoint.js";
 import { registerInstallCommand } from "./commands/install.js";
 import { registerUninstallCommand } from "./commands/uninstall.js";
-
-const NOT_YET_IMPLEMENTED_COMMANDS: Array<{ name: string; phase: string; description: string }> = [
-  { name: "statusline", phase: "4", description: "Render the statusline context meter." },
-  { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
-  { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
-];
+import { registerStatuslineCommand } from "./commands/statusline.js";
+import { registerChopCommand } from "./commands/chop.js";
+import { registerInitCommand } from "./commands/init.js";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -24,7 +21,14 @@ export function buildProgram(): Command {
     .description(
       "Orchestration layer wiring token-optimizer-mcp and headroom together, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion."
     )
-    .version("0.1.0");
+    .version("0.1.0")
+    // Required for the `chop` subcommand's .passThroughOptions() (see
+    // chop.ts) — without it, Commander refuses to let a subcommand pass
+    // options through untouched, because the root program's own global
+    // options (like -V/--version) would otherwise silently intercept a flag
+    // meant for the wrapped command, e.g. `optiflow chop git --version`
+    // printing optiflow's own version instead of running `git --version`.
+    .enablePositionalOptions();
 
   registerDoctorCommand(program);
   registerToonCommand(program);
@@ -32,17 +36,9 @@ export function buildProgram(): Command {
   registerCheckpointCommand(program);
   registerInstallCommand(program);
   registerUninstallCommand(program);
-
-  for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
-    program
-      .command(stub.name)
-      .description(`${stub.description} (not yet implemented — see Phase ${stub.phase} of the plan)`)
-      .action(() => {
-        console.log(
-          `optiflow ${stub.name}: not yet implemented — see Phase ${stub.phase} of the plan.`
-        );
-      });
-  }
+  registerStatuslineCommand(program);
+  registerChopCommand(program);
+  registerInitCommand(program);
 
   return program;
 }
