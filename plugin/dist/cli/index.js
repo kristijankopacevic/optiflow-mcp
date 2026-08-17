@@ -3395,7 +3395,13 @@ var DEFAULT_CONFIG = {
     enabled: false,
     allowlist: ["git", "docker", "kubectl", "npm", "terraform"],
     excludeCommands: ["npm run build", "npm test"],
-    minOutputBytes: 2e3
+    // Lowered from an initial 2000 during Phase 3 review: at 2000, a
+    // routine `git status` (~840 bytes on this repo) never crossed the
+    // floor, so Module 1 compressed nothing in its own default config,
+    // defeating the module's purpose. 400 catches typical multi-line CLI
+    // output (git status, docker ps, kubectl get) while still skipping
+    // one-line/near-empty output where filtering has nothing to gain.
+    minOutputBytes: 400
   },
   toon: {
     enabled: true,
