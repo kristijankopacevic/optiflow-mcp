@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Placeholder for the optiflow CLI entry point (src/cli/index.ts, bundled to
-// plugin/dist/cli/index.js by esbuild). Phase 2+ replaces this stub with a
-// require() of the built bundle.
-process.exit(0);
+// optiflow CLI entry point. Requires the esbuild-bundled output
+// (src/cli/index.ts -> plugin/dist/cli/index.js) so plugin installs never
+// need to run a build themselves — see esbuild.config.mjs.
+import "../dist/cli/index.js";
