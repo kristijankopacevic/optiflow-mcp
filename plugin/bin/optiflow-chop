@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+// Placeholder for the optiflow-chop CLI shim (Module 1: Chop-style Bash interception).
+// Phase 2+ will replace this with the real dispatcher that invokes the built
+// dist/chop bundle. For now this just exits 0 so the shim's presence and its
+// LF line endings can be verified (plan Risk R6) before real logic lands.
+process.exit(0);

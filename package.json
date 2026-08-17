@@ -1,0 +1,31 @@
+{
+  "name": "optiflow-mcp",
+  "version": "0.1.0",
+  "description": "Orchestration layer wiring token-optimizer-mcp and headroom together under one Claude Code plugin, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "optiflow": "plugin/bin/optiflow",
+    "optiflow-chop": "plugin/bin/optiflow-chop"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@toon-format/toon": "^4.1.1",
+    "commander": "^15.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

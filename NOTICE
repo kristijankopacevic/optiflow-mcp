@@ -1,0 +1,36 @@
+optiflow-mcp
+Copyright (c) 2026 Kristijan Kopacevic
+
+This product aggregates, but does not modify or derive from, code from the
+following upstream projects. Each is referenced via git submodule
+(provenance-only, not built or vendored into the shipped bundle) and/or
+invoked as a separate subprocess at runtime; optiflow-mcp's own source code
+under `src/`, `plugin/`, and elsewhere in this repository is original work
+licensed under MIT (see LICENSE).
+
+1. token-optimizer-mcp
+   https://github.com/ooples/token-optimizer-mcp
+   License: MIT
+   Referenced at: vendor/token-optimizer-mcp (git submodule, provenance only)
+   Invoked at runtime via: `npx -y @ooples/token-optimizer-mcp@<pinned-version>`
+   (see THIRD_PARTY_LICENSES.md for the full license text location)
+
+2. headroom
+   https://github.com/headroomlabs-ai/headroom
+   License: Apache-2.0
+   Referenced at: vendor/headroom (git submodule, provenance only)
+   Invoked at runtime via: the `headroom` binary from PATH, if installed
+   (see THIRD_PARTY_LICENSES.md for the full license text location)
+
+Apache-2.0 §4(d) requires that any NOTICE file content from headroom be
+reproduced here. As of this scaffold (Phase 1), the headroom submodule has
+been added at vendor/headroom but its own NOTICE file contents have not yet
+been inspected or copied in — this stub intentionally does NOT fabricate
+that content. When headroom's NOTICE file is read (Phase 8, or whenever the
+submodule is first inspected), its contents must be appended below this line
+verbatim, attributed to headroomlabs-ai/headroom, before optiflow-mcp is
+published or redistributed.
+
+--- BEGIN headroom NOTICE (to be filled in from vendor/headroom/NOTICE) ---
+(not yet populated — see above)
+--- END headroom NOTICE ---

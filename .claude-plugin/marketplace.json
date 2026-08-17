@@ -1,0 +1,39 @@
+{
+  "name": "optiflow-mcp",
+  "owner": {
+    "name": "Kristijan Kopacevic"
+  },
+  "metadata": {
+    "description": "Orchestration layer combining token-optimizer-mcp and headroom, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "optiflow",
+      "source": "./plugin",
+      "description": "Orchestrator plugin: chop-style Bash interception, transcript analytics, statusline context meter, compact-continue handoff, and TOON conversion. Wires token-optimizer-mcp and headroom together.",
+      "category": "productivity",
+      "tags": ["optimization", "tokens", "context", "statusline", "hooks"]
+    },
+    {
+      "name": "token-optimizer",
+      "description": "ooples/token-optimizer-mcp, referenced for provenance via git submodule. Runtime invocation uses the pinned npx package, not this vendored copy.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/<user>/token-optimizer-mcp.git"
+      },
+      "tags": ["optimization", "tokens", "mcp"]
+    },
+    {
+      "name": "headroom",
+      "description": "headroomlabs-ai/headroom, referenced for provenance via git submodule. Runtime invocation uses the `headroom` binary from PATH if present, not this vendored copy.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/<user>/headroom.git"
+      },
+      "tags": ["optimization", "compression", "mcp"]
+    }
+  ]
+}

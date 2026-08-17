@@ -1,0 +1,20 @@
+{
+  "name": "optiflow",
+  "description": "Orchestration layer combining token-optimizer-mcp and headroom under one Claude Code plugin, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Kristijan Kopacevic"
+  },
+  "homepage": "https://github.com/<user>/optiflow-mcp",
+  "repository": "https://github.com/<user>/optiflow-mcp",
+  "license": "MIT",
+  "keywords": [
+    "tokens",
+    "optimization",
+    "mcp",
+    "statusline",
+    "context",
+    "hooks",
+    "claude-code"
+  ]
+}
