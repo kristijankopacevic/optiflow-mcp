@@ -1,0 +1,17 @@
+{
+  "model": { "id": "claude-opus-4-1-20250805", "display_name": "Claude Opus 4.1" },
+  "cwd": "C:\\Users\\me\\project",
+  "workspace": {
+    "current_dir": "C:\\Users\\me\\project",
+    "project_dir": "C:\\Users\\me\\project"
+  },
+  "cost": { "total_cost_usd": 0 },
+  "context_window": {
+    "used_percentage": null,
+    "remaining_percentage": null,
+    "context_window_size": 200000,
+    "total_input_tokens": null
+  },
+  "exceeds_200k_tokens": false,
+  "transcript_path": "C:\\Users\\me\\.claude\\projects\\slug\\abc.jsonl"
+}

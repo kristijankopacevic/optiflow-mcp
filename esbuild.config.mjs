@@ -55,6 +55,20 @@ const hookEntries = [
   { in: "src/chop/posttooluse-mcp.ts", out: "posttooluse-mcp" },
 ];
 
+/**
+ * Bundled to `plugin/scripts/*.mjs` — Module 3's statusline entry point,
+ * invoked by a user's/project's OWN `statusLine.command` (see
+ * docs/statusline-manual-setup.md; U1 finding: no plugin-manifest route
+ * exists for `statusLine`, so this is invoked the same way a hand-written
+ * script would be, just shipped inside the plugin tree). Uses the exact
+ * same `.mjs`-forced-ESM convention as `hookEntries` above, for the same
+ * reason (no guaranteed `"type": "module"` `package.json` visible above
+ * this path once installed) — just a different `outdir` since this isn't a
+ * Claude Code hook entry.
+ * @type {{ in: string; out: string }[]}
+ */
+const scriptEntries = [{ in: "src/statusline/cli.ts", out: "statusline" }];
+
 function partitionByExistence(entries) {
   const existing = entries.filter((entry) => existsSync(path.join(__dirname, entry.in)));
   const missing = entries.filter((entry) => !existing.includes(entry));
@@ -63,8 +77,9 @@ function partitionByExistence(entries) {
 
 const { existing: existingEntries, missing: missingEntries } = partitionByExistence(plannedEntries);
 const { existing: existingHookEntries, missing: missingHookEntries } = partitionByExistence(hookEntries);
+const { existing: existingScriptEntries, missing: missingScriptEntries } = partitionByExistence(scriptEntries);
 
-const allMissing = [...missingEntries, ...missingHookEntries];
+const allMissing = [...missingEntries, ...missingHookEntries, ...missingScriptEntries];
 if (allMissing.length > 0) {
   console.warn(
     `[esbuild.config.mjs] Skipping ${allMissing.length} entry point(s) not yet created (expected during Phase 1 scaffold):`
@@ -74,7 +89,7 @@ if (allMissing.length > 0) {
   }
 }
 
-if (existingEntries.length === 0 && existingHookEntries.length === 0) {
+if (existingEntries.length === 0 && existingHookEntries.length === 0 && existingScriptEntries.length === 0) {
   console.warn(
     "[esbuild.config.mjs] No entry points exist yet — nothing to build. This is expected until Phase 2+ lands source files."
   );
@@ -104,6 +119,23 @@ if (existingHookEntries.length > 0) {
       out: entry.out,
     })),
     outdir: path.join(__dirname, "plugin/hooks"),
+    outExtension: { ".js": ".mjs" },
+    bundle: true,
+    platform: "node",
+    target: "es2022",
+    format: "esm",
+    sourcemap: true,
+    logLevel: "info",
+  });
+}
+
+if (existingScriptEntries.length > 0) {
+  await esbuild.build({
+    entryPoints: existingScriptEntries.map((entry) => ({
+      in: path.join(__dirname, entry.in),
+      out: entry.out,
+    })),
+    outdir: path.join(__dirname, "plugin/scripts"),
     outExtension: { ".js": ".mjs" },
     bundle: true,
     platform: "node",
