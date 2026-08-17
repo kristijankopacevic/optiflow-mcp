@@ -1,22 +1,16 @@
-# .claude-plugin/marketplace.json — TODO
+# .claude-plugin/marketplace.json — notes
 
-`marketplace.json` must be valid JSON, so this note lives here instead of an
-inline `//` comment in that file.
+`marketplace.json` registers only the `optiflow` plugin (source `./plugin`).
 
-- The `token-optimizer` and `headroom` plugin entries use `<user>` as a
-  placeholder in `source.url` (e.g.
-  `https://github.com/<user>/token-optimizer-mcp.git`) because the forks
-  referenced by the plan's Phase 8 publish sequence do not exist yet.
-- Once `gh repo fork ooples/token-optimizer-mcp` and
-  `gh repo fork headroomlabs-ai/headroom` have run (Phase 8), replace
-  `<user>` in both `source.url` fields with the actual GitHub account, and
-  add a `sha` pin per the schema used by the official marketplace
-  (`{ "source": "url", "url": "...", "sha": "<commit>" }`).
-- The `marketplace.json` schema above (`owner`, `metadata`, `plugins[].source`
-  as either a bare `"./relative/path"` string or an object with
-  `source: "url" | "git-subdir"`) was reverse-engineered from real installed
-  marketplaces on this machine (`claude-hud`, `n8n-io`,
-  `claude-plugins-official`) — the plan document referenced for this shape
-  ("§6 in the design research") does not exist in
-  `create-an-forked-app-snappy-panda.md` as delivered. Flagging this so the
-  coordinator can confirm or correct the schema before Phase 2 depends on it.
+Per the plan's Risk R8 (marketplace collision): token-optimizer-mcp and
+headroom each ship their own `.claude-plugin/marketplace.json`. Registering
+their plugins a second time from optiflow's marketplace would double-register
+them. optiflow does **not** re-list them here — instead it talks to them as
+MCP servers, wired up in `plugin/.mcp.json` (pinned `npx` package for
+token-optimizer, optional `headroom` binary on PATH), which is Phase 2+ work.
+
+The `owner`/`metadata`/`plugins[].source` schema (a bare `"./relative/path"`
+string, or an object with `source: "url" | "git-subdir"`) was
+reverse-engineered from real installed marketplaces on this machine
+(`claude-hud`, `n8n-io`, `claude-plugins-official`), since the plan document
+doesn't specify the marketplace.json schema directly.

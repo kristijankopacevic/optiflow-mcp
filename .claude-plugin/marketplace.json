@@ -11,29 +11,9 @@
     {
       "name": "optiflow",
       "source": "./plugin",
-      "description": "Orchestrator plugin: chop-style Bash interception, transcript analytics, statusline context meter, compact-continue handoff, and TOON conversion. Wires token-optimizer-mcp and headroom together.",
+      "description": "Orchestrator plugin: chop-style Bash interception, transcript analytics, statusline context meter, compact-continue handoff, and TOON conversion. Wires token-optimizer-mcp and headroom together via plugin/.mcp.json (pinned npx package + optional headroom binary on PATH) rather than registering them as separate marketplace plugins.",
       "category": "productivity",
       "tags": ["optimization", "tokens", "context", "statusline", "hooks"]
-    },
-    {
-      "name": "token-optimizer",
-      "description": "ooples/token-optimizer-mcp, referenced for provenance via git submodule. Runtime invocation uses the pinned npx package, not this vendored copy.",
-      "category": "productivity",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/<user>/token-optimizer-mcp.git"
-      },
-      "tags": ["optimization", "tokens", "mcp"]
-    },
-    {
-      "name": "headroom",
-      "description": "headroomlabs-ai/headroom, referenced for provenance via git submodule. Runtime invocation uses the `headroom` binary from PATH if present, not this vendored copy.",
-      "category": "productivity",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/<user>/headroom.git"
-      },
-      "tags": ["optimization", "compression", "mcp"]
     }
   ]
 }
