@@ -76,7 +76,7 @@ describe("analyze — cache-break detection", () => {
 
     const result = analyze(records);
     expect(result.cacheBreaks).toHaveLength(1);
-    expect(result.cacheBreaks[0]).toMatchObject({ thread: "main", turnId: "t3", previousTurnId: "t2" });
+    expect(result.cacheBreaks[0]).toMatchObject({ thread: "main:s1", turnId: "t3", previousTurnId: "t2" });
   });
 
   it("does not flag the very first turn (no predecessor to break from)", () => {
@@ -185,7 +185,7 @@ describe("analyze — totals against hand-computed fixture expectations", () => 
 
     // Exactly one cache break: msg_4 after the multi-day gap.
     expect(result.cacheBreaks).toHaveLength(1);
-    expect(result.cacheBreaks[0].thread).toBe("main");
+    expect(result.cacheBreaks[0].thread).toBe("main:sess-fixture-1");
 
     // One subagent group, rooted at the anchor not present in the fixture.
     expect(result.subagents).toHaveLength(1);

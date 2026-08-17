@@ -19365,6 +19365,13 @@ function analyze(records, options = {}) {
   for (const turn of sidechainAll) {
     rootByTurnId.set(turn.id, findSidechainRoot(turn.parentUuid, byUuid));
   }
+  const mainThreadChains = /* @__PURE__ */ new Map();
+  for (const turn of mainThreadAll) {
+    const key = turn.sessionId ?? "unknown-session";
+    const chain = mainThreadChains.get(key) ?? [];
+    chain.push(turn);
+    mainThreadChains.set(key, chain);
+  }
   const subagentChains = /* @__PURE__ */ new Map();
   for (const turn of sidechainAll) {
     const root = rootByTurnId.get(turn.id) ?? "unattributed-subagent";
@@ -19372,7 +19379,10 @@ function analyze(records, options = {}) {
     chain.push(turn);
     subagentChains.set(root, chain);
   }
-  const allCacheBreaks = [...detectCacheBreaks("main", mainThreadAll)];
+  const allCacheBreaks = [];
+  for (const [sessionId, chain] of mainThreadChains) {
+    allCacheBreaks.push(...detectCacheBreaks(`main:${sessionId}`, chain));
+  }
   for (const [root, chain] of subagentChains) {
     allCacheBreaks.push(...detectCacheBreaks(`subagent:${root}`, chain));
   }
@@ -19649,7 +19659,7 @@ async function runReportCli(files, options = {}) {
   for (const file2 of files) {
     try {
       const { records, skipped } = await parseTranscriptFile(file2, { logHome: options.logHome });
-      allRecords.push(...records);
+      for (const record2 of records) allRecords.push(record2);
       totalSkipped += skipped;
     } catch (err) {
       stderrLines.push(

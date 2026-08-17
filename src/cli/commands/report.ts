@@ -98,7 +98,13 @@ export async function runReportCli(
   for (const file of files) {
     try {
       const { records, skipped } = await parseTranscriptFile(file, { logHome: options.logHome });
-      allRecords.push(...records);
+      // NOT `allRecords.push(...records)`: spreading a large array into a
+      // function call is bounded by V8's call-stack argument limit
+      // (RangeError past roughly 100k-500k elements, depending on engine/
+      // build) — real transcript files on this machine run tens of
+      // thousands of lines each, and `--all` concatenates every file, so
+      // this must not depend on staying under that ceiling.
+      for (const record of records) allRecords.push(record);
       totalSkipped += skipped;
     } catch (err) {
       stderrLines.push(

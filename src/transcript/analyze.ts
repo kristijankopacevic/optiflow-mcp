@@ -82,7 +82,7 @@ export interface TurnSummary {
 }
 
 export interface CacheBreakEvent {
-  /** `"main"` or `"subagent:<rootUuid>"` — which chain the break occurred in. */
+  /** `"main:<sessionId>"` or `"subagent:<rootUuid>"` — which chain the break occurred in. Sessions/subagent roots are independent chains; see `analyze()`'s comments on why a single global "main" chain across sessions was wrong. */
   thread: string;
   turnId: string;
   timestamp?: string;
@@ -342,9 +342,27 @@ export function analyze(records: TranscriptRecord[], options: AnalyzeOptions = {
     rootByTurnId.set(turn.id, findSidechainRoot(turn.parentUuid, byUuid));
   }
 
-  // Cache breaks: main thread is one chain; each subagent root is its own
-  // independent chain (a subagent's first turn should never be flagged as
-  // "breaking" the main thread's unrelated cache state).
+  // Cache breaks: each SESSION's main thread is its own independent chain,
+  // and each subagent root is its own independent chain. A single global
+  // main-thread chain (this module's first implementation) is WRONG for
+  // `--all`/multi-session analysis: sorting every session's turns together
+  // by timestamp interleaves unrelated sessions, and a transition from
+  // session A's last turn to session B's first turn satisfies the break
+  // rule almost by construction (B's turn writes new cache and has no
+  // relationship to A's cached prefix). Confirmed empirically against this
+  // machine's real local transcripts: grouping by a single global chain
+  // produced 293 "breaks" across 14 sessions, of which 140 (nearly half)
+  // had `prev`/`cur` from two DIFFERENT sessions — pure interleaving
+  // artifacts, not real cache breaks. Grouping by `sessionId` first (same
+  // pattern as the subagent-root grouping below) eliminates that entirely.
+  const mainThreadChains = new Map<string, TurnSummary[]>();
+  for (const turn of mainThreadAll) {
+    const key = turn.sessionId ?? "unknown-session";
+    const chain = mainThreadChains.get(key) ?? [];
+    chain.push(turn);
+    mainThreadChains.set(key, chain);
+  }
+
   const subagentChains = new Map<string, TurnSummary[]>();
   for (const turn of sidechainAll) {
     const root = rootByTurnId.get(turn.id) ?? "unattributed-subagent";
@@ -353,7 +371,10 @@ export function analyze(records: TranscriptRecord[], options: AnalyzeOptions = {
     subagentChains.set(root, chain);
   }
 
-  const allCacheBreaks: CacheBreakEvent[] = [...detectCacheBreaks("main", mainThreadAll)];
+  const allCacheBreaks: CacheBreakEvent[] = [];
+  for (const [sessionId, chain] of mainThreadChains) {
+    allCacheBreaks.push(...detectCacheBreaks(`main:${sessionId}`, chain));
+  }
   for (const [root, chain] of subagentChains) {
     allCacheBreaks.push(...detectCacheBreaks(`subagent:${root}`, chain));
   }
