@@ -95,10 +95,23 @@ a normal continuous same-session sequence of 39 transitions flags 0. The
 it.
 
 Cache breaks are computed **before** `--range` filtering is applied, over
-each thread's full chronological sequence (main thread is one chain; each
-subagent root is its own independent chain) — filtering first would make
-the range window's own first turn look like a false break (no visible
-predecessor).
+each thread's full chronological sequence — filtering first would make the
+range window's own first turn look like a false break (no visible
+predecessor). "Each thread" means each **session's own main-thread chain**
+(`main:<sessionId>`) plus each subagent root's own chain
+(`subagent:<rootUuid>`) — NOT one global main-thread chain across every
+session. A single global chain was this module's first implementation and
+was WRONG for `--all`/multi-session analysis: sorting every session's turns
+together by timestamp interleaves unrelated sessions, and a transition from
+session A's last turn to session B's first turn satisfies the break rule
+almost by construction (B's turn writes new cache with no relationship to
+A's cached prefix). Confirmed empirically against this machine's real
+`--all` output: the single-global-chain version reported 293 "breaks"
+across 14 sessions, of which 140 (nearly half) had `prev`/`cur` from two
+different sessions — pure interleaving artifacts. Grouping by `sessionId`
+first (mirroring the subagent-root grouping) dropped that to 194 breaks,
+all within their own session, re-verified with a script cross-checking
+every break's `prev.sessionId === cur.sessionId`.
 
 ### Subagent rollup (best-effort — unverified against real data)
 
@@ -146,7 +159,12 @@ completed feature.
   `resolveReportFiles` (discovery-only) and `runReportCli` (parses an
   already-resolved file list, analyzes, renders — this is what the
   integration test exercises against `fixtures/transcripts/sample.jsonl`
-  without ever touching `~/.claude`).
+  without ever touching `~/.claude`). `runReportCli` accumulates every
+  file's parsed records with a plain `for` loop, deliberately NOT
+  `allRecords.push(...records)` — spreading a large per-file array into a
+  function call risks V8's argument-count `RangeError`, and `--all` across
+  this machine's real transcripts concatenates tens of thousands of lines
+  across ~57MB of files (one file alone ~25MB).
 
 ### `--range` parsing
 
