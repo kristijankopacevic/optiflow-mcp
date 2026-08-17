@@ -67,6 +67,26 @@ describe("genericFilter — JSON path", () => {
     expect((result.meta?.toon as { applied: boolean }).applied).toBe(false);
   });
 
+  it("leaves a non-uniform top-level ARRAY (mixed key sets, deeply nested) alone — never attempts TOON on it", () => {
+    // Same fixture shape used in guard.test.ts's "TOON measures larger"
+    // case: a top-level array (not an object), well above toon.minRows,
+    // but not a uniform-keyed object array. `genericFilter`'s own
+    // `isUniformObjectArray` pre-check gates the TOON attempt entirely —
+    // this never even reaches `maybeConvertToToon` — so it's the array-
+    // shaped analogue of the plan's "TOON on non-uniform JSON -> returns
+    // original" acceptance case, exercised at the filter-wiring layer.
+    const items = Array.from({ length: 10 }, (_, i) =>
+      i % 2 === 0
+        ? { id: i, meta: { a: i, b: { c: i, d: ["x", "y"] } } }
+        : { id: i, other: `value-${i}`, extra: { deep: { deeper: i } }, flag: true }
+    );
+    const original = JSON.stringify(items);
+    const result = genericFilter(input(original), withToon(TOON_ENABLED_DEFAULT_BAR));
+    expect(result.formatHint).toBe("json");
+    expect(result.meta?.toon).toBeUndefined();
+    expect(JSON.parse(result.text)).toEqual(items);
+  });
+
   it("never string-slices a non-uniform JSON value — returns it verbatim, tagged 'json', regardless of toon config", () => {
     const value = { apiVersion: "v1", items: [{ a: 1 }, { b: 2, c: 3 }] };
     const result = genericFilter(input(JSON.stringify(value)), withToon(TOON_ENABLED_LOW_BAR));
