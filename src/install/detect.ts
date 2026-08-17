@@ -249,11 +249,12 @@ function inspectClaudeSettingsFile(filePath: string): HeadroomWrapSignal | null 
  * limitation note above the interfaces in this section.
  */
 export function detectHeadroomWrap(
-  options: { cwd?: string } = {}
+  options: { cwd?: string; home?: string } = {}
 ): HeadroomWrapInfo {
   const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  const home = options.home ?? homedir();
   const candidatePaths = [
-    path.join(homedir(), ".claude", "settings.json"),
+    path.join(home, ".claude", "settings.json"),
     path.join(projectRoot, ".claude", "settings.json"),
     path.join(projectRoot, ".claude", "settings.local.json"),
   ];

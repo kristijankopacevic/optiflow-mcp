@@ -3116,9 +3116,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
    * @param {string} [path]
    * @return {(string|null|Command)}
    */
-  executableDir(path9) {
-    if (path9 === void 0) return this._executableDir;
-    this._executableDir = path9;
+  executableDir(path12) {
+    if (path12 === void 0) return this._executableDir;
+    this._executableDir = path12;
     return this;
   }
   /**
@@ -4199,10 +4199,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path9) {
-  if (!path9)
+function getElementAtPath(obj, path12) {
+  if (!path12)
     return obj;
-  return path9.reduce((acc, key) => acc?.[key], obj);
+  return path12.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4611,11 +4611,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path9, issues) {
+function prefixIssues(path12, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path9);
+    iss.path.unshift(path12);
     return iss;
   });
 }
@@ -4762,16 +4762,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path9 = []) => {
+  const processError = (error52, path12 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path12, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path12, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path12, ...issue2.path]);
       } else {
-        const fullpath = [...path9, ...issue2.path];
+        const fullpath = [...path12, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -4798,17 +4798,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path9 = []) => {
+  const processError = (error52, path12 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path12, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path12, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path12, ...issue2.path]);
       } else {
-        const fullpath = [...path9, ...issue2.path];
+        const fullpath = [...path12, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -4840,8 +4840,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path9 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path9) {
+  const path12 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path12) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -17533,13 +17533,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path9 = ref.slice(1).split("/").filter(Boolean);
-  if (path9.length === 0) {
+  const path12 = ref.slice(1).split("/").filter(Boolean);
+  if (path12.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path9[0] === defsKey) {
-    const key = path9[1];
+  if (path12[0] === defsKey) {
+    const key = path12[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -18030,6 +18030,9 @@ function findProjectRoot(startDir = process.cwd()) {
     dir = parent;
   }
 }
+function getProjectLocalDir(projectRoot = findProjectRoot()) {
+  return path2.join(projectRoot, ".optiflow");
+}
 
 // src/config/load.ts
 var TOP_LEVEL_SECTIONS = [
@@ -18215,8 +18218,9 @@ function inspectClaudeSettingsFile(filePath) {
 }
 function detectHeadroomWrap(options = {}) {
   const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  const home = options.home ?? homedir2();
   const candidatePaths = [
-    path4.join(homedir2(), ".claude", "settings.json"),
+    path4.join(home, ".claude", "settings.json"),
     path4.join(projectRoot, ".claude", "settings.json"),
     path4.join(projectRoot, ".claude", "settings.local.json")
   ];
@@ -18234,7 +18238,7 @@ function runDoctor(options = {}) {
       cwd: options.cwd
     }),
     headroomOnPath: detectHeadroomOnPath(),
-    headroomWrap: detectHeadroomWrap({ cwd: options.cwd }),
+    headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth()
   };
 }
@@ -18821,30 +18825,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path9) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path9);
-  return transformChildren(normalizeValue(replaced), replacer, path9);
+function transformReplaced(original, replaced, replacer, path12) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path12);
+  return transformChildren(normalizeValue(replaced), replacer, path12);
 }
-function transformChildren(value, replacer, path9) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path9);
-  if (isJsonArray(value)) return transformArray(value, replacer, path9);
+function transformChildren(value, replacer, path12) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path12);
+  if (isJsonArray(value)) return transformArray(value, replacer, path12);
   return value;
 }
-function transformObject(obj, replacer, path9) {
+function transformObject(obj, replacer, path12) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path9, key];
+    const childPath = [...path12, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path9) {
+function transformArray(arr, replacer, path12) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path9, i];
+    const childPath = [...path12, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -20108,13 +20112,417 @@ function registerCheckpointCommand(program2) {
   });
 }
 
+// src/cli/commands/install.ts
+import { existsSync as existsSync8 } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path10 from "node:path";
+
+// src/install/settings-writer.ts
+import {
+  copyFileSync,
+  existsSync as existsSync7,
+  mkdirSync as mkdirSync3,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync6,
+  renameSync,
+  unlinkSync as unlinkSync2,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { homedir as homedir5 } from "node:os";
+import path9 from "node:path";
+function resolveDefaultSettingsPath(home = homedir5()) {
+  return path9.join(home, ".claude", "settings.json");
+}
+function readSettingsFile(settingsPath) {
+  if (!existsSync7(settingsPath)) return {};
+  const raw = readFileSync6(settingsPath, "utf8");
+  if (raw.trim().length === 0) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `optiflow: refusing to write ${settingsPath} \u2014 the existing file is not valid JSON (${err.message}). Fix or remove it by hand before retrying.`
+    );
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `optiflow: refusing to write ${settingsPath} \u2014 its top-level JSON value is not an object.`
+    );
+  }
+  return parsed;
+}
+function backupSettingsFile(settingsPath, nowMs) {
+  if (!existsSync7(settingsPath)) return null;
+  const backupPath = `${settingsPath}.optiflow-backup-${nowMs}`;
+  copyFileSync(settingsPath, backupPath);
+  return backupPath;
+}
+function atomicWriteFile(targetPath, contents) {
+  const dir = path9.dirname(targetPath);
+  mkdirSync3(dir, { recursive: true });
+  const tempPath = path9.join(
+    dir,
+    `.${path9.basename(targetPath)}.optiflow-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  writeFileSync2(tempPath, contents, "utf8");
+  try {
+    renameSync(tempPath, targetPath);
+  } catch (err) {
+    try {
+      unlinkSync2(tempPath);
+    } catch {
+    }
+    throw err;
+  }
+}
+function writeSettingsKey(settingsPath, key, value, options = {}) {
+  const data = readSettingsFile(settingsPath);
+  const nowMs = (options.now ?? /* @__PURE__ */ new Date()).getTime();
+  const backupPath = backupSettingsFile(settingsPath, nowMs);
+  data[key] = value;
+  atomicWriteFile(settingsPath, `${JSON.stringify(data, null, 2)}
+`);
+  return { settingsPath, backupPath };
+}
+function removeSettingsKey(settingsPath, key, options = {}) {
+  const data = readSettingsFile(settingsPath);
+  if (!(key in data)) {
+    return { removed: false, backupPath: null };
+  }
+  const nowMs = (options.now ?? /* @__PURE__ */ new Date()).getTime();
+  const backupPath = backupSettingsFile(settingsPath, nowMs);
+  delete data[key];
+  atomicWriteFile(settingsPath, `${JSON.stringify(data, null, 2)}
+`);
+  return { removed: true, backupPath };
+}
+var BACKUP_MARKER = ".optiflow-backup-";
+function findLatestBackup(settingsPath) {
+  const dir = path9.dirname(settingsPath);
+  const base = path9.basename(settingsPath);
+  if (!existsSync7(dir)) return null;
+  let entries;
+  try {
+    entries = readdirSync3(dir);
+  } catch {
+    return null;
+  }
+  const prefix = `${base}${BACKUP_MARKER}`;
+  let best = null;
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix)) continue;
+    const suffix = entry.slice(prefix.length);
+    if (!/^\d+$/.test(suffix)) continue;
+    const timestampMs = Number.parseInt(suffix, 10);
+    if (!Number.isFinite(timestampMs)) continue;
+    if (!best || timestampMs > best.timestampMs) {
+      best = { backupPath: path9.join(dir, entry), timestampMs };
+    }
+  }
+  return best;
+}
+function restoreSettingsBackup(settingsPath, options = {}) {
+  const latest = findLatestBackup(settingsPath);
+  if (!latest) {
+    return { status: "no-backup-found", settingsPath };
+  }
+  const nowMs = (options.now ?? /* @__PURE__ */ new Date()).getTime();
+  const preRestoreBackup = backupSettingsFile(settingsPath, nowMs);
+  const contents = readFileSync6(latest.backupPath, "utf8");
+  atomicWriteFile(settingsPath, contents);
+  return {
+    status: "restored",
+    settingsPath,
+    fromBackup: latest.backupPath,
+    preRestoreBackup
+  };
+}
+var OPTIFLOW_STATUSLINE_MARKER = "plugin/scripts/statusline.mjs";
+function isOptiflowStatusLineValue(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const command = value.command;
+  if (typeof command !== "string") return false;
+  return command.replace(/\\/g, "/").includes(OPTIFLOW_STATUSLINE_MARKER);
+}
+function buildOptiflowStatusLineValue(scriptPath) {
+  return {
+    type: "command",
+    command: `node "${scriptPath}"`,
+    padding: 0
+  };
+}
+function setOptiflowStatusLine(settingsPath, scriptPath, options = {}) {
+  const data = readSettingsFile(settingsPath);
+  const existing = data.statusLine;
+  if (existing !== void 0) {
+    if (isOptiflowStatusLineValue(existing)) {
+      return { status: "already-active", settingsPath };
+    }
+    if (!options.force) {
+      return { status: "refused-foreign", settingsPath, existing };
+    }
+  }
+  const value = buildOptiflowStatusLineValue(scriptPath);
+  const { backupPath } = writeSettingsKey(settingsPath, "statusLine", value, { now: options.now });
+  return { status: "written", settingsPath, backupPath };
+}
+function uninstallOptiflowStatusLine(settingsPath, options = {}) {
+  if (!existsSync7(settingsPath)) {
+    return { status: "settings-file-missing", settingsPath };
+  }
+  const data = readSettingsFile(settingsPath);
+  const existing = data.statusLine;
+  const looksLikeOurs = existing !== void 0 && isOptiflowStatusLineValue(existing);
+  if (existing !== void 0 && !looksLikeOurs && !options.force) {
+    return { status: "refused-foreign-statusline", settingsPath, existing };
+  }
+  const latest = findLatestBackup(settingsPath);
+  if (latest) {
+    const restored = restoreSettingsBackup(settingsPath, { now: options.now });
+    if (restored.status === "restored") {
+      return {
+        status: "restored-from-backup",
+        settingsPath,
+        fromBackup: restored.fromBackup,
+        preRestoreBackup: restored.preRestoreBackup
+      };
+    }
+  }
+  if (existing === void 0) {
+    return { status: "no-statusline-to-remove", settingsPath };
+  }
+  const removed = removeSettingsKey(settingsPath, "statusLine", { now: options.now });
+  return { status: "key-removed", settingsPath, backupPath: removed.backupPath };
+}
+
+// src/cli/commands/install.ts
+function defaultStatuslineScriptPath() {
+  const hereDir = path10.dirname(fileURLToPath(import.meta.url));
+  const bundledPluginRoot = path10.resolve(hereDir, "..", "..");
+  const bundledCandidate = path10.join(bundledPluginRoot, "scripts", "statusline.mjs");
+  if (existsSync8(bundledCandidate)) return bundledCandidate;
+  const devRepoRoot = path10.resolve(hereDir, "..", "..", "..");
+  return path10.join(devRepoRoot, "plugin", "scripts", "statusline.mjs");
+}
+function runInstallCli(options = {}) {
+  const lines = [];
+  const errLines = [];
+  lines.push("optiflow install");
+  lines.push("================");
+  lines.push("");
+  const doctorReport = runDoctor({ cwd: options.cwd, home: options.home });
+  lines.push("Environment check (see `optiflow doctor` for the full report):");
+  lines.push(`  Node version: ${doctorReport.node.nodeVersion}`);
+  lines.push(`  token-optimizer pin: ${doctorReport.tokenOptimizerPin.status}`);
+  lines.push(`  headroom on PATH: ${doctorReport.headroomOnPath.present ? "yes" : "no"}`);
+  lines.push("");
+  if (doctorReport.headroomWrap.wrapped && !options.allowHeadroomWrap) {
+    errLines.push(
+      "REFUSED: Claude Code appears configured to route through a headroom proxy (plan Risk R1)."
+    );
+    errLines.push(
+      "Installing optiflow's plugin/hooks alongside an active headroom-wrap configuration is unsupported and can conflict."
+    );
+    for (const signal of doctorReport.headroomWrap.signals) {
+      const parts = [];
+      if (signal.envKeysFound.length > 0) parts.push(`env keys: ${signal.envKeysFound.join(", ")}`);
+      if (signal.hookMarkersFound.length > 0) {
+        parts.push(`hook markers: ${signal.hookMarkersFound.join(", ")}`);
+      }
+      errLines.push(`  - ${signal.filePath} (${parts.join("; ")})`);
+    }
+    errLines.push(
+      "This is a configuration-level signal, not a live-process check \u2014 a dead proxy can leave it"
+    );
+    errLines.push(
+      "behind. There is no `headroom unwrap claude` command; recovery is manually removing"
+    );
+    errLines.push(
+      "env.ANTHROPIC_BASE_URL / env.ENABLE_TOOL_SEARCH and any headroom-marked hook entries from"
+    );
+    errLines.push("the settings file(s) listed above, then re-running `optiflow install`.");
+    errLines.push("To proceed anyway (not recommended), pass --allow-headroom-wrap.");
+    return {
+      stdout: `${lines.join("\n")}
+`,
+      stderr: `${errLines.join("\n")}
+`,
+      exitCode: 1
+    };
+  }
+  lines.push(
+    doctorReport.headroomWrap.wrapped ? "Headroom wrap conflict (Risk R1): detected, but proceeding anyway (--allow-headroom-wrap)." : "Headroom wrap conflict (Risk R1): none detected."
+  );
+  lines.push("");
+  const settingsPath = options.settingsPath ?? resolveDefaultSettingsPath(options.home);
+  if (options.noStatusline) {
+    lines.push("Statusline: skipped (--no-statusline).");
+    lines.push("  See docs/statusline-manual-setup.md if you want to activate it by hand.");
+  } else if (options.statusline) {
+    const scriptPath = options.scriptPath ?? defaultStatuslineScriptPath();
+    let result;
+    try {
+      result = setOptiflowStatusLine(settingsPath, scriptPath, {
+        force: options.force,
+        now: options.now
+      });
+    } catch (err) {
+      errLines.push(`Statusline: ${err.message}`);
+      result = null;
+    }
+    if (result) {
+      if (result.status === "written") {
+        lines.push(`Statusline: activated in ${settingsPath}`);
+        lines.push(
+          result.backupPath ? `  Backed up previous settings to ${result.backupPath}` : "  No prior settings.json existed \u2014 nothing to back up."
+        );
+      } else if (result.status === "already-active") {
+        lines.push(`Statusline: already active in ${settingsPath} (no change made).`);
+      } else if (result.status === "refused-foreign") {
+        errLines.push(
+          `Statusline: REFUSED \u2014 ${settingsPath} already has a different statusLine configured.`
+        );
+        errLines.push(`  Existing value: ${JSON.stringify(result.existing)}`);
+        errLines.push(
+          "  Re-run with --force to back it up and overwrite it, or activate manually per docs/statusline-manual-setup.md."
+        );
+      }
+    }
+  } else {
+    lines.push(
+      "Statusline: not touched (default \u2014 pass --statusline to activate it, or --no-statusline to silence this message)."
+    );
+    lines.push("  See docs/statusline-manual-setup.md for the manual setup steps.");
+  }
+  lines.push("");
+  lines.push("Note: `.optiflow/` checkpoints/ledger/logs are never touched by install.");
+  const exitCode = errLines.length > 0 ? 1 : 0;
+  return {
+    stdout: `${lines.join("\n")}
+`,
+    stderr: errLines.length > 0 ? `${errLines.join("\n")}
+` : "",
+    exitCode
+  };
+}
+function registerInstallCommand(program2) {
+  program2.command("install").description(
+    "Run environment checks (refusing on a detected headroom-wrap conflict, plan Risk R1), then optionally activate optiflow's statusline in Claude Code's settings.json (opt-in via --statusline; the default touches nothing)."
+  ).option("--statusline", "activate optiflow's statusline in settings.json (backs up first)").option("--no-statusline", "explicitly skip statusline activation (same as the default, but silences the manual-setup note)").option("--force", "with --statusline, overwrite a different existing statusLine (still backs it up first)").option("--allow-headroom-wrap", "proceed even if a headroom-wrap conflict (Risk R1) is detected (not recommended)").option("--settings-path <path>", "override the Claude Code settings.json path to write into (default: ~/.claude/settings.json)").action((opts) => {
+    const result = runInstallCli({
+      statusline: opts.statusline === true,
+      noStatusline: opts.statusline === false,
+      force: Boolean(opts.force),
+      allowHeadroomWrap: Boolean(opts.allowHeadroomWrap),
+      settingsPath: opts.settingsPath
+    });
+    process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exitCode = result.exitCode;
+  });
+}
+
+// src/cli/commands/uninstall.ts
+import { rmSync } from "node:fs";
+import path11 from "node:path";
+function purgeOptiflowData(options) {
+  const removed = [];
+  const projectLocalDir = getProjectLocalDir(findProjectRoot(options.cwd ?? process.cwd()));
+  rmSync(projectLocalDir, { recursive: true, force: true });
+  removed.push(projectLocalDir);
+  const home = getOptiflowHome();
+  for (const relative of ["ledger.jsonl", "logs", "activity.json"]) {
+    const target = path11.join(home, relative);
+    rmSync(target, { recursive: true, force: true });
+    removed.push(target);
+  }
+  return removed;
+}
+function runUninstallCli(options = {}) {
+  const lines = [];
+  const errLines = [];
+  lines.push("optiflow uninstall");
+  lines.push("==================");
+  lines.push("");
+  const settingsPath = options.settingsPath ?? resolveDefaultSettingsPath(options.home);
+  let result;
+  try {
+    result = uninstallOptiflowStatusLine(settingsPath, { force: options.force, now: options.now });
+  } catch (err) {
+    errLines.push(`Statusline: ${err.message}`);
+    result = null;
+  }
+  if (result) {
+    switch (result.status) {
+      case "settings-file-missing":
+        lines.push(`Statusline: nothing to do \u2014 ${settingsPath} does not exist.`);
+        break;
+      case "no-statusline-to-remove":
+        lines.push(`Statusline: nothing to do \u2014 ${settingsPath} has no statusLine key set.`);
+        break;
+      case "refused-foreign-statusline":
+        errLines.push(
+          `Statusline: REFUSED \u2014 ${settingsPath}'s current statusLine doesn't look like optiflow's own; leaving it untouched (you may have changed it since install).`
+        );
+        errLines.push(`  Existing value: ${JSON.stringify(result.existing)}`);
+        errLines.push("  Re-run with --force to remove/restore over it anyway.");
+        break;
+      case "restored-from-backup":
+        lines.push(`Statusline: restored ${settingsPath} from backup ${result.fromBackup}.`);
+        if (result.preRestoreBackup) {
+          lines.push(`  (Pre-restore state was itself backed up to ${result.preRestoreBackup}.)`);
+        }
+        break;
+      case "key-removed":
+        lines.push(
+          `Statusline: removed the statusLine key from ${settingsPath} (no prior backup existed \u2014 optiflow's install never had a previous value to restore).`
+        );
+        if (result.backupPath) {
+          lines.push(`  Backed up pre-removal settings to ${result.backupPath}.`);
+        }
+        break;
+    }
+  }
+  lines.push("");
+  if (options.purge) {
+    const removed = purgeOptiflowData({ cwd: options.cwd });
+    lines.push("--purge: removed the following (checkpoints/ledger/logs \u2014 user config.json kept):");
+    for (const item of removed) lines.push(`  - ${item}`);
+  } else {
+    lines.push(
+      ".optiflow/ checkpoints, ledger, and logs are left in place (user data) \u2014 pass --purge to also delete them."
+    );
+  }
+  const exitCode = errLines.length > 0 ? 1 : 0;
+  return {
+    stdout: `${lines.join("\n")}
+`,
+    stderr: errLines.length > 0 ? `${errLines.join("\n")}
+` : "",
+    exitCode
+  };
+}
+function registerUninstallCommand(program2) {
+  program2.command("uninstall").description(
+    "Reverse `optiflow install --statusline`: restore the prior settings.json from optiflow's backup (or remove the statusLine key if no backup exists). Never deletes .optiflow/ checkpoints/ledger/logs by default."
+  ).option("--force", "remove/restore over a statusLine that doesn't look like optiflow's own (you may have changed it since install)").option("--purge", "also delete .optiflow/ checkpoints (project-local) and ledger/logs/activity (user-global); config.json is kept").option("--settings-path <path>", "override the Claude Code settings.json path to restore/clean up (default: ~/.claude/settings.json)").action((opts) => {
+    const result = runUninstallCli({
+      force: Boolean(opts.force),
+      purge: Boolean(opts.purge),
+      settingsPath: opts.settingsPath
+    });
+    process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exitCode = result.exitCode;
+  });
+}
+
 // src/cli/index.ts
 var NOT_YET_IMPLEMENTED_COMMANDS = [
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
-  { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
-  { name: "install", phase: "8", description: "Install the optiflow plugin/hooks into Claude Code settings." },
-  { name: "uninstall", phase: "8", description: "Remove the optiflow plugin/hooks and restore prior settings." }
+  { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." }
 ];
 function buildProgram() {
   const program2 = new Command();
@@ -20125,6 +20533,8 @@ function buildProgram() {
   registerToonCommand(program2);
   registerReportCommand(program2);
   registerCheckpointCommand(program2);
+  registerInstallCommand(program2);
+  registerUninstallCommand(program2);
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program2.command(stub.name).description(`${stub.description} (not yet implemented \u2014 see Phase ${stub.phase} of the plan)`).action(() => {
       console.log(

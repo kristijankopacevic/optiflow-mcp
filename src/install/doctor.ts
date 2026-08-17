@@ -40,7 +40,7 @@ export function runDoctor(options: RunDoctorOptions = {}): DoctorReport {
       cwd: options.cwd,
     }),
     headroomOnPath: detectHeadroomOnPath(),
-    headroomWrap: detectHeadroomWrap({ cwd: options.cwd }),
+    headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth(),
   };
 }

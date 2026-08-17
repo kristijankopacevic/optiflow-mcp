@@ -7,13 +7,13 @@ import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerToonCommand } from "./commands/toon.js";
 import { registerReportCommand } from "./commands/report.js";
 import { registerCheckpointCommand } from "./commands/checkpoint.js";
+import { registerInstallCommand } from "./commands/install.js";
+import { registerUninstallCommand } from "./commands/uninstall.js";
 
 const NOT_YET_IMPLEMENTED_COMMANDS: Array<{ name: string; phase: string; description: string }> = [
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
   { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
-  { name: "install", phase: "8", description: "Install the optiflow plugin/hooks into Claude Code settings." },
-  { name: "uninstall", phase: "8", description: "Remove the optiflow plugin/hooks and restore prior settings." },
 ];
 
 export function buildProgram(): Command {
@@ -30,6 +30,8 @@ export function buildProgram(): Command {
   registerToonCommand(program);
   registerReportCommand(program);
   registerCheckpointCommand(program);
+  registerInstallCommand(program);
+  registerUninstallCommand(program);
 
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program

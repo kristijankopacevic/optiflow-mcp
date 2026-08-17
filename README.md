@@ -22,11 +22,48 @@ rationale, authority map, and locked decisions.
 
 ## Status
 
-Early scaffold. This repository is being built in phases; only the skeleton
-(directory layout, package/build config, plugin manifests, licensing) exists
-so far. `npm run build` will not fully succeed until later phases add the
-module source files it references — see `esbuild.config.mjs` for the current
-behavior (it skips missing entry points and warns rather than failing).
+All five modules, core/config, `optiflow doctor`, and the real
+`optiflow install`/`optiflow uninstall` installer are built and committed.
+`npm run build`, `npm test` (452 tests), and `npx tsc --noEmit` all pass.
+Remaining/known gaps: `optiflow init`, `optiflow chop`, and `optiflow
+statusline` are still stub subcommands (their real logic already exists as
+importable modules/hooks — see `src/chop/**`/`src/statusline/**` — just not
+yet wired to a direct CLI entry point of their own); the final `gh`-authenticated
+publish sequence (fork/push to a public repo) hasn't run yet. See the plan's
+build-order table and `docs/modules.md` for per-module detail.
+
+## Getting started
+
+This has only been exercised via a **local-path marketplace** so far (no
+`gh` auth needed for any of this):
+
+1. In a Claude Code session, add this repo as a marketplace and install the
+   plugin:
+   ```
+   /plugin marketplace add C:\path\to\optiflow-mcp
+   /plugin install optiflow@optiflow
+   ```
+2. Check your environment:
+   ```powershell
+   optiflow doctor
+   ```
+   Reports Node/npm versions, config resolution, the token-optimizer version
+   pin vs. the vendored submodule, headroom presence, a headroom-wrap
+   conflict warning (plan Risk R1), and `gh` presence/auth.
+3. Activate the statusline (optional, opt-in — installing the plugin alone
+   does not touch your settings.json):
+   ```powershell
+   optiflow install --statusline
+   ```
+   Backs up your `~/.claude/settings.json` before writing, writes
+   atomically, and refuses to overwrite a different existing statusline
+   without `--force`. `optiflow uninstall` reverses it. See
+   [`docs/statusline-manual-setup.md`](docs/statusline-manual-setup.md) for
+   details (including doing it by hand) and
+   [`docs/modules.md`](docs/modules.md) for the rest of the modules.
+
+See [`docs/`](docs/) for architecture, configuration, and per-module
+reference depth beyond this quick start.
 
 ## License
 

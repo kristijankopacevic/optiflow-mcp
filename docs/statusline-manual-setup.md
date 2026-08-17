@@ -1,12 +1,42 @@
-# Manual statusline setup (Phase 4 / Module 3)
+# Manual statusline setup
 
 Claude Code's `statusLine` setting is **single-valued and global** — it lives
 only in your own `~/.claude/settings.json` (user-level) or a project's
 `.claude/settings.json` (project-level), never in a plugin manifest. See
 `docs/modules.md`'s "Activating the statusline" section for how that was
 confirmed (U1). This means installing the optiflow plugin does **not**, by
-itself, turn on optiflow's statusline — you (or, later, `optiflow install`
-in Phase 8, with proper backup/restore) need to add one JSON key by hand.
+itself, turn on optiflow's statusline.
+
+## Preferred: `optiflow install --statusline`
+
+The now-preferred way to activate it is the real installer
+(`src/install/settings-writer.ts` + `optiflow install`, Phase 8):
+
+```powershell
+optiflow install --statusline
+```
+
+This backs up your existing `~/.claude/settings.json` to
+`settings.json.optiflow-backup-<timestamp>` before writing, writes
+atomically (temp file + rename — a crash mid-write can't corrupt your
+settings), and preserves every other key untouched. If a *different*
+statusLine is already configured, it refuses and tells you so rather than
+silently overwriting it; pass `--force` to back it up and overwrite anyway.
+Running it again when optiflow's statusline is already active is a no-op
+(no duplicate backups). `optiflow install` with neither `--statusline` nor
+`--no-statusline` touches nothing and just prints these manual instructions
+— see `optiflow install --help` for the full flag list (including
+`--settings-path` to target a project-level settings file instead of the
+user-global one).
+
+To reverse it, `optiflow uninstall` restores the settings.json backup taken
+at install time (or removes just the `statusLine` key if optiflow activated
+it on a machine that had no prior settings.json to back up).
+
+## Manual setup (still supported — no CLI required)
+
+The rest of this document covers doing it by hand with a text editor, for
+anyone who wants full control or is on a machine without this CLI installed.
 
 ## The key to add
 
@@ -44,15 +74,10 @@ absolute path.
 `statusLine` is a single key — there is no way to have two statuslines at
 once. If you already have a `statusLine` configured (for example, this very
 machine's `~/.claude/settings.json` already has one pointed at an unrelated
-script), adding optiflow's `statusLine` overwrites it; you lose the old one
-unless you back it up yourself first.
-
-**This phase deliberately does not touch your real settings.json at all** —
-no script here reads or writes it. Automating this safely (backup before
-write, restore on `optiflow uninstall`) is explicitly Phase 8
-(`src/install/**`)'s job per the plan, not this phase's. Until Phase 8
-ships, adding/removing this key is a manual, deliberate action you take with
-a text editor.
+script), adding optiflow's `statusLine` by hand this way overwrites it with
+no backup — you lose the old one unless you back it up yourself first.
+(`optiflow install --statusline`, above, backs this up for you
+automatically — that's the main reason it's now the preferred path.)
 
 ## Verifying it worked
 

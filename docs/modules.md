@@ -287,7 +287,7 @@ this module never reads or writes that key.
 config-loading code path; `io.ts`'s raw reader can then be deleted in favor
 of `loadConfig()`.
 
-### Activating the statusline (manual setup required this phase)
+### Activating the statusline
 
 **Finding (plan's open question U1)**: a Claude Code plugin **cannot** ship
 a working `statusLine` setting via its own plugin manifest or a
@@ -302,12 +302,14 @@ vendored `token-optimizer-mcp`/`headroom` submodules ship a `statusLine`
 plugin feature either (checked their `plugin.json`/marketplace manifests —
 no `statusLine` key exists in either).
 
-Consequently, this phase does **not** ship a `plugin/settings.json` (it
-would be inert) and does **not** write to the user's real
-`~/.claude/settings.json` (that's explicitly Phase 8/`install.ts`'s job,
-with backup/restore — see plan Risk: "`statusLine` is single-valued/global
-in Claude Code settings"). See `docs/statusline-manual-setup.md` for the
-exact snippet a user (or the future installer) needs to add by hand today.
+Consequently this repo does **not** ship a `plugin/settings.json` (it would
+be inert). Activating the statusline means writing one JSON key into your
+own `~/.claude/settings.json` (or a project's `.claude/settings.json`) —
+either via `optiflow install --statusline` (the preferred path: backs up,
+writes atomically, refuses to clobber a different existing statusLine
+without `--force`; reversible with `optiflow uninstall` — see
+`src/install/settings-writer.ts`), or by hand. See
+`docs/statusline-manual-setup.md` for both.
 
 ### Perf, measured on this machine (Windows 11, Node from `.local/share/claude`) — gate is PARTIALLY met, see caveat
 
