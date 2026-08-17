@@ -1,6 +1,9 @@
 // `optiflow install [--statusline|--no-statusline] [--force]
-// [--allow-headroom-wrap] [--settings-path <path>] [--home <dir>]` —
-// Phase 8's real installer, replacing the stub in `src/cli/index.ts`.
+// [--allow-headroom-wrap] [--settings-path <path>]` — Phase 8's real
+// installer, replacing the stub in `src/cli/index.ts`. (`runInstallCli`'s
+// `home` option also exists for programmatic/test callers — see
+// `RunInstallOptions` — but is deliberately not exposed as its own CLI
+// flag today; `--settings-path` is the flag a real user needs.)
 //
 // Mirrors `doctor.ts`/`toon.ts`'s pattern: this file is thin commander
 // wiring around a directly-testable core (`runInstallCli`) that never

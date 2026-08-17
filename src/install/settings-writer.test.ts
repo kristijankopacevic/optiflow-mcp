@@ -247,12 +247,32 @@ describe("findLatestBackup / restoreSettingsBackup", () => {
     expect(result.status).toBe("restored");
     if (result.status !== "restored") throw new Error("unreachable");
     expect(result.fromBackup).toBe(`${settingsPath()}.optiflow-backup-2`);
-    expect(result.preRestoreBackup).toBe(`${settingsPath()}.optiflow-backup-999`);
+    // Pre-restore snapshot lives in a DIFFERENT namespace (.optiflow-prerestore-,
+    // not .optiflow-backup-) so it can never be picked up by findLatestBackup
+    // and accidentally restored right back over itself on a second run.
+    expect(result.preRestoreBackup).toBe(`${settingsPath()}.optiflow-prerestore-999`);
 
     expect(readSettingsFile(settingsPath())).toEqual({ original: "newer" });
     expect(JSON.parse(readFileSync(result.preRestoreBackup as string, "utf8"))).toEqual({
       statusLine: "current-bad",
     });
+  });
+
+  it("a pre-restore snapshot is never itself picked up as the latest backup (regression: repeat restore must not reverse itself)", () => {
+    writeFileSync(settingsPath(), JSON.stringify({ statusLine: "active" }), "utf8");
+    writeFileSync(`${settingsPath()}.optiflow-backup-1`, JSON.stringify({ original: true }), "utf8");
+
+    const first = restoreSettingsBackup(settingsPath(), { now: new Date(50) });
+    expect(first.status).toBe("restored");
+
+    // A second restore call with nothing left in the real backup namespace
+    // (only the .optiflow-backup-1 file, already consumed logically — it's
+    // still on disk, findLatestBackup would find IT again, which is fine:
+    // the risk this test guards is the prerestore snapshot being found
+    // instead and looping back to the "active" state).
+    const latestAfterFirstRestore = findLatestBackup(settingsPath());
+    expect(latestAfterFirstRestore?.backupPath).toBe(`${settingsPath()}.optiflow-backup-1`);
+    expect(readFileSync(latestAfterFirstRestore!.backupPath, "utf8")).not.toContain("statusLine");
   });
 
   it("reports no-backup-found rather than throwing", () => {
@@ -333,6 +353,28 @@ describe("uninstallOptiflowStatusLine", () => {
     const result = uninstallOptiflowStatusLine(settingsPath(), { force: true });
     expect(result.status).toBe("key-removed");
     expect(readSettingsFile(settingsPath())).toEqual({});
+  });
+
+  it("regression: running uninstall twice does not re-activate the statusline", () => {
+    // Machine had a prior settings.json (so install creates a real,
+    // restorable backup) — the exact scenario that previously broke:
+    // uninstall's own pre-restore snapshot was landing in the same
+    // .optiflow-backup- namespace findLatestBackup scans, so a SECOND
+    // uninstall picked IT UP as "the latest backup" and restored optiflow's
+    // statusline right back.
+    writeFileSync(settingsPath(), JSON.stringify({ prior: "config" }), "utf8");
+    const install = setOptiflowStatusLine(settingsPath(), "/abs/plugin/scripts/statusline.mjs", {
+      now: new Date(1),
+    });
+    expect(install.status).toBe("written");
+
+    const firstUninstall = uninstallOptiflowStatusLine(settingsPath(), { now: new Date(2) });
+    expect(firstUninstall.status).toBe("restored-from-backup");
+    expect(readSettingsFile(settingsPath())).toEqual({ prior: "config" });
+
+    const secondUninstall = uninstallOptiflowStatusLine(settingsPath(), { now: new Date(3) });
+    expect(secondUninstall.status).toBe("no-statusline-to-remove");
+    expect(readSettingsFile(settingsPath())).toEqual({ prior: "config" });
   });
 });
 

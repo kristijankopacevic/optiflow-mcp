@@ -22,6 +22,16 @@ import {
 import { homedir } from "node:os";
 import path from "node:path";
 
+/** Namespace for real, restorable backups — the only one `findLatestBackup` matches. */
+const BACKUP_MARKER = ".optiflow-backup-";
+/**
+ * Namespace for `restoreSettingsBackup`'s own pre-restore snapshot.
+ * Deliberately distinct from `BACKUP_MARKER` — see `backupSettingsFile`'s
+ * doc comment for why conflating the two would make `uninstall` reverse
+ * itself when run twice.
+ */
+const PRERESTORE_MARKER = ".optiflow-prerestore-";
+
 // ---------------------------------------------------------------------------
 // Low-level read/backup/atomic-write primitives.
 // ---------------------------------------------------------------------------
@@ -68,16 +78,27 @@ export function readSettingsFile(settingsPath: string): Record<string, unknown> 
 }
 
 /**
- * Copies `settingsPath` to `<settingsPath>.optiflow-backup-<epochMs>` if the
- * file exists, returning the backup path (or `null` if there was nothing to
+ * Copies `settingsPath` to `<settingsPath><marker><epochMs>` if the file
+ * exists, returning the backup path (or `null` if there was nothing to
  * back up). Epoch milliseconds, not an ISO timestamp: `:` is illegal in a
  * Windows filename, and a fixed-width numeric suffix also sorts correctly
  * as a plain string (same reasoning `docs/modules.md` documents for why
  * checkpoint pruning orders by in-file timestamp rather than filename).
+ *
+ * `marker` defaults to the real, restorable backup namespace
+ * (`BACKUP_MARKER`) — `restoreSettingsBackup` passes `PRERESTORE_MARKER`
+ * instead for its own "snapshot of what we're about to overwrite" copy, so
+ * that snapshot can never be picked up by `findLatestBackup` (which only
+ * matches `BACKUP_MARKER`) and accidentally restored right back over itself
+ * on a second `uninstall` run.
  */
-export function backupSettingsFile(settingsPath: string, nowMs: number): string | null {
+export function backupSettingsFile(
+  settingsPath: string,
+  nowMs: number,
+  marker: string = BACKUP_MARKER
+): string | null {
   if (!existsSync(settingsPath)) return null;
-  const backupPath = `${settingsPath}.optiflow-backup-${nowMs}`;
+  const backupPath = `${settingsPath}${marker}${nowMs}`;
   copyFileSync(settingsPath, backupPath);
   return backupPath;
 }
@@ -177,8 +198,6 @@ export function removeSettingsKey(
 // Backup discovery / whole-file restore.
 // ---------------------------------------------------------------------------
 
-const BACKUP_MARKER = ".optiflow-backup-";
-
 export interface BackupInfo {
   backupPath: string;
   timestampMs: number;
@@ -243,7 +262,7 @@ export function restoreSettingsBackup(
     return { status: "no-backup-found", settingsPath };
   }
   const nowMs = (options.now ?? new Date()).getTime();
-  const preRestoreBackup = backupSettingsFile(settingsPath, nowMs);
+  const preRestoreBackup = backupSettingsFile(settingsPath, nowMs, PRERESTORE_MARKER);
   const contents = readFileSync(latest.backupPath, "utf8");
   atomicWriteFile(settingsPath, contents);
   return {
@@ -359,6 +378,16 @@ export type UninstallOptiflowStatusLineResult =
  * reconfigured it after install), this refuses to touch it — restoring an
  * old backup, or removing the key, would both silently discard their newer
  * choice — unless `options.force` is set.
+ *
+ * The `existing === undefined` ("nothing currently set") check deliberately
+ * runs *before* consulting any backup file: a real, restorable backup from
+ * a prior install is never deleted after a successful restore (it's still
+ * legitimately "the most recent backup" if something goes looking again),
+ * so without this ordering a second `uninstall` call — once there's no
+ * longer a statusLine key to reverse — would restore from that same old
+ * backup all over again instead of correctly reporting "nothing to do".
+ * This is what makes repeated `uninstall` calls converge/idempotent rather
+ * than looping.
  */
 export function uninstallOptiflowStatusLine(
   settingsPath: string,
@@ -370,9 +399,13 @@ export function uninstallOptiflowStatusLine(
 
   const data = readSettingsFile(settingsPath);
   const existing = data.statusLine;
-  const looksLikeOurs = existing !== undefined && isOptiflowStatusLineValue(existing);
 
-  if (existing !== undefined && !looksLikeOurs && !options.force) {
+  if (existing === undefined) {
+    return { status: "no-statusline-to-remove", settingsPath };
+  }
+
+  const looksLikeOurs = isOptiflowStatusLineValue(existing);
+  if (!looksLikeOurs && !options.force) {
     return { status: "refused-foreign-statusline", settingsPath, existing };
   }
 
@@ -387,10 +420,6 @@ export function uninstallOptiflowStatusLine(
         preRestoreBackup: restored.preRestoreBackup,
       };
     }
-  }
-
-  if (existing === undefined) {
-    return { status: "no-statusline-to-remove", settingsPath };
   }
 
   const removed = removeSettingsKey(settingsPath, "statusLine", { now: options.now });

@@ -91,6 +91,27 @@ describe("runUninstallCli", () => {
     });
   });
 
+  it("regression: running `optiflow uninstall` twice does not re-activate the statusline", () => {
+    writeExistingSettings({ prior: "config" });
+    const install = runInstallCli({
+      cwd,
+      home,
+      settingsPath: settingsPath(),
+      statusline: true,
+      scriptPath: "/abs/plugin/scripts/statusline.mjs",
+    });
+    expect(install.exitCode).toBe(0);
+
+    const first = runUninstallCli({ cwd, home, settingsPath: settingsPath() });
+    expect(first.exitCode).toBe(0);
+    expect(readSettingsFile(settingsPath())).toEqual({ prior: "config" });
+
+    const second = runUninstallCli({ cwd, home, settingsPath: settingsPath() });
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toMatch(/nothing to do/);
+    expect(readSettingsFile(settingsPath())).toEqual({ prior: "config" });
+  });
+
   it("proceeds with --force over a foreign statusLine", () => {
     writeExistingSettings({ statusLine: { type: "command", command: "users-new-script.mjs" } });
     const result = runUninstallCli({ cwd, home, settingsPath: settingsPath(), force: true });

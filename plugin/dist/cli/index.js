@@ -20130,6 +20130,8 @@ import {
 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
 import path9 from "node:path";
+var BACKUP_MARKER = ".optiflow-backup-";
+var PRERESTORE_MARKER = ".optiflow-prerestore-";
 function resolveDefaultSettingsPath(home = homedir5()) {
   return path9.join(home, ".claude", "settings.json");
 }
@@ -20152,9 +20154,9 @@ function readSettingsFile(settingsPath) {
   }
   return parsed;
 }
-function backupSettingsFile(settingsPath, nowMs) {
+function backupSettingsFile(settingsPath, nowMs, marker = BACKUP_MARKER) {
   if (!existsSync7(settingsPath)) return null;
-  const backupPath = `${settingsPath}.optiflow-backup-${nowMs}`;
+  const backupPath = `${settingsPath}${marker}${nowMs}`;
   copyFileSync(settingsPath, backupPath);
   return backupPath;
 }
@@ -20197,7 +20199,6 @@ function removeSettingsKey(settingsPath, key, options = {}) {
 `);
   return { removed: true, backupPath };
 }
-var BACKUP_MARKER = ".optiflow-backup-";
 function findLatestBackup(settingsPath) {
   const dir = path9.dirname(settingsPath);
   const base = path9.basename(settingsPath);
@@ -20228,7 +20229,7 @@ function restoreSettingsBackup(settingsPath, options = {}) {
     return { status: "no-backup-found", settingsPath };
   }
   const nowMs = (options.now ?? /* @__PURE__ */ new Date()).getTime();
-  const preRestoreBackup = backupSettingsFile(settingsPath, nowMs);
+  const preRestoreBackup = backupSettingsFile(settingsPath, nowMs, PRERESTORE_MARKER);
   const contents = readFileSync6(latest.backupPath, "utf8");
   atomicWriteFile(settingsPath, contents);
   return {
@@ -20273,8 +20274,11 @@ function uninstallOptiflowStatusLine(settingsPath, options = {}) {
   }
   const data = readSettingsFile(settingsPath);
   const existing = data.statusLine;
-  const looksLikeOurs = existing !== void 0 && isOptiflowStatusLineValue(existing);
-  if (existing !== void 0 && !looksLikeOurs && !options.force) {
+  if (existing === void 0) {
+    return { status: "no-statusline-to-remove", settingsPath };
+  }
+  const looksLikeOurs = isOptiflowStatusLineValue(existing);
+  if (!looksLikeOurs && !options.force) {
     return { status: "refused-foreign-statusline", settingsPath, existing };
   }
   const latest = findLatestBackup(settingsPath);
@@ -20288,9 +20292,6 @@ function uninstallOptiflowStatusLine(settingsPath, options = {}) {
         preRestoreBackup: restored.preRestoreBackup
       };
     }
-  }
-  if (existing === void 0) {
-    return { status: "no-statusline-to-remove", settingsPath };
   }
   const removed = removeSettingsKey(settingsPath, "statusLine", { now: options.now });
   return { status: "key-removed", settingsPath, backupPath: removed.backupPath };
@@ -20424,18 +20425,22 @@ function registerInstallCommand(program2) {
 }
 
 // src/cli/commands/uninstall.ts
-import { rmSync } from "node:fs";
+import { existsSync as existsSync9, rmSync } from "node:fs";
 import path11 from "node:path";
 function purgeOptiflowData(options) {
   const removed = [];
   const projectLocalDir = getProjectLocalDir(findProjectRoot(options.cwd ?? process.cwd()));
-  rmSync(projectLocalDir, { recursive: true, force: true });
-  removed.push(projectLocalDir);
+  if (existsSync9(projectLocalDir)) {
+    rmSync(projectLocalDir, { recursive: true, force: true });
+    removed.push(projectLocalDir);
+  }
   const home = getOptiflowHome();
   for (const relative of ["ledger.jsonl", "logs", "activity.json"]) {
     const target = path11.join(home, relative);
-    rmSync(target, { recursive: true, force: true });
-    removed.push(target);
+    if (existsSync9(target)) {
+      rmSync(target, { recursive: true, force: true });
+      removed.push(target);
+    }
   }
   return removed;
 }

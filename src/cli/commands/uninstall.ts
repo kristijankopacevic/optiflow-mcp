@@ -1,13 +1,16 @@
-// `optiflow uninstall [--force] [--purge] [--settings-path <path>] [--home
-// <dir>]` — reverses `optiflow install --statusline` (see
+// `optiflow uninstall [--force] [--purge] [--settings-path <path>]` —
+// reverses `optiflow install --statusline` (see
 // `install.ts`/`settings-writer.ts`). Never deletes `.optiflow/`
 // checkpoints/ledger/logs by default (user data); `--purge` opts in.
+// (`runUninstallCli`'s `home`/`cwd` options also exist for
+// programmatic/test callers — see `RunUninstallOptions` — but are
+// deliberately not exposed as their own CLI flags today.)
 //
 // Mirrors install.ts's split: thin commander wiring around a directly
 // testable core (`runUninstallCli`).
 
 import type { Command } from "commander";
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { findProjectRoot, getOptiflowHome, getProjectLocalDir } from "../../core/paths.js";
 import {
@@ -38,14 +41,18 @@ function purgeOptiflowData(options: { cwd?: string }): string[] {
   const removed: string[] = [];
 
   const projectLocalDir = getProjectLocalDir(findProjectRoot(options.cwd ?? process.cwd()));
-  rmSync(projectLocalDir, { recursive: true, force: true });
-  removed.push(projectLocalDir);
+  if (existsSync(projectLocalDir)) {
+    rmSync(projectLocalDir, { recursive: true, force: true });
+    removed.push(projectLocalDir);
+  }
 
   const home = getOptiflowHome();
   for (const relative of ["ledger.jsonl", "logs", "activity.json"]) {
     const target = path.join(home, relative);
-    rmSync(target, { recursive: true, force: true });
-    removed.push(target);
+    if (existsSync(target)) {
+      rmSync(target, { recursive: true, force: true });
+      removed.push(target);
+    }
   }
   // Deliberately NOT removing `<home>/config.json` — that's the user's own
   // optiflow settings, not ephemeral checkpoint/ledger/log data, and
