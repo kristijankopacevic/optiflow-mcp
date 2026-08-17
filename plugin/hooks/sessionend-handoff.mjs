@@ -4,7 +4,7 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/chop/posttooluse-mcp.ts
+// src/handoff/sessionend-hook.ts
 import { pathToFileURL } from "node:url";
 
 // src/core/hook-io.ts
@@ -97,14 +97,6 @@ function toCappedJson(value, capChars = DEFAULT_OUTPUT_CAP_CHARS) {
 }
 function writeHookOutput(output, capChars = DEFAULT_OUTPUT_CAP_CHARS, stdout = process.stdout) {
   stdout.write(toCappedJson(output, capChars));
-}
-function updateMCPOutput(hookEventName, output) {
-  return {
-    hookSpecificOutput: {
-      hookEventName,
-      updatedMCPToolOutput: output
-    }
-  };
 }
 
 // src/config/load.ts
@@ -933,10 +925,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path3) {
-  if (!path3)
+function getElementAtPath(obj, path4) {
+  if (!path4)
     return obj;
-  return path3.reduce((acc, key) => acc?.[key], obj);
+  return path4.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -1345,11 +1337,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path3, issues) {
+function prefixIssues(path4, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path3);
+    iss.path.unshift(path4);
     return iss;
   });
 }
@@ -1496,16 +1488,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path3 = []) => {
+  const processError = (error52, path4 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
       } else {
-        const fullpath = [...path3, ...issue2.path];
+        const fullpath = [...path4, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -1532,17 +1524,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path3 = []) => {
+  const processError = (error52, path4 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
       } else {
-        const fullpath = [...path3, ...issue2.path];
+        const fullpath = [...path4, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -1574,8 +1566,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path3 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path3) {
+  const path4 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path4) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -14267,13 +14259,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path3 = ref.slice(1).split("/").filter(Boolean);
-  if (path3.length === 0) {
+  const path4 = ref.slice(1).split("/").filter(Boolean);
+  if (path4.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path3[0] === defsKey) {
-    const key = path3[1];
+  if (path4[0] === defsKey) {
+    const key = path4[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -14838,869 +14830,210 @@ ${issues}
   };
 }
 
-// src/toon/detect.ts
-function isPlainObject2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isUniformObjectArray(arr) {
-  if (arr.length === 0 || !isPlainObject2(arr[0])) return false;
-  const firstKeys = Object.keys(arr[0]).sort().join(",");
-  return arr.every((item) => isPlainObject2(item) && Object.keys(item).sort().join(",") === firstKeys);
-}
-var EMPTY_UNIFORMITY = {
-  isArray: false,
-  rowCount: 0,
-  keyOverlapRatio: 0,
-  strictlyUniform: false
-};
-function scoreJsonUniformity(value) {
-  if (!Array.isArray(value)) return EMPTY_UNIFORMITY;
-  if (value.length === 0) return { isArray: true, rowCount: 0, keyOverlapRatio: 0, strictlyUniform: false };
-  const signatureCounts = /* @__PURE__ */ new Map();
-  let plainObjectCount = 0;
-  for (const item of value) {
-    if (!isPlainObject2(item)) continue;
-    plainObjectCount++;
-    const signature = Object.keys(item).sort().join(",");
-    signatureCounts.set(signature, (signatureCounts.get(signature) ?? 0) + 1);
+// src/handoff/checkpoint.ts
+import { existsSync as existsSync3, mkdirSync, readFileSync as readFileSync2, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import path3 from "node:path";
+
+// src/chop/win-spawn.ts
+import { spawnSync } from "node:child_process";
+function quoteWindowsArg(arg) {
+  if (arg === "") return '""';
+  if (!/[ \t"\v\n]/.test(arg)) return arg;
+  let result = '"';
+  for (let i = 0; i < arg.length; ) {
+    let backslashes = 0;
+    while (i < arg.length && arg[i] === "\\") {
+      backslashes++;
+      i++;
+    }
+    if (i === arg.length) {
+      result += "\\".repeat(backslashes * 2);
+      break;
+    } else if (arg[i] === '"') {
+      result += "\\".repeat(backslashes * 2 + 1) + '"';
+      i++;
+    } else {
+      result += "\\".repeat(backslashes) + arg[i];
+      i++;
+    }
   }
-  let mode = 0;
-  for (const count of signatureCounts.values()) mode = Math.max(mode, count);
+  result += '"';
+  return result;
+}
+function toStrings(buf) {
+  if (!buf) return "";
+  return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
+}
+var WINDOWS_SHELL_FALLBACK_CODES = /* @__PURE__ */ new Set(["ENOENT", "EINVAL", "UNKNOWN"]);
+function runCommand(binary, args) {
+  const direct = spawnSync(binary, args, { shell: false });
+  const directFailedNeedsShell = process.platform === "win32" && direct.error !== void 0 && "code" in direct.error && WINDOWS_SHELL_FALLBACK_CODES.has(String(direct.error.code));
+  if (!directFailedNeedsShell) {
+    if (direct.error && direct.status === null && direct.signal === null) {
+      return {
+        status: null,
+        signal: null,
+        stdout: "",
+        stderr: "",
+        spawnError: direct.error.message
+      };
+    }
+    return {
+      status: direct.status,
+      signal: direct.signal,
+      stdout: toStrings(direct.stdout),
+      stderr: toStrings(direct.stderr)
+    };
+  }
+  const commandLine = [binary, ...args.map(quoteWindowsArg)].join(" ");
+  const viaShell = spawnSync(commandLine, { shell: true });
+  if (viaShell.error && viaShell.status === null && viaShell.signal === null) {
+    return {
+      status: null,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      spawnError: viaShell.error.message
+    };
+  }
   return {
-    isArray: true,
-    rowCount: value.length,
-    keyOverlapRatio: plainObjectCount === 0 ? 0 : mode / value.length,
-    strictlyUniform: isUniformObjectArray(value)
+    status: viaShell.status,
+    signal: viaShell.signal,
+    stdout: toStrings(viaShell.stdout),
+    stderr: toStrings(viaShell.stderr)
   };
 }
-function tryParseJson(trimmed) {
-  try {
-    return { ok: true, value: JSON.parse(trimmed) };
-  } catch {
-    return { ok: false };
-  }
-}
-function naiveCsvFieldCount(line) {
-  return line.split(",").length;
-}
-function looksLikeCsv(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return false;
-  const sample = lines.slice(0, Math.min(lines.length, 20));
-  const firstCount = naiveCsvFieldCount(sample[0]);
-  if (firstCount < 2) return false;
-  return sample.every((l) => naiveCsvFieldCount(l) === firstCount);
-}
-var YAML_KEY_LINE = /^[\s-]*([a-z][a-z0-9_-]*):(\s|$)/;
-function looksLikeYaml(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0 && !l.trim().startsWith("#"));
-  if (lines.length === 0) return false;
-  const distinctKeys = /* @__PURE__ */ new Set();
-  let matching = 0;
-  for (const line of lines) {
-    const m = YAML_KEY_LINE.exec(line);
-    if (m) {
-      matching++;
-      distinctKeys.add(m[1]);
-    }
-  }
-  return matching / lines.length >= 0.6 && distinctKeys.size >= 2;
-}
-function detectFormat(text) {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return { format: "text" };
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    const parsed = tryParseJson(trimmed);
-    if (parsed.ok) {
-      return { format: "json", json: { value: parsed.value, uniformity: scoreJsonUniformity(parsed.value) } };
-    }
-  }
-  if (looksLikeCsv(trimmed)) return { format: "csv" };
-  if (looksLikeYaml(trimmed)) return { format: "yaml" };
-  return { format: "text" };
-}
 
-// node_modules/@toon-format/toon/dist/index.mjs
-var NULL_LITERAL = "null";
-var DELIMITERS = {
-  comma: ",",
-  tab: "	",
-  pipe: "|"
-};
-var DEFAULT_DELIMITER = DELIMITERS.comma;
-function escapeString(value) {
-  return value.replace(/\\/g, `\\\\`).replace(/"/g, `\\"`).replace(/\n/g, `\\n`).replace(/\r/g, `\\r`).replace(/\t/g, `\\t`).replace(/[\u0000-\u001F]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+// src/handoff/checkpoint.ts
+function getGitInfo(cwd) {
+  const branchResult = runCommand("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]);
+  const headResult = runCommand("git", ["-C", cwd, "rev-parse", "HEAD"]);
+  const branch = branchResult.status === 0 && !branchResult.spawnError ? branchResult.stdout.trim() || null : null;
+  const head = headResult.status === 0 && !headResult.spawnError ? headResult.stdout.trim() || null : null;
+  return { branch, head };
 }
-function isBooleanOrNullLiteral(token) {
-  return token === "true" || token === "false" || token === "null";
+function resolveTokenOptimizerStateRef(sessionId, options = {}) {
+  const home = options.tokenOptimizerHome ?? homedir2();
+  const file2 = path3.join(home, ".token-optimizer", "sessions.json.gz");
+  return { file: file2, sessionId, exists: existsSync3(file2) };
 }
-function setOwnProperty(target, key, value) {
-  if (key === "__proto__") {
-    Object.defineProperty(target, key, {
-      value,
-      enumerable: true,
-      writable: true,
-      configurable: true
-    });
-    return;
-  }
-  target[key] = value;
-}
-var COMMENT_LINE_PATTERN = new RegExp(`(?:^\uFEFF?|\\n) *#`);
-var RawString = class {
-  constructor(value) {
-    if (COMMENT_LINE_PATTERN.test(value)) throw new TypeError(`Raw string must not contain a line starting with "#": ${JSON.stringify(value)}`);
-    this.value = value;
-  }
-};
-function isRawString(value) {
-  return value instanceof RawString;
-}
-var SURROGATE_PATTERN = /[\uD800-\uDFFF]/;
-function normalizeValue(value) {
-  if (value === null) return null;
-  if (isRawString(value)) return value;
-  if (typeof value === "object" && value !== null && "toJSON" in value && typeof value.toJSON === "function") {
-    const next = value.toJSON();
-    if (next !== value) return normalizeValue(next);
-  }
-  if (typeof value === "string") {
-    assertNoLoneSurrogate(value, "string value");
-    return value;
-  }
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") {
-    if (Object.is(value, -0)) return 0;
-    if (!Number.isFinite(value)) return null;
-    return value;
-  }
-  if (typeof value === "bigint") {
-    if (value >= Number.MIN_SAFE_INTEGER && value <= Number.MAX_SAFE_INTEGER) return Number(value);
-    return value.toString();
-  }
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(normalizeValue);
-  if (value instanceof Set) return Array.from(value).map(normalizeValue);
-  if (value instanceof Map) return Object.fromEntries(Array.from(value, ([k, v]) => [String(k), normalizeValue(v)]));
-  if (isPlainObject3(value)) {
-    const encodedValues = {};
-    for (const key in value) if (Object.hasOwn(value, key)) {
-      assertNoLoneSurrogate(key, "object key");
-      setOwnProperty(encodedValues, key, normalizeValue(value[key]));
-    }
-    return encodedValues;
+function normalizeModel(model) {
+  if (typeof model === "string") return model.trim() || null;
+  if (model && typeof model === "object") {
+    const name = model.display_name ?? model.id ?? model.slug;
+    return typeof name === "string" && name.trim() ? name : null;
   }
   return null;
 }
-function assertNoLoneSurrogate(value, context) {
-  if (!SURROGATE_PATTERN.test(value)) return;
-  for (let index = 0; index < value.length; index++) {
-    const code = value.charCodeAt(index);
-    if (code < 55296 || code > 57343) continue;
-    const isHighSurrogate = code <= 56319;
-    const next = value.charCodeAt(index + 1);
-    if (isHighSurrogate && next >= 56320 && next <= 57343) {
-      index++;
-      continue;
-    }
-    throw new TypeError(`Cannot encode ${context} containing an unpaired surrogate U+${code.toString(16).toUpperCase()} at index ${index}`);
-  }
-}
-function isJsonPrimitive(value) {
-  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-}
-function isEncodablePrimitive(value) {
-  return isJsonPrimitive(value) || isRawString(value);
-}
-function isJsonArray(value) {
-  return Array.isArray(value);
-}
-function isJsonObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) && !isRawString(value);
-}
-function isEmptyObject(value) {
-  return Object.keys(value).length === 0;
-}
-function isPlainObject3(value) {
-  if (value === null || typeof value !== "object") return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === null || prototype === Object.prototype;
-}
-function isArrayOfPrimitives(value) {
-  return value.length === 0 || value.every((item) => isEncodablePrimitive(item));
-}
-function isArrayOfArrays(value) {
-  return value.length === 0 || value.every((item) => isJsonArray(item));
-}
-function isArrayOfObjects(value) {
-  return value.length === 0 || value.every((item) => isJsonObject(item));
-}
-var NUMERIC_LIKE_PATTERN = /^[+-]?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i;
-function assertValidDelimiter(delimiter) {
-  if (!Object.values(DELIMITERS).includes(delimiter)) throw new TypeError(`Invalid delimiter ${JSON.stringify(delimiter)}. Valid delimiters are: comma (,), tab (\\t), pipe (|)`);
-}
-function isValidUnquotedKey(key) {
-  return /^[A-Z_][\w.]*$/i.test(key);
-}
-function isSafeUnquoted(value, delimiter = DEFAULT_DELIMITER) {
-  if (!value) return false;
-  if (/^[ \t]|[ \t]$/.test(value)) return false;
-  if (isBooleanOrNullLiteral(value) || isNumericLike(value)) return false;
-  if (value.includes(":")) return false;
-  if (value.includes('"') || value.includes("\\")) return false;
-  if (/[[\]{}]/.test(value)) return false;
-  if (/[\u0000-\u001F]/.test(value)) return false;
-  if (value.includes(delimiter)) return false;
-  if (value.startsWith("-")) return false;
-  if (value.startsWith("#")) return false;
-  return true;
-}
-function isNumericLike(value) {
-  return NUMERIC_LIKE_PATTERN.test(value);
-}
-function encodePrimitive(value, delimiter) {
-  if (isRawString(value)) return value.value;
-  if (value === null) return NULL_LITERAL;
-  if (typeof value === "boolean") return String(value);
-  if (typeof value === "number") return String(value);
-  return encodeStringLiteral(value, delimiter);
-}
-function encodeStringLiteral(value, delimiter = DEFAULT_DELIMITER) {
-  if (isSafeUnquoted(value, delimiter)) return value;
-  return `"${escapeString(value)}"`;
-}
-function encodeKey(key) {
-  if (isValidUnquotedKey(key)) return key;
-  return `"${escapeString(key)}"`;
-}
-function encodeAndJoinPrimitives(values, delimiter = DEFAULT_DELIMITER) {
-  return values.map((v) => encodePrimitive(v, delimiter)).join(delimiter);
-}
-function formatHeader(length, options) {
-  const key = options?.key;
-  const fields = options?.fields;
-  const delimiter = options?.delimiter ?? ",";
-  let header = "";
-  if (key != null) header += encodeKey(key);
-  header += `[${length}${options?.keyed ? ":" : ""}${delimiter !== DEFAULT_DELIMITER ? delimiter : ""}]`;
-  if (fields) header += `{${formatFieldSegment(fields, delimiter)}}`;
-  header += ":";
-  return header;
-}
-function formatFieldSegment(fields, delimiter) {
-  return fields.map((field) => encodeKey(field.name) + (field.children ? `{${formatFieldSegment(field.children, delimiter)}}` : "")).join(delimiter);
-}
-function extractTabularFields(rows) {
-  if (rows.length === 0) return;
-  const firstKeys = Object.keys(rows[0]);
-  if (firstKeys.length === 0) return;
-  for (const row of rows) {
-    if (Object.keys(row).length !== firstKeys.length) return;
-    for (const key of firstKeys) if (!Object.hasOwn(row, key)) return;
-  }
-  const fieldNodes = [];
-  for (const key of firstKeys) {
-    const fieldNode = classifyColumn(key, rows.map((row) => row[key]));
-    if (!fieldNode) return;
-    fieldNodes.push(fieldNode);
-  }
-  return fieldNodes;
-}
-function extractKeyedTabularFields(value) {
-  const entryValues = Object.values(value);
-  if (entryValues.length < 2) return;
-  if (!entryValues.every((entryValue) => isJsonObject(entryValue) && !isEmptyObject(entryValue))) return;
-  return extractTabularFields(entryValues);
-}
-function collectRowLeaves(row, fields) {
-  const leaves = [];
-  collectLeafValues(row, fields, leaves);
-  return leaves;
-}
-function classifyColumn(name, values) {
-  if (values.every((value) => isEncodablePrimitive(value))) return { name };
-  if (!values.every((value) => isJsonObject(value) && !isEmptyObject(value))) return;
-  const children = extractTabularFields(values);
-  if (!children) return;
+function buildCheckpoint(input, options = {}) {
+  const timestamp = (options.now ?? /* @__PURE__ */ new Date()).getTime();
+  const gitInfo = options.gitInfo ?? getGitInfo(input.cwd);
   return {
-    name,
-    children
+    sessionId: input.sessionId,
+    timestamp,
+    cwd: input.cwd,
+    gitBranch: gitInfo.branch,
+    gitHead: gitInfo.head,
+    model: normalizeModel(input.model),
+    openFiles: input.openFiles ?? [],
+    decisions: input.decisions ?? [],
+    nextSteps: input.nextSteps ?? [],
+    tokenOptimizerStateRef: resolveTokenOptimizerStateRef(input.sessionId, {
+      tokenOptimizerHome: options.tokenOptimizerHome
+    })
   };
 }
-function collectLeafValues(row, fields, leaves) {
-  for (const field of fields) {
-    const value = row[field.name];
-    if (field.children) collectLeafValues(value, field.children, leaves);
-    else leaves.push(value);
-  }
+function checkpointId(checkpoint) {
+  const safe = String(checkpoint.sessionId || "unknown").replace(/[^A-Za-z0-9_-]/g, "");
+  return `${safe || "unknown"}-${checkpoint.timestamp}`;
 }
-function* encodeJsonValue(value, options, depth) {
-  if (isEncodablePrimitive(value)) {
-    const encodedPrimitive = encodePrimitive(value, options.delimiter);
-    if (encodedPrimitive !== "") yield encodedPrimitive;
-    return;
-  }
-  if (isJsonArray(value)) yield* encodeArrayLines(void 0, value, depth, options);
-  else if (isJsonObject(value)) {
-    const keyedFields = extractKeyedTabularFields(value);
-    if (keyedFields) {
-      yield* encodeKeyedObjectLines(void 0, value, keyedFields, depth, options);
-      return;
-    }
-    yield* encodeObjectLines(value, depth, options);
-  }
+function resolveCheckpointDir(options = {}) {
+  const checkpointDir = options.checkpointDirOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.checkpointDir;
+  if (path3.isAbsolute(checkpointDir)) return checkpointDir;
+  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  return path3.join(projectRoot, checkpointDir);
 }
-function* encodeObjectLines(value, depth, options) {
-  for (const [key, val] of Object.entries(value)) yield* encodeKeyValuePairLines(key, val, depth, options);
+function writeCheckpoint(checkpoint, options = {}) {
+  const dir = resolveCheckpointDir(options);
+  mkdirSync(dir, { recursive: true });
+  const id = checkpointId(checkpoint);
+  const filePath = path3.join(dir, `${id}.json`);
+  writeFileSync(filePath, JSON.stringify(checkpoint, null, 2), "utf8");
+  return { filePath, id };
 }
-function* encodeKeyValuePairLines(key, value, depth, options) {
-  const encodedKey = encodeKey(key);
-  if (isEncodablePrimitive(value)) yield indentedLine(depth, `${encodedKey}: ${encodePrimitive(value, options.delimiter)}`, options.indentSize);
-  else if (isJsonArray(value)) yield* encodeArrayLines(key, value, depth, options);
-  else if (isJsonObject(value)) {
-    const keyedFields = extractKeyedTabularFields(value);
-    if (keyedFields) {
-      yield* encodeKeyedObjectLines(key, value, keyedFields, depth, options);
-      return;
-    }
-    yield indentedLine(depth, `${encodedKey}:`, options.indentSize);
-    if (!isEmptyObject(value)) yield* encodeObjectLines(value, depth + 1, options);
-  }
-}
-function* encodeKeyedObjectLines(key, value, fields, depth, options) {
-  const entries = Object.entries(value);
-  yield indentedLine(depth, formatHeader(entries.length, {
-    key,
-    fields,
-    delimiter: options.delimiter,
-    keyed: true
-  }), options.indentSize);
-  yield* encodeKeyedEntryRowsLines(entries, fields, depth + 1, options);
-}
-function* encodeKeyedEntryRowsLines(entries, fields, depth, options) {
-  for (const [entryKey, entryValue] of entries) {
-    const leaves = collectRowLeaves(entryValue, fields);
-    yield indentedLine(depth, `${encodeKey(entryKey)}: ${encodeAndJoinPrimitives(leaves, options.delimiter)}`, options.indentSize);
-  }
-}
-function* encodeArrayLines(key, value, depth, options) {
-  if (value.length === 0) {
-    yield indentedLine(depth, key != null ? `${encodeKey(key)}: []` : "[]", options.indentSize);
-    return;
-  }
-  if (isArrayOfPrimitives(value)) {
-    yield indentedLine(depth, encodeInlineArrayLine(value, options.delimiter, key), options.indentSize);
-    return;
-  }
-  if (isArrayOfArrays(value)) {
-    if (value.every((arr) => isArrayOfPrimitives(arr))) {
-      yield* encodeArrayOfArraysAsListItemsLines(key, value, depth, options);
-      return;
-    }
-  }
-  if (isArrayOfObjects(value)) {
-    const fields = extractTabularFields(value);
-    if (fields) yield* encodeArrayOfObjectsAsTabularLines(key, value, fields, depth, options);
-    else yield* encodeMixedArrayAsListItemsLines(key, value, depth, options);
-    return;
-  }
-  yield* encodeMixedArrayAsListItemsLines(key, value, depth, options);
-}
-function* encodeArrayOfArraysAsListItemsLines(prefix, values, depth, options) {
-  yield indentedLine(depth, formatHeader(values.length, {
-    key: prefix,
-    delimiter: options.delimiter
-  }), options.indentSize);
-  for (const arr of values) if (isArrayOfPrimitives(arr)) {
-    const arrayLine = encodeInlineArrayLine(arr, options.delimiter);
-    yield indentedListItem(depth + 1, arrayLine, options.indentSize);
-  }
-}
-function encodeInlineArrayLine(values, delimiter, prefix) {
-  const header = formatHeader(values.length, {
-    key: prefix,
-    delimiter
-  });
-  const joinedValue = encodeAndJoinPrimitives(values, delimiter);
-  if (values.length === 0) return header;
-  return `${header} ${joinedValue}`;
-}
-function* encodeArrayOfObjectsAsTabularLines(prefix, rows, fields, depth, options) {
-  yield indentedLine(depth, formatHeader(rows.length, {
-    key: prefix,
-    fields,
-    delimiter: options.delimiter
-  }), options.indentSize);
-  yield* writeTabularRowsLines(rows, fields, depth + 1, options);
-}
-function* writeTabularRowsLines(rows, fields, depth, options) {
-  for (const row of rows) yield indentedLine(depth, encodeAndJoinPrimitives(collectRowLeaves(row, fields), options.delimiter), options.indentSize);
-}
-function* encodeMixedArrayAsListItemsLines(prefix, items, depth, options) {
-  yield indentedLine(depth, formatHeader(items.length, {
-    key: prefix,
-    delimiter: options.delimiter
-  }), options.indentSize);
-  for (const item of items) yield* encodeListItemValueLines(item, depth + 1, options);
-}
-function* encodeObjectAsListItemLines(obj, depth, options) {
-  if (isEmptyObject(obj)) {
-    yield indentedLine(depth, "-", options.indentSize);
-    return;
-  }
-  const entries = Object.entries(obj);
-  const [firstKey, firstValue] = entries[0];
-  const restEntries = entries.slice(1);
-  if (isJsonArray(firstValue) && isArrayOfObjects(firstValue)) {
-    const fields = extractTabularFields(firstValue);
-    if (fields) {
-      yield indentedListItem(depth, formatHeader(firstValue.length, {
-        key: firstKey,
-        fields,
-        delimiter: options.delimiter
-      }), options.indentSize);
-      yield* writeTabularRowsLines(firstValue, fields, depth + 2, options);
-      if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
-      return;
-    }
-  }
-  if (isJsonObject(firstValue)) {
-    const keyedFields = extractKeyedTabularFields(firstValue);
-    if (keyedFields) {
-      const keyedEntries = Object.entries(firstValue);
-      yield indentedListItem(depth, formatHeader(keyedEntries.length, {
-        key: firstKey,
-        fields: keyedFields,
-        delimiter: options.delimiter,
-        keyed: true
-      }), options.indentSize);
-      yield* encodeKeyedEntryRowsLines(keyedEntries, keyedFields, depth + 2, options);
-      if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
-      return;
-    }
-  }
-  const encodedKey = encodeKey(firstKey);
-  if (isEncodablePrimitive(firstValue)) yield indentedListItem(depth, `${encodedKey}: ${encodePrimitive(firstValue, options.delimiter)}`, options.indentSize);
-  else if (isJsonArray(firstValue)) if (firstValue.length === 0) yield indentedListItem(depth, `${encodedKey}: []`, options.indentSize);
-  else if (isArrayOfPrimitives(firstValue)) yield indentedListItem(depth, `${encodedKey}${encodeInlineArrayLine(firstValue, options.delimiter)}`, options.indentSize);
-  else {
-    yield indentedListItem(depth, `${encodedKey}${formatHeader(firstValue.length, { delimiter: options.delimiter })}`, options.indentSize);
-    for (const item of firstValue) yield* encodeListItemValueLines(item, depth + 2, options);
-  }
-  else if (isJsonObject(firstValue)) {
-    yield indentedListItem(depth, `${encodedKey}:`, options.indentSize);
-    if (!isEmptyObject(firstValue)) yield* encodeObjectLines(firstValue, depth + 2, options);
-  }
-  if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
-}
-function* encodeListItemValueLines(value, depth, options) {
-  if (isEncodablePrimitive(value)) yield indentedListItem(depth, encodePrimitive(value, options.delimiter), options.indentSize);
-  else if (isJsonArray(value)) if (isArrayOfPrimitives(value)) yield indentedListItem(depth, encodeInlineArrayLine(value, options.delimiter), options.indentSize);
-  else {
-    yield indentedListItem(depth, formatHeader(value.length, { delimiter: options.delimiter }), options.indentSize);
-    for (const item of value) yield* encodeListItemValueLines(item, depth + 1, options);
-  }
-  else if (isJsonObject(value)) yield* encodeObjectAsListItemLines(value, depth, options);
-}
-function indentedLine(depth, content, indentSize) {
-  return " ".repeat(indentSize * depth) + content;
-}
-function indentedListItem(depth, content, indentSize) {
-  return indentedLine(depth, "- " + content, indentSize);
-}
-function applyReplacer(root, replacer) {
-  const replacedRoot = replacer("", root, []);
-  if (replacedRoot === void 0) return transformChildren(root, replacer, []);
-  return transformReplaced(root, replacedRoot, replacer, []);
-}
-function transformReplaced(original, replaced, replacer, path3) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path3);
-  return transformChildren(normalizeValue(replaced), replacer, path3);
-}
-function transformChildren(value, replacer, path3) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path3);
-  if (isJsonArray(value)) return transformArray(value, replacer, path3);
-  return value;
-}
-function transformObject(obj, replacer, path3) {
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path3, key];
-    const replacedValue = replacer(key, value, childPath);
-    if (replacedValue === void 0) continue;
-    setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
-  }
-  return result;
-}
-function transformArray(arr, replacer, path3) {
-  const result = [];
-  for (let i = 0; i < arr.length; i++) {
-    const value = arr[i];
-    const childPath = [...path3, i];
-    const replacedValue = replacer(String(i), value, childPath);
-    if (replacedValue === void 0) continue;
-    result.push(transformReplaced(value, replacedValue, replacer, childPath));
-  }
-  return result;
-}
-function encode3(input, options) {
-  return Array.from(encodeLines(input, options)).join("\n");
-}
-function encodeLines(input, options) {
-  const normalizedValue = normalizeValue(input);
-  const resolvedOptions = resolveOptions(options);
-  return encodeJsonValue(resolvedOptions.replacer ? applyReplacer(normalizedValue, resolvedOptions.replacer) : normalizedValue, resolvedOptions, 0);
-}
-function resolveOptions(options) {
-  const delimiter = options?.delimiter ?? DEFAULT_DELIMITER;
-  assertValidDelimiter(delimiter);
-  return {
-    indentSize: options?.indentSize ?? options?.indent ?? 2,
-    delimiter,
-    replacer: options?.replacer
-  };
-}
-
-// src/toon/convert.ts
-function convertJsonValueToToon(value) {
+function listCheckpointFiles(dir) {
   try {
-    return { ok: true, output: encode3(value), format: "json" };
-  } catch (err) {
-    return { ok: false, reason: `TOON encode threw on JSON input: ${errorMessage(err)}` };
-  }
-}
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
-  let sawAnyContent = false;
-  let i = 0;
-  const n = text.length;
-  while (i < n) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-          continue;
+    if (!existsSync3(dir)) return [];
+    const entries = [];
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith(".json")) continue;
+      const filePath = path3.join(dir, name);
+      try {
+        const parsed = JSON.parse(readFileSync2(filePath, "utf8"));
+        if (parsed && typeof parsed === "object" && typeof parsed.sessionId === "string" && typeof parsed.timestamp === "number") {
+          entries.push({
+            filePath,
+            id: name.slice(0, -".json".length),
+            timestamp: parsed.timestamp
+          });
         }
-        inQuotes = false;
-        i++;
+      } catch {
         continue;
       }
-      field += ch;
-      i++;
-      continue;
     }
-    if (ch === '"') {
-      inQuotes = true;
-      sawAnyContent = true;
-      i++;
-      continue;
-    }
-    if (ch === ",") {
-      row.push(field);
-      field = "";
-      sawAnyContent = true;
-      i++;
-      continue;
-    }
-    if (ch === "\r") {
-      i++;
-      continue;
-    }
-    if (ch === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      i++;
-      continue;
-    }
-    field += ch;
-    sawAnyContent = true;
-    i++;
-  }
-  if (inQuotes) return null;
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  if (!sawAnyContent && rows.length <= 1) return null;
-  return rows;
-}
-function convertCsvToToon(text) {
-  const rows = parseCsv(text);
-  if (!rows || rows.length < 2) {
-    return { ok: false, reason: "CSV did not parse into a header row plus at least one data row" };
-  }
-  const [header, ...dataRows] = rows;
-  if (header.length === 0 || header.some((h) => h.trim().length === 0)) {
-    return { ok: false, reason: "CSV header is missing or contains an empty column name" };
-  }
-  if (!dataRows.every((r) => r.length === header.length)) {
-    return { ok: false, reason: "CSV rows have inconsistent column counts; declining to guess" };
-  }
-  const objects = dataRows.map((r) => {
-    const obj = {};
-    header.forEach((h, idx) => {
-      obj[h] = r[idx];
-    });
-    return obj;
-  });
-  try {
-    return { ok: true, output: encode3(objects), format: "csv" };
-  } catch (err) {
-    return { ok: false, reason: `TOON encode threw on CSV-derived rows: ${errorMessage(err)}` };
-  }
-}
-function convertYamlToToon(_text) {
-  return {
-    ok: false,
-    reason: "YAML conversion is not implemented in this phase (no YAML parser dependency); returning original"
-  };
-}
-function convertToToon(input, opts = {}) {
-  const detected = opts.detected ?? detectFormat(input);
-  switch (detected.format) {
-    case "json":
-      if (!detected.json) return { ok: false, reason: "detected as JSON but no parsed value was available" };
-      return convertJsonValueToToon(detected.json.value);
-    case "csv":
-      return convertCsvToToon(input);
-    case "yaml":
-      return convertYamlToToon(input);
-    case "text":
-    default:
-      return { ok: false, reason: `input does not look like JSON, CSV, or YAML (detected: ${detected.format})` };
-  }
-}
-function errorMessage(err) {
-  return err instanceof Error ? err.message : String(err);
-}
-
-// src/core/tokens.ts
-var encoder = null;
-function countTokens(text) {
-  if (encoder) {
-    try {
-      return encoder.encode(text).length;
-    } catch {
-    }
-  }
-  return Math.ceil(text.length / 4);
-}
-
-// src/toon/guard.ts
-function evaluateGuard(original, candidateToon, rowCount, opts) {
-  const tokensBefore = countTokens(original);
-  const tokensAfter = countTokens(candidateToon);
-  const savingsPercent = tokensBefore === 0 ? 0 : (tokensBefore - tokensAfter) / tokensBefore * 100;
-  if (rowCount < opts.minRows) {
-    return {
-      approved: false,
-      reason: `only ${rowCount} row(s), below toon.minRows (${opts.minRows}) \u2014 not worth attempting`,
-      tokensBefore,
-      tokensAfter,
-      savingsPercent
-    };
-  }
-  if (savingsPercent < opts.minSavingsPercent) {
-    return {
-      approved: false,
-      reason: `would save only ${savingsPercent.toFixed(1)}%, below toon.minSavingsPercent (${opts.minSavingsPercent}%)`,
-      tokensBefore,
-      tokensAfter,
-      savingsPercent
-    };
-  }
-  return {
-    approved: true,
-    reason: `saves ${savingsPercent.toFixed(1)}% (>= toon.minSavingsPercent ${opts.minSavingsPercent}%)`,
-    tokensBefore,
-    tokensAfter,
-    savingsPercent
-  };
-}
-
-// src/toon/index.ts
-function rowCountFor(detected, rawInputForCsv) {
-  if (detected.format === "json") {
-    return detected.json?.uniformity.rowCount ?? 0;
-  }
-  if (detected.format === "csv") {
-    const nonBlank = rawInputForCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    return Math.max(0, nonBlank.length - 1);
-  }
-  return 0;
-}
-function maybeConvertToToon(input, config2) {
-  try {
-    if (!config2.enabled) {
-      return { ok: false, output: input, reason: "toon.enabled is false" };
-    }
-    const detected = detectFormat(input);
-    if (detected.format === "text") {
-      return { ok: false, output: input, reason: "input does not look like JSON, CSV, or YAML" };
-    }
-    const rowCount = rowCountFor(detected, input);
-    if (rowCount < config2.minRows) {
-      return {
-        ok: false,
-        output: input,
-        reason: `only ${rowCount} row(s), below toon.minRows (${config2.minRows}) \u2014 not worth attempting`
-      };
-    }
-    const converted = convertToToon(input, { detected });
-    if (!converted.ok || !converted.output) {
-      return { ok: false, output: input, reason: converted.reason ?? "TOON conversion declined" };
-    }
-    const guard = evaluateGuard(input, converted.output, rowCount, {
-      minSavingsPercent: config2.minSavingsPercent,
-      minRows: config2.minRows
-    });
-    if (!guard.approved) {
-      return { ok: false, output: input, format: converted.format, reason: guard.reason, guard };
-    }
-    return { ok: true, output: converted.output, format: converted.format, reason: guard.reason, guard };
-  } catch (err) {
-    return {
-      ok: false,
-      output: input,
-      reason: `TOON pipeline threw unexpectedly: ${err instanceof Error ? err.message : String(err)}`
-    };
-  }
-}
-
-// src/chop/filters/generic.ts
-var LOG_HEAD_LINES = 20;
-var LOG_TAIL_LINES = 10;
-var JSON_ARRAY_HEAD_ITEMS = 10;
-var JSON_ARRAY_TAIL_ITEMS = 5;
-var UNIFORM_ARRAY_THRESHOLD = JSON_ARRAY_HEAD_ITEMS + JSON_ARRAY_TAIL_ITEMS + 1;
-var SAFE_DISABLED_TOON_CONFIG = { enabled: false, minSavingsPercent: 100, minRows: Number.MAX_SAFE_INTEGER };
-var cachedDefaultToonConfig = null;
-function defaultToonConfig() {
-  if (cachedDefaultToonConfig) return cachedDefaultToonConfig;
-  try {
-    cachedDefaultToonConfig = loadConfig().config.toon;
+    return entries;
   } catch {
-    cachedDefaultToonConfig = SAFE_DISABLED_TOON_CONFIG;
+    return [];
   }
-  return cachedDefaultToonConfig;
 }
-function truncateLogLines(text) {
-  const lines = text.split("\n");
-  if (lines.length <= LOG_HEAD_LINES + LOG_TAIL_LINES) {
-    return { text, truncated: false, omitted: 0 };
-  }
-  const head = lines.slice(0, LOG_HEAD_LINES);
-  const tail = lines.slice(lines.length - LOG_TAIL_LINES);
-  const omitted = lines.length - LOG_HEAD_LINES - LOG_TAIL_LINES;
-  const marker = `... [${omitted} lines omitted] ...`;
-  return { text: [...head, marker, ...tail].join("\n"), truncated: true, omitted };
-}
-function truncateUniformArray(arr) {
-  if (arr.length <= UNIFORM_ARRAY_THRESHOLD) return { value: arr, omitted: 0 };
-  const head = arr.slice(0, JSON_ARRAY_HEAD_ITEMS);
-  const tail = arr.slice(arr.length - JSON_ARRAY_TAIL_ITEMS);
-  const omitted = arr.length - JSON_ARRAY_HEAD_ITEMS - JSON_ARRAY_TAIL_ITEMS;
-  return {
-    value: [...head, `... [${omitted} items omitted] ...`, ...tail],
-    omitted
-  };
-}
-function tryJsonFilter(text, toonConfig) {
-  const trimmed = text.trim();
-  if (trimmed.length === 0 || !(trimmed.startsWith("{") || trimmed.startsWith("["))) {
-    return null;
-  }
-  let parsed;
+function pruneCheckpoints(dir, options) {
+  if (!Number.isFinite(options.keep) || options.keep <= 0) return;
   try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
-  if (Array.isArray(parsed) && isUniformObjectArray(parsed)) {
-    const toonAttempt = maybeConvertToToon(trimmed, toonConfig);
-    if (toonAttempt.ok) {
-      return {
-        text: toonAttempt.output,
-        formatHint: "uniform-json-array",
-        meta: {
-          itemCount: parsed.length,
-          toon: { applied: true, format: toonAttempt.format, ...toonAttempt.guard }
-        }
-      };
-    }
-    const { value, omitted } = truncateUniformArray(parsed);
-    return {
-      text: JSON.stringify(value, null, 2),
-      formatHint: "uniform-json-array",
-      meta: {
-        itemCount: parsed.length,
-        omittedItems: omitted,
-        toon: { applied: false, reason: toonAttempt.reason }
+    const entries = listCheckpointFiles(dir);
+    if (entries.length <= options.keep) return;
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+    const toDelete = entries.slice(options.keep);
+    for (const entry of toDelete) {
+      try {
+        unlinkSync(entry.filePath);
+      } catch {
       }
-    };
+    }
+  } catch {
   }
-  return { text: trimmed, formatHint: "json" };
 }
-function genericFilter(input, options = {}) {
-  const toonConfig = options.toonConfig ?? defaultToonConfig();
-  const jsonResult = tryJsonFilter(input.stdout, toonConfig);
-  if (jsonResult) return jsonResult;
-  const { text, truncated, omitted } = truncateLogLines(input.stdout);
-  return {
-    text,
-    formatHint: truncated ? "log" : "plain",
-    ...truncated ? { meta: { omittedLines: omitted } } : {}
-  };
+function createCheckpoint(input, options = {}) {
+  const checkpoint = buildCheckpoint(input, options);
+  const write = writeCheckpoint(checkpoint, options);
+  try {
+    const keep = options.keepOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.keep;
+    pruneCheckpoints(path3.dirname(write.filePath), { keep });
+  } catch {
+  }
+  return { checkpoint, write };
 }
 
-// src/chop/posttooluse-mcp.ts
-var MCP_TOOL_MATCHER = /^mcp__/;
-function extractText(content) {
-  return content.filter((block) => block.type === "text" && typeof block.text === "string").map((block) => block.text).join("\n");
-}
-function decidePostToolUseMcp(input, loadOptions = {}) {
-  if (typeof input.tool_name !== "string" || !MCP_TOOL_MATCHER.test(input.tool_name)) {
-    return { compress: false, reason: "not an mcp__* tool call" };
+// src/handoff/sessionend-hook.ts
+async function runSessionEndHook(readInput, loadOptions = {}) {
+  try {
+    const input = await readInput();
+    if (!input) return {};
+    const { config: config2 } = loadConfig(loadOptions);
+    if (!config2.handoff.enabled) return {};
+    const sessionId = typeof input.session_id === "string" && input.session_id ? input.session_id : "unknown-session";
+    const cwd = typeof input.cwd === "string" && input.cwd ? input.cwd : process.cwd();
+    createCheckpoint(
+      { sessionId, cwd, model: input.model, openFiles: [], decisions: [], nextSteps: [] },
+      loadOptions
+    );
+    return {};
+  } catch {
+    return {};
   }
-  const content = input.tool_response?.content;
-  if (!Array.isArray(content) || content.length === 0) {
-    return { compress: false, reason: "no tool_response.content to inspect" };
-  }
-  const { config: config2 } = loadConfig(loadOptions);
-  if (!config2.chop.enabled) {
-    return { compress: false, reason: "chop.enabled is false" };
-  }
-  const text = extractText(content);
-  const byteLength = Buffer.byteLength(text, "utf8");
-  if (byteLength < config2.chop.minOutputBytes) {
-    return { compress: false, reason: `output is ${byteLength} bytes, below chop.minOutputBytes (${config2.chop.minOutputBytes})` };
-  }
-  return { compress: true, reason: "eligible for compression" };
-}
-function buildHookOutput(input, decision) {
-  if (!decision.compress) return {};
-  const content = input.tool_response?.content;
-  const text = extractText(content);
-  const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
-  const nonTextBlocks = content.filter((block) => block.type !== "text");
-  const newContent = [{ type: "text", text: filtered.text }, ...nonTextBlocks];
-  return updateMCPOutput("PostToolUse", { content: newContent });
-}
-async function runPostToolUseMcp(readInput, loadOptions = {}) {
-  const input = await readInput();
-  if (!input) return {};
-  const decision = decidePostToolUseMcp(input, loadOptions);
-  return buildHookOutput(input, decision);
 }
 async function main() {
-  const output = await runPostToolUseMcp(() => readHookInput());
+  const output = await runSessionEndHook(() => readHookInput());
   writeHookOutput(output);
 }
 var entryArg = process.argv[1];
@@ -15709,8 +15042,6 @@ if (isDirectRun) {
   main();
 }
 export {
-  buildHookOutput,
-  decidePostToolUseMcp,
-  runPostToolUseMcp
+  runSessionEndHook
 };
-//# sourceMappingURL=posttooluse-mcp.mjs.map
+//# sourceMappingURL=sessionend-handoff.mjs.map

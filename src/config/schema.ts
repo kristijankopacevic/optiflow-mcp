@@ -47,6 +47,15 @@ export const StatuslineSchema = z.object({
 export const HandoffSchema = z.object({
   enabled: z.boolean().default(DEFAULT_CONFIG.handoff.enabled),
   checkpointDir: z.string().default(DEFAULT_CONFIG.handoff.checkpointDir),
+  // Phase 7 addition (not present in Phase 2), same additive-config
+  // precedent as `chop.minOutputBytes`/`toon.minRows`. Deliberately
+  // `.nonnegative()`, NOT `.positive()`: `load.ts` falls back to
+  // DEFAULT_CONFIG for the ENTIRE config on any validation failure, so an
+  // over-strict lower bound would turn one bad-but-meaningful `keep: 0`
+  // value into a total config reset. `0` is a valid, meaningful value here
+  // (see `src/handoff/checkpoint.ts`'s `pruneCheckpoints` — it means
+  // "unlimited, never prune"), not an error case.
+  keep: z.number().int().nonnegative().default(DEFAULT_CONFIG.handoff.keep),
 });
 
 export const ReportSchema = z.object({

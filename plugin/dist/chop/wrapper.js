@@ -84,7 +84,16 @@ var init_defaults = __esm({
       },
       handoff: {
         enabled: true,
-        checkpointDir: ".optiflow/checkpoints"
+        checkpointDir: ".optiflow/checkpoints",
+        // 20 is a rough "a few days of active work" proxy, same rough-heuristic
+        // spirit as statusline's RECENT_SAVINGS_WINDOW_MS — not measured against
+        // real usage data yet. Documented interaction to watch (docs/modules.md):
+        // with `handoff.enabled: true`, every SessionEnd writes an auto-checkpoint
+        // even when its decisions/nextSteps/openFiles are all empty, so on a
+        // busy project auto-noise can evict older MANUAL checkpoints before a
+        // user goes looking for them. Keep-newest-N is what the plan specs; a
+        // priority/pinning scheme is a follow-up decision, not this phase's call.
+        keep: 20
       },
       report: {
         includeOptimizer: false
@@ -15215,7 +15224,16 @@ var init_schema = __esm({
     });
     HandoffSchema = external_exports.object({
       enabled: external_exports.boolean().default(DEFAULT_CONFIG.handoff.enabled),
-      checkpointDir: external_exports.string().default(DEFAULT_CONFIG.handoff.checkpointDir)
+      checkpointDir: external_exports.string().default(DEFAULT_CONFIG.handoff.checkpointDir),
+      // Phase 7 addition (not present in Phase 2), same additive-config
+      // precedent as `chop.minOutputBytes`/`toon.minRows`. Deliberately
+      // `.nonnegative()`, NOT `.positive()`: `load.ts` falls back to
+      // DEFAULT_CONFIG for the ENTIRE config on any validation failure, so an
+      // over-strict lower bound would turn one bad-but-meaningful `keep: 0`
+      // value into a total config reset. `0` is a valid, meaningful value here
+      // (see `src/handoff/checkpoint.ts`'s `pruneCheckpoints` — it means
+      // "unlimited, never prune"), not an error case.
+      keep: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.handoff.keep)
     });
     ReportSchema = external_exports.object({
       includeOptimizer: external_exports.boolean().default(DEFAULT_CONFIG.report.includeOptimizer)

@@ -1,0 +1,7 @@
+{
+  "session_id": "sess-precompact-fixture-1",
+  "transcript_path": "/home/user/.claude/projects/optiflow-mcp/sess-precompact-fixture-1.jsonl",
+  "cwd": "/PLACEHOLDER/PROJECT",
+  "hook_event_name": "PreCompact",
+  "trigger": "auto"
+}

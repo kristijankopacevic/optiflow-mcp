@@ -3116,9 +3116,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
    * @param {string} [path]
    * @return {(string|null|Command)}
    */
-  executableDir(path7) {
-    if (path7 === void 0) return this._executableDir;
-    this._executableDir = path7;
+  executableDir(path9) {
+    if (path9 === void 0) return this._executableDir;
+    this._executableDir = path9;
     return this;
   }
   /**
@@ -3414,7 +3414,16 @@ var DEFAULT_CONFIG = {
   },
   handoff: {
     enabled: true,
-    checkpointDir: ".optiflow/checkpoints"
+    checkpointDir: ".optiflow/checkpoints",
+    // 20 is a rough "a few days of active work" proxy, same rough-heuristic
+    // spirit as statusline's RECENT_SAVINGS_WINDOW_MS — not measured against
+    // real usage data yet. Documented interaction to watch (docs/modules.md):
+    // with `handoff.enabled: true`, every SessionEnd writes an auto-checkpoint
+    // even when its decisions/nextSteps/openFiles are all empty, so on a
+    // busy project auto-noise can evict older MANUAL checkpoints before a
+    // user goes looking for them. Keep-newest-N is what the plan specs; a
+    // priority/pinning scheme is a follow-up decision, not this phase's call.
+    keep: 20
   },
   report: {
     includeOptimizer: false
@@ -4190,10 +4199,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path7) {
-  if (!path7)
+function getElementAtPath(obj, path9) {
+  if (!path9)
     return obj;
-  return path7.reduce((acc, key) => acc?.[key], obj);
+  return path9.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4602,11 +4611,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path7, issues) {
+function prefixIssues(path9, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path7);
+    iss.path.unshift(path9);
     return iss;
   });
 }
@@ -4753,16 +4762,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path7 = []) => {
+  const processError = (error52, path9 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
       } else {
-        const fullpath = [...path7, ...issue2.path];
+        const fullpath = [...path9, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -4789,17 +4798,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path7 = []) => {
+  const processError = (error52, path9 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
       } else {
-        const fullpath = [...path7, ...issue2.path];
+        const fullpath = [...path9, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -4831,8 +4840,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path7 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path7) {
+  const path9 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path9) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -17524,13 +17533,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path7 = ref.slice(1).split("/").filter(Boolean);
-  if (path7.length === 0) {
+  const path9 = ref.slice(1).split("/").filter(Boolean);
+  if (path9.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path7[0] === defsKey) {
-    const key = path7[1];
+  if (path9[0] === defsKey) {
+    const key = path9[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -17970,7 +17979,16 @@ var StatuslineSchema = external_exports.object({
 });
 var HandoffSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.handoff.enabled),
-  checkpointDir: external_exports.string().default(DEFAULT_CONFIG.handoff.checkpointDir)
+  checkpointDir: external_exports.string().default(DEFAULT_CONFIG.handoff.checkpointDir),
+  // Phase 7 addition (not present in Phase 2), same additive-config
+  // precedent as `chop.minOutputBytes`/`toon.minRows`. Deliberately
+  // `.nonnegative()`, NOT `.positive()`: `load.ts` falls back to
+  // DEFAULT_CONFIG for the ENTIRE config on any validation failure, so an
+  // over-strict lower bound would turn one bad-but-meaningful `keep: 0`
+  // value into a total config reset. `0` is a valid, meaningful value here
+  // (see `src/handoff/checkpoint.ts`'s `pruneCheckpoints` — it means
+  // "unlimited, never prune"), not an error case.
+  keep: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.handoff.keep)
 });
 var ReportSchema = external_exports.object({
   includeOptimizer: external_exports.boolean().default(DEFAULT_CONFIG.report.includeOptimizer)
@@ -18803,30 +18821,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path7) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path7);
-  return transformChildren(normalizeValue(replaced), replacer, path7);
+function transformReplaced(original, replaced, replacer, path9) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path9);
+  return transformChildren(normalizeValue(replaced), replacer, path9);
 }
-function transformChildren(value, replacer, path7) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path7);
-  if (isJsonArray(value)) return transformArray(value, replacer, path7);
+function transformChildren(value, replacer, path9) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path9);
+  if (isJsonArray(value)) return transformArray(value, replacer, path9);
   return value;
 }
-function transformObject(obj, replacer, path7) {
+function transformObject(obj, replacer, path9) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path7, key];
+    const childPath = [...path9, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path7) {
+function transformArray(arr, replacer, path9) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path7, i];
+    const childPath = [...path9, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -19721,11 +19739,379 @@ function registerReportCommand(program2) {
   });
 }
 
+// src/handoff/checkpoint.ts
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync4, readdirSync as readdirSync2, unlinkSync, writeFileSync } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import path7 from "node:path";
+
+// src/chop/win-spawn.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+function quoteWindowsArg(arg) {
+  if (arg === "") return '""';
+  if (!/[ \t"\v\n]/.test(arg)) return arg;
+  let result = '"';
+  for (let i = 0; i < arg.length; ) {
+    let backslashes = 0;
+    while (i < arg.length && arg[i] === "\\") {
+      backslashes++;
+      i++;
+    }
+    if (i === arg.length) {
+      result += "\\".repeat(backslashes * 2);
+      break;
+    } else if (arg[i] === '"') {
+      result += "\\".repeat(backslashes * 2 + 1) + '"';
+      i++;
+    } else {
+      result += "\\".repeat(backslashes) + arg[i];
+      i++;
+    }
+  }
+  result += '"';
+  return result;
+}
+function toStrings(buf) {
+  if (!buf) return "";
+  return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
+}
+var WINDOWS_SHELL_FALLBACK_CODES = /* @__PURE__ */ new Set(["ENOENT", "EINVAL", "UNKNOWN"]);
+function runCommand2(binary, args) {
+  const direct = spawnSync2(binary, args, { shell: false });
+  const directFailedNeedsShell = process.platform === "win32" && direct.error !== void 0 && "code" in direct.error && WINDOWS_SHELL_FALLBACK_CODES.has(String(direct.error.code));
+  if (!directFailedNeedsShell) {
+    if (direct.error && direct.status === null && direct.signal === null) {
+      return {
+        status: null,
+        signal: null,
+        stdout: "",
+        stderr: "",
+        spawnError: direct.error.message
+      };
+    }
+    return {
+      status: direct.status,
+      signal: direct.signal,
+      stdout: toStrings(direct.stdout),
+      stderr: toStrings(direct.stderr)
+    };
+  }
+  const commandLine = [binary, ...args.map(quoteWindowsArg)].join(" ");
+  const viaShell = spawnSync2(commandLine, { shell: true });
+  if (viaShell.error && viaShell.status === null && viaShell.signal === null) {
+    return {
+      status: null,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      spawnError: viaShell.error.message
+    };
+  }
+  return {
+    status: viaShell.status,
+    signal: viaShell.signal,
+    stdout: toStrings(viaShell.stdout),
+    stderr: toStrings(viaShell.stderr)
+  };
+}
+
+// src/handoff/checkpoint.ts
+function getGitInfo(cwd) {
+  const branchResult = runCommand2("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]);
+  const headResult = runCommand2("git", ["-C", cwd, "rev-parse", "HEAD"]);
+  const branch = branchResult.status === 0 && !branchResult.spawnError ? branchResult.stdout.trim() || null : null;
+  const head = headResult.status === 0 && !headResult.spawnError ? headResult.stdout.trim() || null : null;
+  return { branch, head };
+}
+function resolveTokenOptimizerStateRef(sessionId, options = {}) {
+  const home = options.tokenOptimizerHome ?? homedir4();
+  const file2 = path7.join(home, ".token-optimizer", "sessions.json.gz");
+  return { file: file2, sessionId, exists: existsSync5(file2) };
+}
+function normalizeModel(model) {
+  if (typeof model === "string") return model.trim() || null;
+  if (model && typeof model === "object") {
+    const name = model.display_name ?? model.id ?? model.slug;
+    return typeof name === "string" && name.trim() ? name : null;
+  }
+  return null;
+}
+function buildCheckpoint(input, options = {}) {
+  const timestamp = (options.now ?? /* @__PURE__ */ new Date()).getTime();
+  const gitInfo = options.gitInfo ?? getGitInfo(input.cwd);
+  return {
+    sessionId: input.sessionId,
+    timestamp,
+    cwd: input.cwd,
+    gitBranch: gitInfo.branch,
+    gitHead: gitInfo.head,
+    model: normalizeModel(input.model),
+    openFiles: input.openFiles ?? [],
+    decisions: input.decisions ?? [],
+    nextSteps: input.nextSteps ?? [],
+    tokenOptimizerStateRef: resolveTokenOptimizerStateRef(input.sessionId, {
+      tokenOptimizerHome: options.tokenOptimizerHome
+    })
+  };
+}
+function checkpointId(checkpoint) {
+  const safe = String(checkpoint.sessionId || "unknown").replace(/[^A-Za-z0-9_-]/g, "");
+  return `${safe || "unknown"}-${checkpoint.timestamp}`;
+}
+function resolveCheckpointDir(options = {}) {
+  const checkpointDir = options.checkpointDirOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.checkpointDir;
+  if (path7.isAbsolute(checkpointDir)) return checkpointDir;
+  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  return path7.join(projectRoot, checkpointDir);
+}
+function writeCheckpoint(checkpoint, options = {}) {
+  const dir = resolveCheckpointDir(options);
+  mkdirSync2(dir, { recursive: true });
+  const id = checkpointId(checkpoint);
+  const filePath = path7.join(dir, `${id}.json`);
+  writeFileSync(filePath, JSON.stringify(checkpoint, null, 2), "utf8");
+  return { filePath, id };
+}
+function listCheckpointFiles(dir) {
+  try {
+    if (!existsSync5(dir)) return [];
+    const entries = [];
+    for (const name of readdirSync2(dir)) {
+      if (!name.endsWith(".json")) continue;
+      const filePath = path7.join(dir, name);
+      try {
+        const parsed = JSON.parse(readFileSync4(filePath, "utf8"));
+        if (parsed && typeof parsed === "object" && typeof parsed.sessionId === "string" && typeof parsed.timestamp === "number") {
+          entries.push({
+            filePath,
+            id: name.slice(0, -".json".length),
+            timestamp: parsed.timestamp
+          });
+        }
+      } catch {
+        continue;
+      }
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
+function pruneCheckpoints(dir, options) {
+  if (!Number.isFinite(options.keep) || options.keep <= 0) return;
+  try {
+    const entries = listCheckpointFiles(dir);
+    if (entries.length <= options.keep) return;
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+    const toDelete = entries.slice(options.keep);
+    for (const entry of toDelete) {
+      try {
+        unlinkSync(entry.filePath);
+      } catch {
+      }
+    }
+  } catch {
+  }
+}
+function createCheckpoint(input, options = {}) {
+  const checkpoint = buildCheckpoint(input, options);
+  const write = writeCheckpoint(checkpoint, options);
+  try {
+    const keep = options.keepOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.keep;
+    pruneCheckpoints(path7.dirname(write.filePath), { keep });
+  } catch {
+  }
+  return { checkpoint, write };
+}
+
+// src/handoff/restore.ts
+import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
+import path8 from "node:path";
+function isCheckpointShape(value) {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return typeof v.sessionId === "string" && typeof v.timestamp === "number" && typeof v.cwd === "string" && Array.isArray(v.openFiles) && Array.isArray(v.decisions) && Array.isArray(v.nextSteps);
+}
+function loadCheckpoint(filePath) {
+  try {
+    if (!existsSync6(filePath)) return null;
+    const parsed = JSON.parse(readFileSync5(filePath, "utf8"));
+    return isCheckpointShape(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function findLatestCheckpoint(dir) {
+  const entries = listCheckpointFiles(dir);
+  if (entries.length === 0) return null;
+  entries.sort((a, b) => b.timestamp - a.timestamp);
+  return entries[0].filePath;
+}
+function findCheckpointById(dir, id) {
+  const exact = path8.join(dir, `${id}.json`);
+  if (existsSync6(exact)) return exact;
+  try {
+    const prefix = `${id}-`;
+    const matches = listCheckpointFiles(dir).filter((entry) => path8.basename(entry.filePath).startsWith(prefix));
+    if (matches.length === 0) return null;
+    matches.sort((a, b) => b.timestamp - a.timestamp);
+    return matches[0].filePath;
+  } catch {
+    return null;
+  }
+}
+function resolveCheckpoint(dir, id) {
+  const filePath = id ? findCheckpointById(dir, id) : findLatestCheckpoint(dir);
+  return filePath ? loadCheckpoint(filePath) : null;
+}
+function bulletList(items, emptyLabel) {
+  if (items.length === 0) return `_${emptyLabel}_`;
+  return items.map((item) => `- ${item}`).join("\n");
+}
+var DEFAULT_MARKDOWN_CAP_CHARS = 1e4;
+function truncateMarkdown(full, capChars) {
+  if (full.length <= capChars) return full;
+  let keepLen = Math.max(0, capChars);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const omitted2 = full.length - keepLen;
+    const marker2 = `
+
+...[truncated, ${omitted2} chars omitted]`;
+    const nextKeepLen = Math.max(0, capChars - marker2.length);
+    if (nextKeepLen === keepLen) break;
+    keepLen = nextKeepLen;
+  }
+  const omitted = full.length - keepLen;
+  const marker = `
+
+...[truncated, ${omitted} chars omitted]`;
+  return full.slice(0, keepLen) + marker;
+}
+function renderRestoreMarkdown(checkpoint, options = {}) {
+  const full = renderRestoreMarkdownFull(checkpoint);
+  const capChars = options.capChars === void 0 ? DEFAULT_MARKDOWN_CAP_CHARS : options.capChars;
+  if (capChars === false) return full;
+  return truncateMarkdown(full, capChars);
+}
+function renderRestoreMarkdownFull(checkpoint) {
+  if (!checkpoint) {
+    return [
+      "## optiflow session handoff",
+      "",
+      "No checkpoints found yet. Run `/optiflow:checkpoint [notes]` (or `optiflow checkpoint`) before compacting/ending a session to create one."
+    ].join("\n");
+  }
+  const when = new Date(checkpoint.timestamp).toISOString();
+  const git = checkpoint.gitBranch || checkpoint.gitHead ? `${checkpoint.gitBranch ?? "(unknown branch)"} @ ${checkpoint.gitHead ?? "(no commits yet)"}` : "(not a git repo, or git unavailable at checkpoint time)";
+  const tokenOptimizerLine = checkpoint.tokenOptimizerStateRef ? `\`${checkpoint.tokenOptimizerStateRef.file}\` (sessionId: \`${checkpoint.tokenOptimizerStateRef.sessionId}\`, ${checkpoint.tokenOptimizerStateRef.exists ? "resolvable" : "did not exist at checkpoint time"}) \u2014 a REFERENCE only; optiflow never copies token-optimizer's own session state.` : "(none recorded)";
+  return [
+    "## optiflow session handoff",
+    "",
+    `- **Checkpoint id**: \`${checkpointId(checkpoint)}\``,
+    `- **Session**: \`${checkpoint.sessionId}\``,
+    `- **Taken**: ${when}`,
+    `- **cwd**: \`${checkpoint.cwd}\``,
+    `- **Git**: ${git}`,
+    `- **Model**: ${checkpoint.model ?? "(not recorded)"}`,
+    `- **token-optimizer state ref**: ${tokenOptimizerLine}`,
+    "",
+    "### Decisions",
+    bulletList(checkpoint.decisions, "no decisions recorded"),
+    "",
+    "### Next steps",
+    bulletList(checkpoint.nextSteps, "no next steps recorded"),
+    "",
+    "### Open files",
+    bulletList(checkpoint.openFiles, "no open files recorded")
+  ].join("\n");
+}
+
+// src/cli/commands/checkpoint.ts
+function runCheckpointWrite(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  const sessionId = options.sessionId ?? `manual-${(options.now ?? /* @__PURE__ */ new Date()).getTime()}`;
+  const decisions = options.notes ? [options.notes] : [];
+  const { write } = createCheckpoint(
+    {
+      sessionId,
+      cwd,
+      decisions,
+      nextSteps: options.nextSteps ?? [],
+      openFiles: options.openFiles ?? []
+    },
+    { cwd: options.cwd, home: options.home, now: options.now }
+  );
+  return {
+    stdout: `[optiflow checkpoint] saved ${write.id} -> ${write.filePath}
+`,
+    stderr: ""
+  };
+}
+function runCheckpointRestore(options = {}) {
+  const dir = resolveCheckpointDir({ cwd: options.cwd, home: options.home });
+  const checkpoint = resolveCheckpoint(dir, options.id);
+  return {
+    stdout: `${renderRestoreMarkdown(checkpoint, { capChars: options.full ? false : void 0 })}
+`,
+    stderr: ""
+  };
+}
+function runCheckpointList(options = {}) {
+  const dir = resolveCheckpointDir({ cwd: options.cwd, home: options.home });
+  const entries = listCheckpointFiles(dir).sort((a, b) => b.timestamp - a.timestamp);
+  if (entries.length === 0) {
+    return {
+      stdout: "No checkpoints found yet. Run `optiflow checkpoint [notes]` to create one.\n",
+      stderr: ""
+    };
+  }
+  const lines = entries.map((entry) => {
+    const checkpoint = loadCheckpoint(entry.filePath);
+    const when = new Date(entry.timestamp).toISOString();
+    const branch = checkpoint?.gitBranch ?? "(no branch)";
+    const decisionCount = checkpoint?.decisions.length ?? 0;
+    return `${entry.id}  ${when}  ${branch}  (${decisionCount} decision${decisionCount === 1 ? "" : "s"})`;
+  });
+  return { stdout: `${lines.join("\n")}
+`, stderr: "" };
+}
+function collect(value, previous) {
+  return [...previous, value];
+}
+function registerCheckpointCommand(program2) {
+  program2.command("checkpoint [notes]").description(
+    "Save a session-handoff checkpoint under .optiflow/checkpoints/ (default), render one with --restore, or enumerate them with --list. notes (if given) becomes the checkpoint's sole decisions[] entry."
+  ).option(
+    "--restore [id]",
+    "render a checkpoint instead of writing one: most recent if <id> is omitted, or the checkpoint matching <id>. Output is capped at 10,000 chars by default (see --full)."
+  ).option("--full", "with --restore, render the full, unbounded markdown instead of the default 10,000-char-capped output").option(
+    "--list",
+    "list every checkpoint in the resolved directory, newest first, instead of writing or restoring one. Takes precedence over --restore/notes if given together."
+  ).option("--session <id>", "override the checkpoint's sessionId (default: a generated manual-<timestamp> id)").option("--next-step <text>", "append a next-step item (repeatable)", collect, []).option("--open-file <path>", "record a currently-open file path (repeatable)", collect, []).action((notes, opts) => {
+    if (opts.list) {
+      const { stdout: stdout2 } = runCheckpointList();
+      process.stdout.write(stdout2);
+      return;
+    }
+    if (opts.restore !== void 0) {
+      const id = typeof opts.restore === "string" ? opts.restore : void 0;
+      const { stdout: stdout2 } = runCheckpointRestore({ id, full: Boolean(opts.full) });
+      process.stdout.write(stdout2);
+      return;
+    }
+    const { stdout } = runCheckpointWrite({
+      notes,
+      sessionId: opts.session,
+      nextSteps: opts.nextStep,
+      openFiles: opts.openFile
+    });
+    process.stdout.write(stdout);
+  });
+}
+
 // src/cli/index.ts
 var NOT_YET_IMPLEMENTED_COMMANDS = [
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
-  { name: "checkpoint", phase: "7", description: "Session-handoff checkpoint/restore." },
   { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
   { name: "install", phase: "8", description: "Install the optiflow plugin/hooks into Claude Code settings." },
   { name: "uninstall", phase: "8", description: "Remove the optiflow plugin/hooks and restore prior settings." }
@@ -19738,6 +20124,7 @@ function buildProgram() {
   registerDoctorCommand(program2);
   registerToonCommand(program2);
   registerReportCommand(program2);
+  registerCheckpointCommand(program2);
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program2.command(stub.name).description(`${stub.description} (not yet implemented \u2014 see Phase ${stub.phase} of the plan)`).action(() => {
       console.log(

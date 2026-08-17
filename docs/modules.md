@@ -237,9 +237,10 @@ across every session ever run. `io.ts`'s `readRecentSavings` instead:
 
 ### Activity beacon contract (`~/.optiflow/activity.json`)
 
-Phase 7 (`src/handoff/**`, not yet built as of this phase) is specced to
-produce an "activity beacon" the statusline reads. This phase defines and
-*consumes* the contract; Phase 7 is responsible for *producing* the file.
+Phase 7 (`src/handoff/**`, see "Module 4" below) produces this "activity
+beacon" the statusline reads, via a dedicated `PreToolUse` hook
+(`src/handoff/activity-hook.ts`). This phase (4) defined and *consumes* the
+contract; Phase 7 is the one that actually *produces* the file.
 
 - **Path**: `~/.optiflow/activity.json` (i.e. `path.join(getOptiflowHome(), "activity.json")`).
 - **Shape**: `{ "tool": string, "timestamp": number }` — `timestamp` is epoch milliseconds.
@@ -328,4 +329,300 @@ fixtures/statusline/
 ├── normal.json          — full realistic payload
 ├── null-percentage.json — context_window.used_percentage: null (pre-first-turn / post-/compact)
 └── exceeds-200k.json    — exceeds_200k_tokens: true combined with a high used_percentage
+```
+
+## Module 4 — Session handoff (`src/handoff/**`, `/optiflow:checkpoint`/`/optiflow:restore`/`/optiflow:compact-continue`, `optiflow checkpoint`)
+
+Checkpoints session state before it's lost to compaction/a session ending,
+and renders it back for a fresh session to resume from.
+
+### Naming caveat
+
+The plugin namespace means the real commands are `/optiflow:checkpoint`,
+`/optiflow:restore`, and `/optiflow:compact-continue` — there is **no** bare
+`/checkpoint`/`/restore`/`/compact-continue`. A user who wants a bare
+`/compact-continue` can add their own thin wrapper under
+`~/.claude/commands/compact-continue.md` (a personal, user-global command
+directory Claude Code reads regardless of any installed plugin) containing
+something like:
+
+```markdown
+---
+description: Checkpoint now, then render a resume-ready summary (wraps optiflow's plugin command).
+---
+Run the optiflow plugin's combined checkpoint+restore command for me:
+/optiflow:compact-continue $ARGUMENTS
+```
+
+This phase deliberately does **not** write that file on the user's behalf —
+writing into `~/.claude/commands/` unprompted is a different, more invasive
+kind of install step than anything else this plugin does (compare: the
+statusline module's Phase 4 also stopped short of writing to
+`~/.claude/settings.json` itself, deferring that to Phase 8's installer with
+backup/restore).
+
+### Checkpoint shape and field provenance — being honest about what a hook can and can't supply
+
+```ts
+interface Checkpoint {
+  sessionId: string;
+  timestamp: number;
+  cwd: string;
+  gitBranch: string | null;
+  gitHead: string | null;
+  model: string | null;
+  openFiles: string[];
+  decisions: string[];
+  nextSteps: string[];
+  tokenOptimizerStateRef: { file: string; sessionId: string; exists: boolean };
+}
+```
+
+A checkpoint is built by `src/handoff/checkpoint.ts`'s `buildCheckpoint`, from
+either an auto-triggered hook payload (`PreCompact`/`SessionEnd`) or a manual
+CLI/slash-command call. The two paths populate genuinely different subsets:
+
+- **`sessionId`, `cwd`** — from the hook payload's real, documented fields
+  (`session_id`/`cwd`, verified against the vendored token-optimizer-mcp's
+  own `plugin/hooks/precompact-optimize.mjs`, which reads exactly these) when
+  auto-triggered; from `process.cwd()`/a generated `manual-<timestamp>` id
+  when manual.
+- **`timestamp`** — always `Date.now()` at checkpoint time.
+- **`gitBranch`, `gitHead`** — always auto-derived via real `git -C <cwd>
+  rev-parse` calls (`getGitInfo`, using `src/chop/win-spawn.ts`'s
+  cross-platform-safe `runCommand`, reused rather than reimplemented). `null`
+  (never thrown) when git is absent, `cwd` isn't a repo, or the repo is a
+  fresh `git init` with no commits yet (no HEAD to resolve).
+- **`model`** — present only when a hook payload happens to carry a `model`
+  field. **Not a documented `PreCompact`/`SessionEnd` field** — the vendored
+  code only reads `model` defensively from unrelated payload shapes
+  elsewhere. Treat as usually `null`; `normalizeModel` handles string/object/
+  absent shapes without throwing either way.
+- **`openFiles`, `decisions`, `nextSteps` — NEVER auto-derivable from a hook
+  payload alone.** Claude Code does not hand a `PreCompact`/`SessionEnd` hook
+  the model's open-file list or its reasoning/next-step summary — there is no
+  field on either event's documented payload that carries that. The
+  auto-hooks always write `[]` for all three. **Only the manual path**
+  (`/optiflow:checkpoint [notes]` slash command, or `optiflow checkpoint
+  [notes] --next-step ... --open-file ...` on the CLI) populates them, from
+  user-supplied text. This is a real, load-bearing gap in what an automatic
+  checkpoint can capture — not a bug to "fix" later without a new data
+  source (e.g. asking the model itself, via a hook's `additionalContext`
+  request, is a plausible future direction but out of this phase's scope).
+- **`tokenOptimizerStateRef`** — see next section.
+
+### The token-optimizer state reference — verified, not guessed
+
+Per the plan's collision note (token-optimizer-mcp also registers its own
+`PreCompact` hook, `plugin/hooks/precompact-optimize.mjs`; both may safely
+co-register on the same event), this module's checkpoint stores a
+**reference** to token-optimizer's own persisted session state, never a copy
+of its content. That reference points at:
+
+```
+~/.token-optimizer/sessions.json.gz
+```
+
+— confirmed by reading the vendored source directly (not assumed):
+`vendor/token-optimizer-mcp/src/server/index.ts` sets
+`persistencePath: path.join(os.homedir(), '.token-optimizer', 'sessions.json')`,
+and `vendor/token-optimizer-mcp/src/core/session-manager.ts`'s
+`saveGzippedFile` is what actually gzips it to the `.gz` suffix on disk. That
+same `SessionManager` keys sessions internally by `sessionId` (a
+`Map<string, Session>`), which is why the reference also carries the
+checkpoint's own `sessionId` as the lookup key. This is the MCP **server's**
+own durable session store — deliberately distinct from the plugin hooks'
+own ephemeral per-process state directory
+(`vendor/token-optimizer-mcp/plugin/hooks/lib/policy.mjs`'s `stateRoot()`,
+under `os.tmpdir()`), which was confirmed absent on this machine and would
+be a reference to nothing.
+
+`exists` is computed at checkpoint time (a plain `existsSync` check) so
+`restore.ts` can render an honest "did resolve" / "did not exist at
+checkpoint time" note rather than silently asserting resolvability it never
+checked.
+
+### Restore — capped by default, not unbounded
+
+The plan's Phase 7 gate is literally "checkpoint→restore round-trips,
+≤10,000 chars" — and the whole point of rendering a checkpoint back is
+pasting/injecting it into a live Claude context, so `src/handoff/restore.ts`'s
+`renderRestoreMarkdown` caps its output at **10,000 chars by default** (the
+same number `src/core/hook-io.ts` enforces for hook stdout — chosen for
+consistency, not because slash-command/CLI stdout is literally hook JSON).
+Truncation (when triggered) slices the whole rendered document and appends a
+marker in the exact same text format `toCappedJson` uses
+(`...[truncated, N chars omitted]`) — one documented convention, not two —
+but does **not** call `toCappedJson` itself: that function shrinks the
+longest string field inside a JSON *value* and re-serializes, which doesn't
+fit a plain markdown document (no JSON structure to walk). Every real call
+site in this phase (`/optiflow:restore`, `/optiflow:compact-continue`,
+`optiflow checkpoint --restore`) uses the capped default; `--full` (CLI) /
+`{ capChars: false }` (API) opts out for a genuine full-fidelity dump.
+
+A second function, `renderCappedRestoreOutput`, renders a checkpoint as a
+real `HookOutput` JSON string via `toCappedJson` (reused as-is, since this
+path *is* a JSON value) — for a future `SessionStart` hook that would inject
+a checkpoint's markdown as `additionalContext` on session start. **Nothing in
+this phase's hook wiring emits this today** (there is no `SessionStart`
+hook registered in `plugin/hooks/hooks.json` yet — this phase's brief is
+`PreCompact`/`SessionEnd` checkpoint-*writing*, not session-start
+restore-*injection*). It's exported and tested here so that future hook has
+an already-correct contract to call into.
+
+### Pruning (`handoff.keep`) — ordered by in-file timestamp, never filename or mtime
+
+`handoff.keep` (default `20`, Phase 7 addition to `OptiflowConfigSchema`,
+additive per every prior phase's config precedent) is the number of newest
+checkpoints `createCheckpoint` keeps per checkpoint directory; older ones are
+deleted right after each write via `pruneCheckpoints`. `keep: 0` means
+"unlimited, never prune" — the schema validates it with `.nonnegative()`,
+not `.positive()`, deliberately: `src/config/load.ts` falls back to
+`DEFAULT_CONFIG` for the **entire** config on any validation failure, so an
+over-strict lower bound would turn one legitimate `keep: 0` into a total
+config reset.
+
+Ordering is by each checkpoint's **in-file `timestamp`** field, via the
+shared `listCheckpointFiles` helper (`checkpoint.ts` — `restore.ts` imports
+this rather than keeping a second, slightly different `readdirSync` loop of
+its own). This is NOT the same as sorting by filename
+(`checkpointId()`'s `<sanitized-sessionId>-<timestamp>` stem sorts
+alphabetically by session id first, which is not chronological once two
+different session ids are involved) and NOT the same as sorting by
+filesystem mtime (a copy/touch/clone/checkout can perturb mtime independently
+of when the checkpoint was actually taken). A `.json` file that doesn't
+parse, isn't an object, or is missing `sessionId`/`timestamp` is invisible to
+`listCheckpointFiles` and therefore **never deleted** by pruning — "ignore
+forever" is the safe failure mode for a file this module can't understand,
+not "delete anything unrecognized in the directory." A failed individual
+delete (permissions, a concurrent process) is caught and skipped, never
+thrown — same fire-and-forget-bookkeeping contract `src/core/logger.ts`
+documents for its own writes.
+
+**Known interaction to watch, not yet resolved by this phase**: with
+`handoff.enabled: true` and the `SessionEnd` hook registered, *every* session
+end writes an auto-checkpoint — even when its `decisions`/`nextSteps`/
+`openFiles` are all empty (see the field-provenance note above). On a busy
+project, that auto-noise can evict older **manual** checkpoints (the ones
+that actually captured something worth resuming from) purely because
+keep-newest-N doesn't distinguish "meaningful" from "empty." Keep-newest-N is
+exactly what the plan specs for this phase, so this document is flagging the
+interaction rather than inventing an unrequested pinning/priority scheme —
+that's a follow-up decision for a future phase, informed by real usage.
+
+### The activity beacon — a second, dedicated `PreToolUse` hook, not a piggyback
+
+`src/handoff/activity.ts`'s `writeActivityBeacon` produces
+`~/.optiflow/activity.json` in the exact shape Phase 4's statusline already
+defined and reads (`{ tool: string, timestamp: number }`, epoch ms — see
+"Activity beacon contract" above; proven by an integration test that writes
+with this module and reads back with Phase 4's real `readActivityBeacon`,
+not a shape-alike mock).
+
+It's invoked from a **new, separate** `PreToolUse` hook
+(`src/handoff/activity-hook.ts` → `plugin/hooks/pretooluse-activity.mjs`),
+registered in `hooks.json` with a broad `".*"` matcher (the same wildcard
+convention this repo's own `hooks.json` already uses for
+`posttooluse-mcp.mjs`'s `"mcp__.*"` matcher) — **not** piggybacked onto
+Phase 3's `pretooluse-chop.mjs`, which is registered on `Bash` only by
+design. The activity beacon is documented (plan Module 3) to reflect
+activity across **all** tools, not just Bash, so it needs its own broader
+registration. Two same-event hooks firing in parallel on the same tool call
+is safe here specifically because of this hook's **output contract**, not
+the event: it only ever emits a bare `{}` (never `permissionDecision`/
+`updatedInput`), so it cannot collide with chop's rewrite even on a shared
+`Bash` invocation.
+
+**Measured cost of the broad matcher** (this hook spawns a fresh `node`
+process on *every* tool call, unlike the rare `PreCompact`/`SessionEnd`
+hooks): the built `pretooluse-activity.mjs` bundles to **~4.3KB**, vs.
+`precompact-handoff.mjs`/`sessionend-handoff.mjs` at ~547KB and
+`pretooluse-chop.mjs` at ~545KB. The gap is deliberate — `activity.ts`/
+`activity-hook.ts` import only `node:fs`/`node:path` and
+`src/core/hook-io.ts`/`src/core/paths.ts` (themselves zero-dependency), never
+`src/config/load.ts` (which pulls in `zod`) or anything from `src/chop/**` —
+so the per-tool-call hot path carries none of the config/zod weight the rarer
+hooks can afford. This mirrors `src/statusline/io.ts`'s own reason for
+avoiding `load.ts` on its hot path (see Module 3 above): both modules
+independently arrived at "don't pull zod onto a path that runs constantly."
+
+### Hooks registered (`plugin/hooks/hooks.json`)
+
+Added alongside — not replacing — Phase 3's existing `PreToolUse: Bash` and
+`PostToolUse: mcp__.*` entries:
+
+- `PreToolUse` (matcher `.*`) → `pretooluse-activity.mjs` — see above.
+- `PreCompact` (no matcher — verified against
+  `vendor/token-optimizer-mcp/plugin/hooks/hooks.json`'s own `PreCompact`
+  entry, which also carries no `matcher` key) → `precompact-handoff.mjs`.
+  Always fail-open: every failure mode resolves to a bare `{}`, matching the
+  vendored `precompact-optimize.mjs`'s own stated "compaction must proceed
+  no matter what" philosophy. On success, emits a `systemMessage` pointing
+  the user at `/optiflow:restore`/`/optiflow:compact-continue`.
+- `SessionEnd` (no matcher) → `sessionend-handoff.mjs`. Not present in the
+  vendored token-optimizer-mcp's own `hooks.json` at all (it registers
+  `SessionStart`/`PreToolUse`/`PreCompact`/`PostToolUse`/`Stop`, no
+  `SessionEnd`) — no co-registration concern for this event. Always returns
+  a bare `{}` (there's no user-visible surface left once a session is
+  ending) — the checkpoint write is a pure side effect.
+
+Both `handoff` hooks respect `handoff.enabled` (default `true`) — checked via
+`loadConfig` before doing any work; when `false`, both resolve to a bare `{}`
+without writing anything.
+
+### CLI (`optiflow checkpoint`)
+
+`optiflow checkpoint [notes] [--next-step <text>] [--open-file <path>]
+[--session <id>] [--restore [id]] [--full] [--list]` — the scriptable,
+non-slash-command entry point (usable outside a live Claude Code session,
+e.g. for testing or ad-hoc use):
+
+- **Write (default)**: saves a checkpoint; `notes` becomes its sole
+  `decisions[]` entry.
+- **`--restore [id]`**: renders the most recent checkpoint (or the one
+  matching `id`, by exact id or bare session-id prefix) instead of writing
+  one. Capped at 10,000 chars by default; `--full` opts out.
+- **`--list`**: enumerates every checkpoint in the resolved directory,
+  newest-first (same `timestamp` ordering as pruning), one line each —
+  id / taken-at (ISO) / git branch / decision count. Takes precedence over
+  `--restore`/`notes` if given together (listing is read-only and there's no
+  sensible combination that wants both at once).
+
+### Slash commands (`plugin/commands/*.md`)
+
+- `/optiflow:checkpoint [notes]` — wraps `optiflow checkpoint "$ARGUMENTS"`.
+- `/optiflow:restore [checkpoint-id]` — wraps `optiflow checkpoint --restore
+  "$ARGUMENTS"`.
+- `/optiflow:compact-continue [notes]` — the plan's named combined
+  save-then-restore convenience command. Behavior: checkpoint now (step 1,
+  same as `/optiflow:checkpoint`), then immediately render that checkpoint
+  back (step 2, same as `/optiflow:restore` with no id — the just-written
+  checkpoint is now the latest). **Does not itself trigger compaction** — it
+  only prepares for one (or for a session ending) by making sure a
+  checkpoint exists and showing the user what a fresh session would resume
+  with; the command's own `.md` says this explicitly since users are likely
+  to assume otherwise from the name.
+
+## Module 4 file map
+
+```
+src/handoff/
+├── checkpoint.ts        — buildCheckpoint, getGitInfo, resolveTokenOptimizerStateRef,
+│                           checkpointId, resolveCheckpointDir, writeCheckpoint,
+│                           listCheckpointFiles, pruneCheckpoints, createCheckpoint
+├── restore.ts            — loadCheckpoint, findLatestCheckpoint, findCheckpointById,
+│                           resolveCheckpoint, renderRestoreMarkdown (capped by default),
+│                           renderCappedRestoreOutput (future SessionStart hook contract)
+├── activity.ts           — writeActivityBeacon (produces ~/.optiflow/activity.json)
+├── activity-hook.ts       — PreToolUse (".*") hook entry -> plugin/hooks/pretooluse-activity.mjs
+├── precompact-hook.ts     — PreCompact hook entry -> plugin/hooks/precompact-handoff.mjs
+├── sessionend-hook.ts     — SessionEnd hook entry -> plugin/hooks/sessionend-handoff.mjs
+├── checkpoint.test.ts / restore.test.ts / activity.test.ts
+├── precompact-hook.test.ts / sessionend-hook.test.ts / activity-hook.test.ts
+└── hooks.fixtures.test.ts — golden-fixture + real spawnSync-against-built-.mjs tests
+src/cli/commands/checkpoint.ts — optiflow checkpoint [notes] / --restore / --full / --list
+plugin/commands/
+├── checkpoint.md / restore.md / compact-continue.md
+fixtures/hooks/
+├── precompact-basic.json / sessionend-basic.json / pretooluse-activity-read.json
 ```

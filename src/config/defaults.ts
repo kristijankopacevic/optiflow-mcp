@@ -65,6 +65,17 @@ export interface DefaultConfigShape {
   handoff: {
     enabled: boolean;
     checkpointDir: string;
+    /**
+     * Phase 7 addition (not present in Phase 2/earlier phases), following
+     * the same additive-config precedent as `chop.minOutputBytes`/
+     * `toon.minRows`: the number of newest checkpoints (by in-file
+     * `timestamp`, never filename or mtime order — see
+     * `src/handoff/checkpoint.ts`'s `pruneCheckpoints`) to keep per
+     * checkpoint directory; older ones are deleted after each write. `0`
+     * means unlimited (never prune) — see the schema.ts comment on why this
+     * is `.nonnegative()`, not `.positive()`.
+     */
+    keep: number;
   };
   report: {
     includeOptimizer: boolean;
@@ -111,6 +122,15 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
   handoff: {
     enabled: true,
     checkpointDir: ".optiflow/checkpoints",
+    // 20 is a rough "a few days of active work" proxy, same rough-heuristic
+    // spirit as statusline's RECENT_SAVINGS_WINDOW_MS — not measured against
+    // real usage data yet. Documented interaction to watch (docs/modules.md):
+    // with `handoff.enabled: true`, every SessionEnd writes an auto-checkpoint
+    // even when its decisions/nextSteps/openFiles are all empty, so on a
+    // busy project auto-noise can evict older MANUAL checkpoints before a
+    // user goes looking for them. Keep-newest-N is what the plan specs; a
+    // priority/pinning scheme is a follow-up decision, not this phase's call.
+    keep: 20,
   },
   report: {
     includeOptimizer: false,

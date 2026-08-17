@@ -53,6 +53,13 @@ const plannedEntries = [
 const hookEntries = [
   { in: "src/chop/pretooluse.ts", out: "pretooluse-chop" },
   { in: "src/chop/posttooluse-mcp.ts", out: "posttooluse-mcp" },
+  // Phase 7 (Module 4 - handoff): auto-checkpoint on PreCompact/SessionEnd,
+  // plus the broad-matcher PreToolUse activity-beacon hook (see
+  // src/handoff/activity-hook.ts for why this is a second, separate
+  // PreToolUse hook rather than piggybacking on pretooluse-chop above).
+  { in: "src/handoff/precompact-hook.ts", out: "precompact-handoff" },
+  { in: "src/handoff/sessionend-hook.ts", out: "sessionend-handoff" },
+  { in: "src/handoff/activity-hook.ts", out: "pretooluse-activity" },
 ];
 
 /**
