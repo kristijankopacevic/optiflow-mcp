@@ -3405,7 +3405,8 @@ var DEFAULT_CONFIG = {
   },
   toon: {
     enabled: true,
-    minSavingsPercent: 30
+    minSavingsPercent: 30,
+    minRows: 5
   },
   statusline: {
     enabled: true,
@@ -17960,7 +17961,8 @@ var ChopSchema = external_exports.object({
 });
 var ToonSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.toon.enabled),
-  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.toon.minSavingsPercent)
+  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.toon.minSavingsPercent),
+  minRows: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.toon.minRows)
 });
 var StatuslineSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.statusline.enabled),
@@ -18323,12 +18325,795 @@ function registerDoctorCommand(program2) {
   });
 }
 
+// src/cli/commands/toon.ts
+import { readFileSync as readFileSync3 } from "node:fs";
+
+// src/toon/detect.ts
+function isPlainObject2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isUniformObjectArray(arr) {
+  if (arr.length === 0 || !isPlainObject2(arr[0])) return false;
+  const firstKeys = Object.keys(arr[0]).sort().join(",");
+  return arr.every((item) => isPlainObject2(item) && Object.keys(item).sort().join(",") === firstKeys);
+}
+var EMPTY_UNIFORMITY = {
+  isArray: false,
+  rowCount: 0,
+  keyOverlapRatio: 0,
+  strictlyUniform: false
+};
+function scoreJsonUniformity(value) {
+  if (!Array.isArray(value)) return EMPTY_UNIFORMITY;
+  if (value.length === 0) return { isArray: true, rowCount: 0, keyOverlapRatio: 0, strictlyUniform: false };
+  const signatureCounts = /* @__PURE__ */ new Map();
+  let plainObjectCount = 0;
+  for (const item of value) {
+    if (!isPlainObject2(item)) continue;
+    plainObjectCount++;
+    const signature = Object.keys(item).sort().join(",");
+    signatureCounts.set(signature, (signatureCounts.get(signature) ?? 0) + 1);
+  }
+  let mode = 0;
+  for (const count of signatureCounts.values()) mode = Math.max(mode, count);
+  return {
+    isArray: true,
+    rowCount: value.length,
+    keyOverlapRatio: plainObjectCount === 0 ? 0 : mode / value.length,
+    strictlyUniform: isUniformObjectArray(value)
+  };
+}
+function tryParseJson(trimmed) {
+  try {
+    return { ok: true, value: JSON.parse(trimmed) };
+  } catch {
+    return { ok: false };
+  }
+}
+function naiveCsvFieldCount(line) {
+  return line.split(",").length;
+}
+function looksLikeCsv(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return false;
+  const sample = lines.slice(0, Math.min(lines.length, 20));
+  const firstCount = naiveCsvFieldCount(sample[0]);
+  if (firstCount < 2) return false;
+  return sample.every((l) => naiveCsvFieldCount(l) === firstCount);
+}
+var YAML_KEY_LINE = /^[\s-]*([a-z][a-z0-9_-]*):(\s|$)/;
+function looksLikeYaml(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0 && !l.trim().startsWith("#"));
+  if (lines.length === 0) return false;
+  const distinctKeys = /* @__PURE__ */ new Set();
+  let matching = 0;
+  for (const line of lines) {
+    const m = YAML_KEY_LINE.exec(line);
+    if (m) {
+      matching++;
+      distinctKeys.add(m[1]);
+    }
+  }
+  return matching / lines.length >= 0.6 && distinctKeys.size >= 2;
+}
+function detectFormat(text) {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return { format: "text" };
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const parsed = tryParseJson(trimmed);
+    if (parsed.ok) {
+      return { format: "json", json: { value: parsed.value, uniformity: scoreJsonUniformity(parsed.value) } };
+    }
+  }
+  if (looksLikeCsv(trimmed)) return { format: "csv" };
+  if (looksLikeYaml(trimmed)) return { format: "yaml" };
+  return { format: "text" };
+}
+
+// node_modules/@toon-format/toon/dist/index.mjs
+var NULL_LITERAL = "null";
+var DELIMITERS = {
+  comma: ",",
+  tab: "	",
+  pipe: "|"
+};
+var DEFAULT_DELIMITER = DELIMITERS.comma;
+function escapeString(value) {
+  return value.replace(/\\/g, `\\\\`).replace(/"/g, `\\"`).replace(/\n/g, `\\n`).replace(/\r/g, `\\r`).replace(/\t/g, `\\t`).replace(/[\u0000-\u001F]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+function isBooleanOrNullLiteral(token) {
+  return token === "true" || token === "false" || token === "null";
+}
+function setOwnProperty(target, key, value) {
+  if (key === "__proto__") {
+    Object.defineProperty(target, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
+    return;
+  }
+  target[key] = value;
+}
+var COMMENT_LINE_PATTERN = new RegExp(`(?:^\uFEFF?|\\n) *#`);
+var RawString = class {
+  constructor(value) {
+    if (COMMENT_LINE_PATTERN.test(value)) throw new TypeError(`Raw string must not contain a line starting with "#": ${JSON.stringify(value)}`);
+    this.value = value;
+  }
+};
+function isRawString(value) {
+  return value instanceof RawString;
+}
+var SURROGATE_PATTERN = /[\uD800-\uDFFF]/;
+function normalizeValue(value) {
+  if (value === null) return null;
+  if (isRawString(value)) return value;
+  if (typeof value === "object" && value !== null && "toJSON" in value && typeof value.toJSON === "function") {
+    const next = value.toJSON();
+    if (next !== value) return normalizeValue(next);
+  }
+  if (typeof value === "string") {
+    assertNoLoneSurrogate(value, "string value");
+    return value;
+  }
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (Object.is(value, -0)) return 0;
+    if (!Number.isFinite(value)) return null;
+    return value;
+  }
+  if (typeof value === "bigint") {
+    if (value >= Number.MIN_SAFE_INTEGER && value <= Number.MAX_SAFE_INTEGER) return Number(value);
+    return value.toString();
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(normalizeValue);
+  if (value instanceof Set) return Array.from(value).map(normalizeValue);
+  if (value instanceof Map) return Object.fromEntries(Array.from(value, ([k, v]) => [String(k), normalizeValue(v)]));
+  if (isPlainObject3(value)) {
+    const encodedValues = {};
+    for (const key in value) if (Object.hasOwn(value, key)) {
+      assertNoLoneSurrogate(key, "object key");
+      setOwnProperty(encodedValues, key, normalizeValue(value[key]));
+    }
+    return encodedValues;
+  }
+  return null;
+}
+function assertNoLoneSurrogate(value, context) {
+  if (!SURROGATE_PATTERN.test(value)) return;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code < 55296 || code > 57343) continue;
+    const isHighSurrogate = code <= 56319;
+    const next = value.charCodeAt(index + 1);
+    if (isHighSurrogate && next >= 56320 && next <= 57343) {
+      index++;
+      continue;
+    }
+    throw new TypeError(`Cannot encode ${context} containing an unpaired surrogate U+${code.toString(16).toUpperCase()} at index ${index}`);
+  }
+}
+function isJsonPrimitive(value) {
+  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+function isEncodablePrimitive(value) {
+  return isJsonPrimitive(value) || isRawString(value);
+}
+function isJsonArray(value) {
+  return Array.isArray(value);
+}
+function isJsonObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && !isRawString(value);
+}
+function isEmptyObject(value) {
+  return Object.keys(value).length === 0;
+}
+function isPlainObject3(value) {
+  if (value === null || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === null || prototype === Object.prototype;
+}
+function isArrayOfPrimitives(value) {
+  return value.length === 0 || value.every((item) => isEncodablePrimitive(item));
+}
+function isArrayOfArrays(value) {
+  return value.length === 0 || value.every((item) => isJsonArray(item));
+}
+function isArrayOfObjects(value) {
+  return value.length === 0 || value.every((item) => isJsonObject(item));
+}
+var NUMERIC_LIKE_PATTERN = /^[+-]?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i;
+function assertValidDelimiter(delimiter) {
+  if (!Object.values(DELIMITERS).includes(delimiter)) throw new TypeError(`Invalid delimiter ${JSON.stringify(delimiter)}. Valid delimiters are: comma (,), tab (\\t), pipe (|)`);
+}
+function isValidUnquotedKey(key) {
+  return /^[A-Z_][\w.]*$/i.test(key);
+}
+function isSafeUnquoted(value, delimiter = DEFAULT_DELIMITER) {
+  if (!value) return false;
+  if (/^[ \t]|[ \t]$/.test(value)) return false;
+  if (isBooleanOrNullLiteral(value) || isNumericLike(value)) return false;
+  if (value.includes(":")) return false;
+  if (value.includes('"') || value.includes("\\")) return false;
+  if (/[[\]{}]/.test(value)) return false;
+  if (/[\u0000-\u001F]/.test(value)) return false;
+  if (value.includes(delimiter)) return false;
+  if (value.startsWith("-")) return false;
+  if (value.startsWith("#")) return false;
+  return true;
+}
+function isNumericLike(value) {
+  return NUMERIC_LIKE_PATTERN.test(value);
+}
+function encodePrimitive(value, delimiter) {
+  if (isRawString(value)) return value.value;
+  if (value === null) return NULL_LITERAL;
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "number") return String(value);
+  return encodeStringLiteral(value, delimiter);
+}
+function encodeStringLiteral(value, delimiter = DEFAULT_DELIMITER) {
+  if (isSafeUnquoted(value, delimiter)) return value;
+  return `"${escapeString(value)}"`;
+}
+function encodeKey(key) {
+  if (isValidUnquotedKey(key)) return key;
+  return `"${escapeString(key)}"`;
+}
+function encodeAndJoinPrimitives(values, delimiter = DEFAULT_DELIMITER) {
+  return values.map((v) => encodePrimitive(v, delimiter)).join(delimiter);
+}
+function formatHeader(length, options) {
+  const key = options?.key;
+  const fields = options?.fields;
+  const delimiter = options?.delimiter ?? ",";
+  let header = "";
+  if (key != null) header += encodeKey(key);
+  header += `[${length}${options?.keyed ? ":" : ""}${delimiter !== DEFAULT_DELIMITER ? delimiter : ""}]`;
+  if (fields) header += `{${formatFieldSegment(fields, delimiter)}}`;
+  header += ":";
+  return header;
+}
+function formatFieldSegment(fields, delimiter) {
+  return fields.map((field) => encodeKey(field.name) + (field.children ? `{${formatFieldSegment(field.children, delimiter)}}` : "")).join(delimiter);
+}
+function extractTabularFields(rows) {
+  if (rows.length === 0) return;
+  const firstKeys = Object.keys(rows[0]);
+  if (firstKeys.length === 0) return;
+  for (const row of rows) {
+    if (Object.keys(row).length !== firstKeys.length) return;
+    for (const key of firstKeys) if (!Object.hasOwn(row, key)) return;
+  }
+  const fieldNodes = [];
+  for (const key of firstKeys) {
+    const fieldNode = classifyColumn(key, rows.map((row) => row[key]));
+    if (!fieldNode) return;
+    fieldNodes.push(fieldNode);
+  }
+  return fieldNodes;
+}
+function extractKeyedTabularFields(value) {
+  const entryValues = Object.values(value);
+  if (entryValues.length < 2) return;
+  if (!entryValues.every((entryValue) => isJsonObject(entryValue) && !isEmptyObject(entryValue))) return;
+  return extractTabularFields(entryValues);
+}
+function collectRowLeaves(row, fields) {
+  const leaves = [];
+  collectLeafValues(row, fields, leaves);
+  return leaves;
+}
+function classifyColumn(name, values) {
+  if (values.every((value) => isEncodablePrimitive(value))) return { name };
+  if (!values.every((value) => isJsonObject(value) && !isEmptyObject(value))) return;
+  const children = extractTabularFields(values);
+  if (!children) return;
+  return {
+    name,
+    children
+  };
+}
+function collectLeafValues(row, fields, leaves) {
+  for (const field of fields) {
+    const value = row[field.name];
+    if (field.children) collectLeafValues(value, field.children, leaves);
+    else leaves.push(value);
+  }
+}
+function* encodeJsonValue(value, options, depth) {
+  if (isEncodablePrimitive(value)) {
+    const encodedPrimitive = encodePrimitive(value, options.delimiter);
+    if (encodedPrimitive !== "") yield encodedPrimitive;
+    return;
+  }
+  if (isJsonArray(value)) yield* encodeArrayLines(void 0, value, depth, options);
+  else if (isJsonObject(value)) {
+    const keyedFields = extractKeyedTabularFields(value);
+    if (keyedFields) {
+      yield* encodeKeyedObjectLines(void 0, value, keyedFields, depth, options);
+      return;
+    }
+    yield* encodeObjectLines(value, depth, options);
+  }
+}
+function* encodeObjectLines(value, depth, options) {
+  for (const [key, val] of Object.entries(value)) yield* encodeKeyValuePairLines(key, val, depth, options);
+}
+function* encodeKeyValuePairLines(key, value, depth, options) {
+  const encodedKey = encodeKey(key);
+  if (isEncodablePrimitive(value)) yield indentedLine(depth, `${encodedKey}: ${encodePrimitive(value, options.delimiter)}`, options.indentSize);
+  else if (isJsonArray(value)) yield* encodeArrayLines(key, value, depth, options);
+  else if (isJsonObject(value)) {
+    const keyedFields = extractKeyedTabularFields(value);
+    if (keyedFields) {
+      yield* encodeKeyedObjectLines(key, value, keyedFields, depth, options);
+      return;
+    }
+    yield indentedLine(depth, `${encodedKey}:`, options.indentSize);
+    if (!isEmptyObject(value)) yield* encodeObjectLines(value, depth + 1, options);
+  }
+}
+function* encodeKeyedObjectLines(key, value, fields, depth, options) {
+  const entries = Object.entries(value);
+  yield indentedLine(depth, formatHeader(entries.length, {
+    key,
+    fields,
+    delimiter: options.delimiter,
+    keyed: true
+  }), options.indentSize);
+  yield* encodeKeyedEntryRowsLines(entries, fields, depth + 1, options);
+}
+function* encodeKeyedEntryRowsLines(entries, fields, depth, options) {
+  for (const [entryKey, entryValue] of entries) {
+    const leaves = collectRowLeaves(entryValue, fields);
+    yield indentedLine(depth, `${encodeKey(entryKey)}: ${encodeAndJoinPrimitives(leaves, options.delimiter)}`, options.indentSize);
+  }
+}
+function* encodeArrayLines(key, value, depth, options) {
+  if (value.length === 0) {
+    yield indentedLine(depth, key != null ? `${encodeKey(key)}: []` : "[]", options.indentSize);
+    return;
+  }
+  if (isArrayOfPrimitives(value)) {
+    yield indentedLine(depth, encodeInlineArrayLine(value, options.delimiter, key), options.indentSize);
+    return;
+  }
+  if (isArrayOfArrays(value)) {
+    if (value.every((arr) => isArrayOfPrimitives(arr))) {
+      yield* encodeArrayOfArraysAsListItemsLines(key, value, depth, options);
+      return;
+    }
+  }
+  if (isArrayOfObjects(value)) {
+    const fields = extractTabularFields(value);
+    if (fields) yield* encodeArrayOfObjectsAsTabularLines(key, value, fields, depth, options);
+    else yield* encodeMixedArrayAsListItemsLines(key, value, depth, options);
+    return;
+  }
+  yield* encodeMixedArrayAsListItemsLines(key, value, depth, options);
+}
+function* encodeArrayOfArraysAsListItemsLines(prefix, values, depth, options) {
+  yield indentedLine(depth, formatHeader(values.length, {
+    key: prefix,
+    delimiter: options.delimiter
+  }), options.indentSize);
+  for (const arr of values) if (isArrayOfPrimitives(arr)) {
+    const arrayLine = encodeInlineArrayLine(arr, options.delimiter);
+    yield indentedListItem(depth + 1, arrayLine, options.indentSize);
+  }
+}
+function encodeInlineArrayLine(values, delimiter, prefix) {
+  const header = formatHeader(values.length, {
+    key: prefix,
+    delimiter
+  });
+  const joinedValue = encodeAndJoinPrimitives(values, delimiter);
+  if (values.length === 0) return header;
+  return `${header} ${joinedValue}`;
+}
+function* encodeArrayOfObjectsAsTabularLines(prefix, rows, fields, depth, options) {
+  yield indentedLine(depth, formatHeader(rows.length, {
+    key: prefix,
+    fields,
+    delimiter: options.delimiter
+  }), options.indentSize);
+  yield* writeTabularRowsLines(rows, fields, depth + 1, options);
+}
+function* writeTabularRowsLines(rows, fields, depth, options) {
+  for (const row of rows) yield indentedLine(depth, encodeAndJoinPrimitives(collectRowLeaves(row, fields), options.delimiter), options.indentSize);
+}
+function* encodeMixedArrayAsListItemsLines(prefix, items, depth, options) {
+  yield indentedLine(depth, formatHeader(items.length, {
+    key: prefix,
+    delimiter: options.delimiter
+  }), options.indentSize);
+  for (const item of items) yield* encodeListItemValueLines(item, depth + 1, options);
+}
+function* encodeObjectAsListItemLines(obj, depth, options) {
+  if (isEmptyObject(obj)) {
+    yield indentedLine(depth, "-", options.indentSize);
+    return;
+  }
+  const entries = Object.entries(obj);
+  const [firstKey, firstValue] = entries[0];
+  const restEntries = entries.slice(1);
+  if (isJsonArray(firstValue) && isArrayOfObjects(firstValue)) {
+    const fields = extractTabularFields(firstValue);
+    if (fields) {
+      yield indentedListItem(depth, formatHeader(firstValue.length, {
+        key: firstKey,
+        fields,
+        delimiter: options.delimiter
+      }), options.indentSize);
+      yield* writeTabularRowsLines(firstValue, fields, depth + 2, options);
+      if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
+      return;
+    }
+  }
+  if (isJsonObject(firstValue)) {
+    const keyedFields = extractKeyedTabularFields(firstValue);
+    if (keyedFields) {
+      const keyedEntries = Object.entries(firstValue);
+      yield indentedListItem(depth, formatHeader(keyedEntries.length, {
+        key: firstKey,
+        fields: keyedFields,
+        delimiter: options.delimiter,
+        keyed: true
+      }), options.indentSize);
+      yield* encodeKeyedEntryRowsLines(keyedEntries, keyedFields, depth + 2, options);
+      if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
+      return;
+    }
+  }
+  const encodedKey = encodeKey(firstKey);
+  if (isEncodablePrimitive(firstValue)) yield indentedListItem(depth, `${encodedKey}: ${encodePrimitive(firstValue, options.delimiter)}`, options.indentSize);
+  else if (isJsonArray(firstValue)) if (firstValue.length === 0) yield indentedListItem(depth, `${encodedKey}: []`, options.indentSize);
+  else if (isArrayOfPrimitives(firstValue)) yield indentedListItem(depth, `${encodedKey}${encodeInlineArrayLine(firstValue, options.delimiter)}`, options.indentSize);
+  else {
+    yield indentedListItem(depth, `${encodedKey}${formatHeader(firstValue.length, { delimiter: options.delimiter })}`, options.indentSize);
+    for (const item of firstValue) yield* encodeListItemValueLines(item, depth + 2, options);
+  }
+  else if (isJsonObject(firstValue)) {
+    yield indentedListItem(depth, `${encodedKey}:`, options.indentSize);
+    if (!isEmptyObject(firstValue)) yield* encodeObjectLines(firstValue, depth + 2, options);
+  }
+  if (restEntries.length > 0) yield* encodeObjectLines(Object.fromEntries(restEntries), depth + 1, options);
+}
+function* encodeListItemValueLines(value, depth, options) {
+  if (isEncodablePrimitive(value)) yield indentedListItem(depth, encodePrimitive(value, options.delimiter), options.indentSize);
+  else if (isJsonArray(value)) if (isArrayOfPrimitives(value)) yield indentedListItem(depth, encodeInlineArrayLine(value, options.delimiter), options.indentSize);
+  else {
+    yield indentedListItem(depth, formatHeader(value.length, { delimiter: options.delimiter }), options.indentSize);
+    for (const item of value) yield* encodeListItemValueLines(item, depth + 1, options);
+  }
+  else if (isJsonObject(value)) yield* encodeObjectAsListItemLines(value, depth, options);
+}
+function indentedLine(depth, content, indentSize) {
+  return " ".repeat(indentSize * depth) + content;
+}
+function indentedListItem(depth, content, indentSize) {
+  return indentedLine(depth, "- " + content, indentSize);
+}
+function applyReplacer(root, replacer) {
+  const replacedRoot = replacer("", root, []);
+  if (replacedRoot === void 0) return transformChildren(root, replacer, []);
+  return transformReplaced(root, replacedRoot, replacer, []);
+}
+function transformReplaced(original, replaced, replacer, path5) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path5);
+  return transformChildren(normalizeValue(replaced), replacer, path5);
+}
+function transformChildren(value, replacer, path5) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path5);
+  if (isJsonArray(value)) return transformArray(value, replacer, path5);
+  return value;
+}
+function transformObject(obj, replacer, path5) {
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const childPath = [...path5, key];
+    const replacedValue = replacer(key, value, childPath);
+    if (replacedValue === void 0) continue;
+    setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
+  }
+  return result;
+}
+function transformArray(arr, replacer, path5) {
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const value = arr[i];
+    const childPath = [...path5, i];
+    const replacedValue = replacer(String(i), value, childPath);
+    if (replacedValue === void 0) continue;
+    result.push(transformReplaced(value, replacedValue, replacer, childPath));
+  }
+  return result;
+}
+function encode3(input, options) {
+  return Array.from(encodeLines(input, options)).join("\n");
+}
+function encodeLines(input, options) {
+  const normalizedValue = normalizeValue(input);
+  const resolvedOptions = resolveOptions(options);
+  return encodeJsonValue(resolvedOptions.replacer ? applyReplacer(normalizedValue, resolvedOptions.replacer) : normalizedValue, resolvedOptions, 0);
+}
+function resolveOptions(options) {
+  const delimiter = options?.delimiter ?? DEFAULT_DELIMITER;
+  assertValidDelimiter(delimiter);
+  return {
+    indentSize: options?.indentSize ?? options?.indent ?? 2,
+    delimiter,
+    replacer: options?.replacer
+  };
+}
+
+// src/toon/convert.ts
+function convertJsonValueToToon(value) {
+  try {
+    return { ok: true, output: encode3(value), format: "json" };
+  } catch (err) {
+    return { ok: false, reason: `TOON encode threw on JSON input: ${errorMessage(err)}` };
+  }
+}
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  let sawAnyContent = false;
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      sawAnyContent = true;
+      i++;
+      continue;
+    }
+    if (ch === ",") {
+      row.push(field);
+      field = "";
+      sawAnyContent = true;
+      i++;
+      continue;
+    }
+    if (ch === "\r") {
+      i++;
+      continue;
+    }
+    if (ch === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      i++;
+      continue;
+    }
+    field += ch;
+    sawAnyContent = true;
+    i++;
+  }
+  if (inQuotes) return null;
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  if (!sawAnyContent && rows.length <= 1) return null;
+  return rows;
+}
+function convertCsvToToon(text) {
+  const rows = parseCsv(text);
+  if (!rows || rows.length < 2) {
+    return { ok: false, reason: "CSV did not parse into a header row plus at least one data row" };
+  }
+  const [header, ...dataRows] = rows;
+  if (header.length === 0 || header.some((h) => h.trim().length === 0)) {
+    return { ok: false, reason: "CSV header is missing or contains an empty column name" };
+  }
+  if (!dataRows.every((r) => r.length === header.length)) {
+    return { ok: false, reason: "CSV rows have inconsistent column counts; declining to guess" };
+  }
+  const objects = dataRows.map((r) => {
+    const obj = {};
+    header.forEach((h, idx) => {
+      obj[h] = r[idx];
+    });
+    return obj;
+  });
+  try {
+    return { ok: true, output: encode3(objects), format: "csv" };
+  } catch (err) {
+    return { ok: false, reason: `TOON encode threw on CSV-derived rows: ${errorMessage(err)}` };
+  }
+}
+function convertYamlToToon(_text) {
+  return {
+    ok: false,
+    reason: "YAML conversion is not implemented in this phase (no YAML parser dependency); returning original"
+  };
+}
+function convertToToon(input, opts = {}) {
+  const detected = opts.detected ?? detectFormat(input);
+  switch (detected.format) {
+    case "json":
+      if (!detected.json) return { ok: false, reason: "detected as JSON but no parsed value was available" };
+      return convertJsonValueToToon(detected.json.value);
+    case "csv":
+      return convertCsvToToon(input);
+    case "yaml":
+      return convertYamlToToon(input);
+    case "text":
+    default:
+      return { ok: false, reason: `input does not look like JSON, CSV, or YAML (detected: ${detected.format})` };
+  }
+}
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// src/core/tokens.ts
+var encoder = null;
+function countTokens(text) {
+  if (encoder) {
+    try {
+      return encoder.encode(text).length;
+    } catch {
+    }
+  }
+  return Math.ceil(text.length / 4);
+}
+
+// src/toon/guard.ts
+function evaluateGuard(original, candidateToon, rowCount, opts) {
+  const tokensBefore = countTokens(original);
+  const tokensAfter = countTokens(candidateToon);
+  const savingsPercent = tokensBefore === 0 ? 0 : (tokensBefore - tokensAfter) / tokensBefore * 100;
+  if (rowCount < opts.minRows) {
+    return {
+      approved: false,
+      reason: `only ${rowCount} row(s), below toon.minRows (${opts.minRows}) \u2014 not worth attempting`,
+      tokensBefore,
+      tokensAfter,
+      savingsPercent
+    };
+  }
+  if (savingsPercent < opts.minSavingsPercent) {
+    return {
+      approved: false,
+      reason: `would save only ${savingsPercent.toFixed(1)}%, below toon.minSavingsPercent (${opts.minSavingsPercent}%)`,
+      tokensBefore,
+      tokensAfter,
+      savingsPercent
+    };
+  }
+  return {
+    approved: true,
+    reason: `saves ${savingsPercent.toFixed(1)}% (>= toon.minSavingsPercent ${opts.minSavingsPercent}%)`,
+    tokensBefore,
+    tokensAfter,
+    savingsPercent
+  };
+}
+
+// src/toon/index.ts
+function rowCountFor(detected, rawInputForCsv) {
+  if (detected.format === "json") {
+    return detected.json?.uniformity.rowCount ?? 0;
+  }
+  if (detected.format === "csv") {
+    const nonBlank = rawInputForCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    return Math.max(0, nonBlank.length - 1);
+  }
+  return 0;
+}
+function maybeConvertToToon(input, config2) {
+  try {
+    if (!config2.enabled) {
+      return { ok: false, output: input, reason: "toon.enabled is false" };
+    }
+    const detected = detectFormat(input);
+    if (detected.format === "text") {
+      return { ok: false, output: input, reason: "input does not look like JSON, CSV, or YAML" };
+    }
+    const rowCount = rowCountFor(detected, input);
+    if (rowCount < config2.minRows) {
+      return {
+        ok: false,
+        output: input,
+        reason: `only ${rowCount} row(s), below toon.minRows (${config2.minRows}) \u2014 not worth attempting`
+      };
+    }
+    const converted = convertToToon(input, { detected });
+    if (!converted.ok || !converted.output) {
+      return { ok: false, output: input, reason: converted.reason ?? "TOON conversion declined" };
+    }
+    const guard = evaluateGuard(input, converted.output, rowCount, {
+      minSavingsPercent: config2.minSavingsPercent,
+      minRows: config2.minRows
+    });
+    if (!guard.approved) {
+      return { ok: false, output: input, format: converted.format, reason: guard.reason, guard };
+    }
+    return { ok: true, output: converted.output, format: converted.format, reason: guard.reason, guard };
+  } catch (err) {
+    return {
+      ok: false,
+      output: input,
+      reason: `TOON pipeline threw unexpectedly: ${err instanceof Error ? err.message : String(err)}`
+    };
+  }
+}
+
+// src/cli/commands/toon.ts
+function withTrailingNewline(text) {
+  return text.endsWith("\n") ? text : `${text}
+`;
+}
+function runToonCli(input, config2) {
+  const result = maybeConvertToToon(input, config2);
+  if (result.ok) {
+    const guard = result.guard;
+    const stderr = guard ? `[optiflow toon] converted (${result.format}): ${guard.tokensBefore} -> ${guard.tokensAfter} tokens (${guard.savingsPercent.toFixed(1)}% saved)
+` : `[optiflow toon] converted (${result.format ?? "unknown"})
+`;
+    return { stdout: withTrailingNewline(result.output), stderr, converted: true };
+  }
+  return {
+    stdout: withTrailingNewline(input),
+    stderr: `[optiflow toon] skipped: ${result.reason}
+`,
+    converted: false
+  };
+}
+async function readStdin(stream = process.stdin) {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+function registerToonCommand(program2) {
+  program2.command("toon [file]").description(
+    "Convert a JSON/CSV file (or stdin) to TOON when it saves tokens; YAML is detected but not yet converted. Guarded by toon.minSavingsPercent/toon.minRows in optiflow.config.json."
+  ).option("--min-savings <percent>", "override toon.minSavingsPercent for this run", (v) => Number.parseFloat(v)).option("--min-rows <count>", "override toon.minRows for this run", (v) => Number.parseInt(v, 10)).action(async (file2, opts) => {
+    const input = file2 ? readFileSync3(file2, "utf8") : await readStdin();
+    const { config: config2 } = loadConfig();
+    const toonConfig = {
+      enabled: config2.toon.enabled,
+      minSavingsPercent: opts.minSavings ?? config2.toon.minSavingsPercent,
+      minRows: opts.minRows ?? config2.toon.minRows
+    };
+    const { stdout, stderr } = runToonCli(input, toonConfig);
+    process.stdout.write(stdout);
+    process.stderr.write(stderr);
+  });
+}
+
 // src/cli/index.ts
 var NOT_YET_IMPLEMENTED_COMMANDS = [
   { name: "report", phase: "6", description: "Transcript token/cache analytics report." },
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
-  { name: "toon", phase: "5", description: "Convert JSON/CSV to TOON when it saves tokens." },
   { name: "checkpoint", phase: "7", description: "Session-handoff checkpoint/restore." },
   { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
   { name: "install", phase: "8", description: "Install the optiflow plugin/hooks into Claude Code settings." },
@@ -18340,6 +19125,7 @@ function buildProgram() {
     "Orchestration layer wiring token-optimizer-mcp and headroom together, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion."
   ).version("0.1.0");
   registerDoctorCommand(program2);
+  registerToonCommand(program2);
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program2.command(stub.name).description(`${stub.description} (not yet implemented \u2014 see Phase ${stub.phase} of the plan)`).action(() => {
       console.log(

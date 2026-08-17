@@ -139,7 +139,8 @@ var DEFAULT_CONFIG = {
   },
   toon: {
     enabled: true,
-    minSavingsPercent: 30
+    minSavingsPercent: 30,
+    minRows: 5
   },
   statusline: {
     enabled: true,
@@ -14694,7 +14695,8 @@ var ChopSchema = external_exports.object({
 });
 var ToonSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.toon.enabled),
-  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.toon.minSavingsPercent)
+  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.toon.minSavingsPercent),
+  minRows: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.toon.minRows)
 });
 var StatuslineSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.statusline.enabled),

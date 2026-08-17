@@ -4,12 +4,12 @@
 
 import { Command } from "commander";
 import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerToonCommand } from "./commands/toon.js";
 
 const NOT_YET_IMPLEMENTED_COMMANDS: Array<{ name: string; phase: string; description: string }> = [
   { name: "report", phase: "6", description: "Transcript token/cache analytics report." },
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
-  { name: "toon", phase: "5", description: "Convert JSON/CSV to TOON when it saves tokens." },
   { name: "checkpoint", phase: "7", description: "Session-handoff checkpoint/restore." },
   { name: "init", phase: "1/8", description: "Scaffold an optiflow.config.json in the current project." },
   { name: "install", phase: "8", description: "Install the optiflow plugin/hooks into Claude Code settings." },
@@ -27,6 +27,7 @@ export function buildProgram(): Command {
     .version("0.1.0");
 
   registerDoctorCommand(program);
+  registerToonCommand(program);
 
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program

@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readHookInput } from "../core/hook-io.js";
 import { runPostToolUseMcp } from "./posttooluse-mcp.js";
+import { decode } from "../toon/convert.js";
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../fixtures/hooks/", import.meta.url));
 
@@ -47,7 +48,22 @@ describe("posttooluse-mcp golden fixture", () => {
     const output = await runPostToolUseMcp(() => readHookInput(stdinFrom(raw)), { cwd: projectDir, home: homeDir });
     const content = output.hookSpecificOutput?.updatedMCPToolOutput?.content as Array<{ type: string; text: string }>;
     expect(content).toBeDefined();
-    expect(content[0].text).toContain("omitted");
+
+    const originalItems = JSON.parse(
+      (JSON.parse(raw) as { tool_response: { content: Array<{ text: string }> } }).tool_response.content[0].text
+    );
     expect(content[0].text.length).toBeLessThan(raw.length);
+
+    // Phase 5: `genericFilter`'s uniform-array path now tries TOON first
+    // (lossless over the full 30-row array) via its default resolved
+    // `toon` config, and only falls back to the Phase-3 head+tail
+    // "... N items omitted ..." truncation when TOON is declined. For this
+    // fixture's small, highly-repetitive {file,line} rows, TOON clears the
+    // default 30% savings guard comfortably (measured ~52% smaller), so
+    // real behavior is the TOON path — verified here by round-tripping the
+    // output back through `decode` and confirming it reproduces every row
+    // losslessly (never a truncation marker with omitted rows).
+    expect(content[0].text).not.toContain("omitted");
+    expect(decode(content[0].text)).toEqual(originalItems);
   });
 });

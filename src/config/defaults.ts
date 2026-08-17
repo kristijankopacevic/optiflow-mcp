@@ -47,6 +47,16 @@ export interface DefaultConfigShape {
   toon: {
     enabled: boolean;
     minSavingsPercent: number;
+    /**
+     * Phase 5 addition (not present in Phase 2/3), following the same
+     * additive-config precedent as `chop.minOutputBytes`: below this many
+     * rows (top-level JSON array elements, or CSV data rows), TOON
+     * conversion isn't even attempted — tabular encoding's per-row overhead
+     * (headers, structural markers) rarely pays off on a handful of rows,
+     * and the measured-savings guard in `src/toon/guard.ts` would almost
+     * always reject it anyway. This just skips the wasted encode+count work.
+     */
+    minRows: number;
   };
   statusline: {
     enabled: boolean;
@@ -92,6 +102,7 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
   toon: {
     enabled: true,
     minSavingsPercent: 30,
+    minRows: 5,
   },
   statusline: {
     enabled: true,

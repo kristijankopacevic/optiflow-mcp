@@ -36,6 +36,7 @@ export const ChopSchema = z.object({
 export const ToonSchema = z.object({
   enabled: z.boolean().default(DEFAULT_CONFIG.toon.enabled),
   minSavingsPercent: z.number().min(0).max(100).default(DEFAULT_CONFIG.toon.minSavingsPercent),
+  minRows: z.number().int().nonnegative().default(DEFAULT_CONFIG.toon.minRows),
 });
 
 export const StatuslineSchema = z.object({
