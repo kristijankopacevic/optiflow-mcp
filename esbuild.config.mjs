@@ -19,50 +19,97 @@ import * as esbuild from "esbuild";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** @type {{ in: string; out: string }[]} */
+/**
+ * Bundled to `plugin/dist/**` (committed, see header comment) — CLI `bin/`
+ * entries and anything else invoked by requiring a built `.js` file
+ * directly (`plugin/bin/optiflow` -> `plugin/dist/cli/index.js`,
+ * `plugin/bin/optiflow-chop` -> `plugin/dist/chop/wrapper.js`).
+ * @type {{ in: string; out: string }[]}
+ */
 const plannedEntries = [
   { in: "src/cli/index.ts", out: "plugin/dist/cli/index" },
-  { in: "src/chop/pretooluse.ts", out: "plugin/dist/chop/pretooluse" },
-  { in: "src/chop/posttooluse-mcp.ts", out: "plugin/dist/chop/posttooluse-mcp" },
+  { in: "src/chop/wrapper.ts", out: "plugin/dist/chop/wrapper" },
   { in: "src/statusline/render.ts", out: "plugin/dist/statusline/render" },
   { in: "src/handoff/checkpoint.ts", out: "plugin/dist/handoff/checkpoint" },
   { in: "src/handoff/restore.ts", out: "plugin/dist/handoff/restore" },
   { in: "src/transcript/render.ts", out: "plugin/dist/transcript/render" },
 ];
 
-const existingEntries = plannedEntries.filter((entry) =>
-  existsSync(path.join(__dirname, entry.in))
-);
-const missingEntries = plannedEntries.filter(
-  (entry) => !existingEntries.includes(entry)
-);
+/**
+ * Bundled directly to `plugin/hooks/*.mjs` (NOT `plugin/dist/`) — these are
+ * Claude Code hook entries referenced by `plugin/hooks/hooks.json` via
+ * `${CLAUDE_PLUGIN_ROOT}/hooks/<name>.mjs`, mirroring exactly how the
+ * vendored token-optimizer-mcp plugin's own hooks.json references its
+ * hook scripts (`vendor/token-optimizer-mcp/plugin/hooks/hooks.json`).
+ * Building with an explicit `.mjs` output extension (rather than the `.js`
+ * used for `plugin/dist/**`) matters here specifically: if Claude Code's
+ * installed plugin tree is rooted such that there's no `package.json` with
+ * `"type": "module"` visible above `plugin/hooks/`, a plain `.js` file
+ * would be parsed as CommonJS and every `import` in it would fail at
+ * runtime with "Cannot use import statement outside a module" — the `.mjs`
+ * extension forces ESM regardless of any ambient `package.json`.
+ * @type {{ in: string; out: string }[]}
+ */
+const hookEntries = [
+  { in: "src/chop/pretooluse.ts", out: "pretooluse-chop" },
+  { in: "src/chop/posttooluse-mcp.ts", out: "posttooluse-mcp" },
+];
 
-if (missingEntries.length > 0) {
+function partitionByExistence(entries) {
+  const existing = entries.filter((entry) => existsSync(path.join(__dirname, entry.in)));
+  const missing = entries.filter((entry) => !existing.includes(entry));
+  return { existing, missing };
+}
+
+const { existing: existingEntries, missing: missingEntries } = partitionByExistence(plannedEntries);
+const { existing: existingHookEntries, missing: missingHookEntries } = partitionByExistence(hookEntries);
+
+const allMissing = [...missingEntries, ...missingHookEntries];
+if (allMissing.length > 0) {
   console.warn(
-    `[esbuild.config.mjs] Skipping ${missingEntries.length} entry point(s) not yet created (expected during Phase 1 scaffold):`
+    `[esbuild.config.mjs] Skipping ${allMissing.length} entry point(s) not yet created (expected during Phase 1 scaffold):`
   );
-  for (const entry of missingEntries) {
+  for (const entry of allMissing) {
     console.warn(`  - ${entry.in}`);
   }
 }
 
-if (existingEntries.length === 0) {
+if (existingEntries.length === 0 && existingHookEntries.length === 0) {
   console.warn(
     "[esbuild.config.mjs] No entry points exist yet — nothing to build. This is expected until Phase 2+ lands source files."
   );
   process.exit(0);
 }
 
-await esbuild.build({
-  entryPoints: existingEntries.map((entry) => ({
-    in: path.join(__dirname, entry.in),
-    out: entry.out.replace(/^plugin\/dist\//, ""),
-  })),
-  outdir: path.join(__dirname, "plugin/dist"),
-  bundle: true,
-  platform: "node",
-  target: "es2022",
-  format: "esm",
-  sourcemap: true,
-  logLevel: "info",
-});
+if (existingEntries.length > 0) {
+  await esbuild.build({
+    entryPoints: existingEntries.map((entry) => ({
+      in: path.join(__dirname, entry.in),
+      out: entry.out.replace(/^plugin\/dist\//, ""),
+    })),
+    outdir: path.join(__dirname, "plugin/dist"),
+    bundle: true,
+    platform: "node",
+    target: "es2022",
+    format: "esm",
+    sourcemap: true,
+    logLevel: "info",
+  });
+}
+
+if (existingHookEntries.length > 0) {
+  await esbuild.build({
+    entryPoints: existingHookEntries.map((entry) => ({
+      in: path.join(__dirname, entry.in),
+      out: entry.out,
+    })),
+    outdir: path.join(__dirname, "plugin/hooks"),
+    outExtension: { ".js": ".mjs" },
+    bundle: true,
+    platform: "node",
+    target: "es2022",
+    format: "esm",
+    sourcemap: true,
+    logLevel: "info",
+  });
+}

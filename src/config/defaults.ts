@@ -32,6 +32,17 @@ export interface DefaultConfigShape {
     enabled: boolean;
     allowlist: string[];
     excludeCommands: string[];
+    /**
+     * Below this many raw output bytes, `wrapper.ts` skips filtering and
+     * passes output through verbatim — compressing an already-small output
+     * wastes CPU for no token savings and risks losing fidelity on output
+     * that was never a context problem. Phase 3 addition (not present in
+     * Phase 2): consumed by `src/chop/wrapper.ts` and
+     * `src/chop/posttooluse-mcp.ts`, never by the `PreToolUse` rewrite
+     * decision itself (`pretooluse.ts`), because output size is unknown
+     * before the wrapped command has actually run.
+     */
+    minOutputBytes: number;
   };
   toon: {
     enabled: boolean;
@@ -70,6 +81,7 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
     enabled: false,
     allowlist: ["git", "docker", "kubectl", "npm", "terraform"],
     excludeCommands: ["npm run build", "npm test"],
+    minOutputBytes: 2000,
   },
   toon: {
     enabled: true,

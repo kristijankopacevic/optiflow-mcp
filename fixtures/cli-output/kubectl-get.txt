@@ -1,0 +1,11 @@
+NAME                                READY   STATUS             RESTARTS      AGE
+optiflow-api-7d8f9c6b5d-2xk9q       1/1     Running            0             2h
+optiflow-api-7d8f9c6b5d-8mv4t       1/1     Running            0             2h
+optiflow-worker-5b7c9d8f4c-p2n7x    0/1     CrashLoopBackOff   14 (2m ago)   2h
+optiflow-worker-5b7c9d8f4c-qz8jr    1/1     Running            3 (1h ago)    2h
+optiflow-redis-6f9d8c7b5a-vv2kk     1/1     Running            0             3h
+optiflow-postgres-0                1/1     Running            0             3h
+optiflow-grafana-8c9d7f6b5e-x9j2m   1/1     Running            0             1h
+optiflow-prometheus-0               1/1     Running            0             1h
+optiflow-nginx-9d8c7b6a5f-m4k1p     1/1     Running            0             2h
+optiflow-migrator-job-4x2n1         0/1     Completed          0             2h

@@ -30,6 +30,7 @@ export const ChopSchema = z.object({
   enabled: z.boolean().default(DEFAULT_CONFIG.chop.enabled),
   allowlist: z.array(z.string()).default(DEFAULT_CONFIG.chop.allowlist),
   excludeCommands: z.array(z.string()).default(DEFAULT_CONFIG.chop.excludeCommands),
+  minOutputBytes: z.number().int().nonnegative().default(DEFAULT_CONFIG.chop.minOutputBytes),
 });
 
 export const ToonSchema = z.object({

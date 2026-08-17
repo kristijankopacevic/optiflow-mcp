@@ -3394,7 +3394,8 @@ var DEFAULT_CONFIG = {
   chop: {
     enabled: false,
     allowlist: ["git", "docker", "kubectl", "npm", "terraform"],
-    excludeCommands: ["npm run build", "npm test"]
+    excludeCommands: ["npm run build", "npm test"],
+    minOutputBytes: 2e3
   },
   toon: {
     enabled: true,
@@ -17948,7 +17949,8 @@ var EnginesSchema = external_exports.object({
 var ChopSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.chop.enabled),
   allowlist: external_exports.array(external_exports.string()).default(DEFAULT_CONFIG.chop.allowlist),
-  excludeCommands: external_exports.array(external_exports.string()).default(DEFAULT_CONFIG.chop.excludeCommands)
+  excludeCommands: external_exports.array(external_exports.string()).default(DEFAULT_CONFIG.chop.excludeCommands),
+  minOutputBytes: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.chop.minOutputBytes)
 });
 var ToonSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.toon.enabled),

@@ -1,0 +1,13 @@
+{
+  "session_id": "sess-abc123",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__token-optimizer__smart_grep",
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"file\":\"src/a.ts\",\"line\":1},{\"file\":\"src/a.ts\",\"line\":2},{\"file\":\"src/a.ts\",\"line\":3},{\"file\":\"src/a.ts\",\"line\":4},{\"file\":\"src/a.ts\",\"line\":5},{\"file\":\"src/a.ts\",\"line\":6},{\"file\":\"src/a.ts\",\"line\":7},{\"file\":\"src/a.ts\",\"line\":8},{\"file\":\"src/a.ts\",\"line\":9},{\"file\":\"src/a.ts\",\"line\":10},{\"file\":\"src/a.ts\",\"line\":11},{\"file\":\"src/a.ts\",\"line\":12},{\"file\":\"src/a.ts\",\"line\":13},{\"file\":\"src/a.ts\",\"line\":14},{\"file\":\"src/a.ts\",\"line\":15},{\"file\":\"src/a.ts\",\"line\":16},{\"file\":\"src/a.ts\",\"line\":17},{\"file\":\"src/a.ts\",\"line\":18},{\"file\":\"src/a.ts\",\"line\":19},{\"file\":\"src/a.ts\",\"line\":20},{\"file\":\"src/a.ts\",\"line\":21},{\"file\":\"src/a.ts\",\"line\":22},{\"file\":\"src/a.ts\",\"line\":23},{\"file\":\"src/a.ts\",\"line\":24},{\"file\":\"src/a.ts\",\"line\":25},{\"file\":\"src/a.ts\",\"line\":26},{\"file\":\"src/a.ts\",\"line\":27},{\"file\":\"src/a.ts\",\"line\":28},{\"file\":\"src/a.ts\",\"line\":29},{\"file\":\"src/a.ts\",\"line\":30}]"
+      }
+    ]
+  }
+}

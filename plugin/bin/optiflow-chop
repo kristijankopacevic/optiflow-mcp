@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Placeholder for the optiflow-chop CLI shim (Module 1: Chop-style Bash interception).
-// Phase 2+ will replace this with the real dispatcher that invokes the built
-// dist/chop bundle. For now this just exits 0 so the shim's presence and its
-// LF line endings can be verified (plan Risk R6) before real logic lands.
-process.exit(0);
+// optiflow-chop CLI entry point. This is the binary the PreToolUse hook
+// (src/chop/pretooluse.ts) rewrites eligible Bash commands to invoke
+// ("optiflow-chop <original command>"). Requires the esbuild-bundled output
+// (src/chop/wrapper.ts -> plugin/dist/chop/wrapper.js) so plugin installs
+// never need to run a build — see esbuild.config.mjs, and plugin/bin/optiflow
+// for the identical pattern.
+import "../dist/chop/wrapper.js";

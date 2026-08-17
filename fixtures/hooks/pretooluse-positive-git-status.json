@@ -1,0 +1,11 @@
+{
+  "session_id": "sess-abc123",
+  "transcript_path": "/home/user/.claude/projects/optiflow-mcp/sess-abc123.jsonl",
+  "cwd": "/home/user/projects/optiflow-mcp",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status",
+    "description": "Check the working tree status before committing"
+  }
+}

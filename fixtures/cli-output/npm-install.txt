@@ -1,0 +1,20 @@
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory.
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated boolean@3.2.0: Package no longer supported.
+npm warn deprecated stable@0.1.8: Modern JS already guarantees Array#sort() is a stable sort
+npm warn deprecated domexception@2.0.1: Use your platform's native DOMException instead
+npm warn deprecated abab@2.0.6: Use your platform's native atob() and btoa() methods instead
+npm warn deprecated w3c-hr-time@1.0.2: Use your platform's native performance.now() method instead
+
+added 842 packages, and audited 843 packages in 12s
+
+128 packages are looking for funding
+  run `npm fund` for details
+
+3 vulnerabilities (1 low, 2 moderate)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
