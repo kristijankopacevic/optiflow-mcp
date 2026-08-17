@@ -54,6 +54,16 @@ describe("toCappedJson", () => {
     expect(json.length).toBeLessThanOrEqual(200);
     expect(() => JSON.parse(json)).not.toThrow();
   });
+
+  it("converges and stays valid JSON when the long string is heavy on characters that need escaping", () => {
+    // `"` and `\` each double under JSON.stringify, which is the case the
+    // over-shrink margin in toCappedJson exists to absorb.
+    const value = allowWithContext("PreToolUse", '"\\'.repeat(20_000));
+    const json = toCappedJson(value, 10_000);
+    expect(json.length).toBeLessThanOrEqual(10_000);
+    const parsed = JSON.parse(json);
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("chars omitted]");
+  });
 });
 
 describe("hook output builders", () => {
