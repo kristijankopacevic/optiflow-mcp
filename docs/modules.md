@@ -5,6 +5,172 @@ lands (see the build-order table in the plan). It documents contracts
 between modules/phases — especially ones a *later* phase implements against
 but doesn't yet exist — so nobody has to re-derive them from source later.
 
+## Module 2 — session-report transcript analytics (`src/transcript/**`, `optiflow report`)
+
+Parses Claude Code's own local transcript files
+(`~/.claude/projects/<slug>/<sessionId>.jsonl`, NDJSON) directly. This is a
+**disjoint data source** from token-optimizer-mcp's own analytics DB (which
+only records what its own `smart_*` tools saved) — this module reads the
+client-side conversation transcripts Claude Code itself writes, a different
+vantage point (prompt/cache economics vs. tool-savings accounting).
+`--include-optimizer`/`report.includeOptimizer` is meant to join the two by
+`sessionId`; see "include-optimizer" below for why this phase reports it as
+unavailable rather than implementing the join.
+
+### Directory-naming convention (confirmed against real data on this machine)
+
+`~/.claude/projects/<slug>/` — `<slug>` is the session's **launch**
+directory (not its `cwd` at any given moment — `cwd` changes line-to-line as
+the user/agent `cd`s around, but every line in one session's `.jsonl` lives
+under one slug directory matching the launch directory), sanitized by
+replacing every `:`/`\`/`/` character with `-` **individually** (adjacent
+separators are NOT collapsed — `slugifyPath` uses `/[\\/:]/g`, not
+`/[\\/:]+/g`). Verified exactly: `"C:\Users\Kristijan"` sanitizes to
+`"C--Users-Kristijan"` (two hyphens, from the adjacent `:` and `\`), and a
+real session's own transcript (found by grepping its `cwd` field) was
+located filed under exactly that directory on this machine. `.`/`_`/space
+handling is unverified (no local sample path contains them) and
+intentionally not extrapolated beyond this narrow, confirmed rule.
+
+Each `<sessionId>.jsonl` file has a same-named sibling directory
+(`<slug>/<sessionId>/`) holding unrelated artifacts (e.g. `tool-results/`),
+confirmed empirically — `discover.ts` only globs `*.jsonl` directly inside a
+slug directory, never recursing into those.
+
+Consequently `discoverCurrentProjectFiles` (which only has the CLI's own
+`process.cwd()` to go on, not whatever directory Claude Code was actually
+launched from) is a **best-effort approximation** — it can legitimately find
+nothing even when transcripts for "this project" exist. `--session <id>`
+(`discoverBySessionId`, slug-independent — globs
+`~/.claude/projects/*/<sessionId>.jsonl`) is the reliable lookup and is what
+this phase's own real-data verification run uses.
+
+### Real schema, confirmed against actual local transcript files (not guessed from secondhand description)
+
+- A line's top-level `type` is NOT limited to `user`/`assistant`/`tool_result`
+  — real files also contain `queue-operation`, `attachment`,
+  `file-history-snapshot`, `ai-title`, and others carrying no `message.usage`
+  at all. `parse.ts`'s `TranscriptRecord` keeps `type` as a plain `string`
+  and never assumes a line has a `message`.
+- **A single assistant message can span multiple transcript lines** — one
+  per content block (thinking/text/tool_use each got their own line in real
+  samples) — every line sharing the same `message.id` AND an
+  identical `usage` object. Verified on a real local session: 89
+  `"type":"assistant"` lines carried only 40 distinct `message.id` values,
+  every duplicate group's `usage` byte-identical. Summing `usage` per LINE
+  inflates totals 2-3x; `analyze.ts` dedupes by `message.id` (falling back
+  to the record's own `uuid`) before summing anything — this is the single
+  most load-bearing correctness fix in this module.
+- `usage.cache_creation` nests `{ephemeral_1h_input_tokens,
+  ephemeral_5m_input_tokens}` — confirmed present alongside the top-level
+  `cache_creation_input_tokens` (not reconciled against it; both are reported
+  as-is).
+- No real local transcript sampled (25,665 `isSidechain` lines checked
+  across every project on this machine) had `isSidechain: true` — subagent
+  grouping is implemented per the documented contract but is **unverified
+  against a real example**; see "Subagent rollup" below.
+
+### Cache-break definition (the documented judgment call)
+
+A naive reading of "cache_creation > 0 right after a turn that had
+cache_read > 0" was tried first and **rejected** after checking it against
+real data — that pattern is the NORMAL steady state of incremental prompt
+caching (every turn reads the prior cached prefix AND writes a new
+incremental delta), so it fires on nearly every turn. The rule actually
+used (`analyze.ts`'s `detectCacheBreaks`): turn `cur` breaks the cache chain
+relative to `prev` (same thread — see below) when
+
+```
+prev.cacheReadTokens + prev.cacheCreationTokens > 0        (prev had a reusable cache chain)
+  AND cur.cacheCreationTokens > 0                          (cur had to write new cache content)
+  AND cur.cacheReadTokens < 0.5 * (prev's cache total above) (cur reused less than half of it)
+```
+
+Verified against two real local transcripts: a session with a >24h gap
+between turns (cache TTL expiry) correctly flags 2/2 transitions (both had
+`cache_read_input_tokens: 0` despite a substantial prior cached prefix);
+a normal continuous same-session sequence of 39 transitions flags 0. The
+`0.5` ratio is a threshold, not a law of nature, and is called out in
+`analyze.ts`'s comments specifically so a future reviewer can second-guess
+it.
+
+Cache breaks are computed **before** `--range` filtering is applied, over
+each thread's full chronological sequence (main thread is one chain; each
+subagent root is its own independent chain) — filtering first would make
+the range window's own first turn look like a false break (no visible
+predecessor).
+
+### Subagent rollup (best-effort — unverified against real data)
+
+Sidechain (`isSidechain: true`) turns are grouped by walking each turn's
+`parentUuid` chain up to the first non-sidechain ancestor (or a
+`parentUuid` not present among the parsed records at all — the common case,
+since the anchor is usually a `Task` tool_use record). That ancestor's
+`uuid` (or the dangling `parentUuid` itself) is the group's `rootUuid`.
+Because no real local transcript exhibited a subagent turn, this logic is
+implemented faithfully to the documented `isSidechain`/`parentUuid`
+contract but has not been eyeballed against a real subagent transcript —
+flagged in `analyze.ts`'s comments as a limitation, not asserted as proven.
+
+### `--include-optimizer` / `report.includeOptimizer`
+
+Documented (plan) as joining token-optimizer-mcp's own analytics DB by
+`sessionId`. That DB is SQLite (`better-sqlite3`), and this phase does not
+add a new dependency without explicit approval. Passing the flag does
+**not** silently no-op: `runReportCli` always appends an explicit stderr
+note ("`--include-optimizer` requested but not available: ... no new
+dependency added") so a user relying on it learns why nothing joined,
+rather than assuming it quietly worked. This is a stated limitation, not a
+completed feature.
+
+### Design: pure analysis/render, I/O isolated at the edges
+
+- `src/transcript/parse.ts` — streams a `.jsonl` file line-by-line via
+  `readline`/`createReadStream` (never `JSON.parse`s a whole file as one
+  string); malformed/non-object lines are skipped and logged via
+  `src/core/logger.ts` (which itself never throws), not thrown. Also
+  exports a pure, file-free `parseTranscriptText` for fixture-based tests.
+- `src/transcript/discover.ts` — the only module besides `parse.ts` that
+  touches `node:fs`; every function returns `[]` rather than throwing when
+  a directory doesn't exist (fresh machine, no matching session, etc.).
+- `src/transcript/analyze.ts` — pure `analyze(records, options) ->
+  AnalysisResult`, no I/O. Computes per-session totals, cache breaks,
+  subagent rollups, top-N costliest turns (`totalTokens = input +
+  cache_creation + cache_read + output`), and the thinking/cache-tier
+  breakdown.
+- `src/transcript/render.ts` — pure `table`/`json`/`markdown` renderers,
+  `AnalysisResult -> string`, zero I/O (mirrors `src/statusline/render.ts`'s
+  precedent; also an esbuild entry point, see `esbuild.config.mjs`).
+- `src/cli/commands/report.ts` — thin commander wiring
+  (`registerReportCommand`) plus two directly-testable, I/O-light cores:
+  `resolveReportFiles` (discovery-only) and `runReportCli` (parses an
+  already-resolved file list, analyzes, renders — this is what the
+  integration test exercises against `fixtures/transcripts/sample.jsonl`
+  without ever touching `~/.claude`).
+
+### `--range` parsing
+
+`parseRangeFlag` (in `report.ts`) supports `Nd`, `Nh`, and `all` (also the
+default when omitted). An unrecognized shape fails **open** (no filtering)
+with a warning surfaced to stderr, consistent with optiflow's "never crash
+a CLI over a malformed flag" posture elsewhere in the codebase.
+
+## Module 2 file map
+
+```
+src/transcript/
+├── parse.ts    — streaming JSONL parser; TranscriptRecord/TranscriptUsage/TranscriptMessage types
+├── discover.ts — the only other fs-touching file: discoverCurrentProjectFiles/discoverBySessionId/discoverAllProjectFiles, slugifyPath
+├── analyze.ts  — pure analyze(records, options) -> AnalysisResult; cache-break/subagent-rollup/top-N logic
+├── render.ts   — pure table/json/markdown renderers, zero I/O
+├── *.test.ts
+src/cli/commands/
+├── report.ts      — registerReportCommand, resolveReportFiles, runReportCli, parseRangeFlag
+├── report.test.ts
+fixtures/transcripts/
+└── sample.jsonl — hand-constructed (not copied from real personal data): normal turns, a duplicate-line-per-message.id case, a sidechain/subagent chain, a real cache-break sequence, and malformed lines
+```
+
 ## Module 3 — Statusline context meter (`src/statusline/**`)
 
 ### Hard constraint

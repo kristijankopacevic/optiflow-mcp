@@ -5,9 +5,9 @@
 import { Command } from "commander";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerToonCommand } from "./commands/toon.js";
+import { registerReportCommand } from "./commands/report.js";
 
 const NOT_YET_IMPLEMENTED_COMMANDS: Array<{ name: string; phase: string; description: string }> = [
-  { name: "report", phase: "6", description: "Transcript token/cache analytics report." },
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
   { name: "checkpoint", phase: "7", description: "Session-handoff checkpoint/restore." },
@@ -28,6 +28,7 @@ export function buildProgram(): Command {
 
   registerDoctorCommand(program);
   registerToonCommand(program);
+  registerReportCommand(program);
 
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program

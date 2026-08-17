@@ -3116,9 +3116,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
    * @param {string} [path]
    * @return {(string|null|Command)}
    */
-  executableDir(path5) {
-    if (path5 === void 0) return this._executableDir;
-    this._executableDir = path5;
+  executableDir(path7) {
+    if (path7 === void 0) return this._executableDir;
+    this._executableDir = path7;
     return this;
   }
   /**
@@ -4190,10 +4190,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path5) {
-  if (!path5)
+function getElementAtPath(obj, path7) {
+  if (!path7)
     return obj;
-  return path5.reduce((acc, key) => acc?.[key], obj);
+  return path7.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4602,11 +4602,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path5, issues) {
+function prefixIssues(path7, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path5);
+    iss.path.unshift(path7);
     return iss;
   });
 }
@@ -4753,16 +4753,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path5 = []) => {
+  const processError = (error52, path7 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
       } else {
-        const fullpath = [...path5, ...issue2.path];
+        const fullpath = [...path7, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -4789,17 +4789,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path5 = []) => {
+  const processError = (error52, path7 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
       } else {
-        const fullpath = [...path5, ...issue2.path];
+        const fullpath = [...path7, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -4831,8 +4831,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path5 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path5) {
+  const path7 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path7) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -17524,13 +17524,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path5 = ref.slice(1).split("/").filter(Boolean);
-  if (path5.length === 0) {
+  const path7 = ref.slice(1).split("/").filter(Boolean);
+  if (path7.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path5[0] === defsKey) {
-    const key = path5[1];
+  if (path7[0] === defsKey) {
+    const key = path7[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -18803,30 +18803,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path5) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path5);
-  return transformChildren(normalizeValue(replaced), replacer, path5);
+function transformReplaced(original, replaced, replacer, path7) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path7);
+  return transformChildren(normalizeValue(replaced), replacer, path7);
 }
-function transformChildren(value, replacer, path5) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path5);
-  if (isJsonArray(value)) return transformArray(value, replacer, path5);
+function transformChildren(value, replacer, path7) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path7);
+  if (isJsonArray(value)) return transformArray(value, replacer, path7);
   return value;
 }
-function transformObject(obj, replacer, path5) {
+function transformObject(obj, replacer, path7) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path5, key];
+    const childPath = [...path7, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path5) {
+function transformArray(arr, replacer, path7) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path5, i];
+    const childPath = [...path7, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -19109,9 +19109,610 @@ function registerToonCommand(program2) {
   });
 }
 
+// src/transcript/discover.ts
+import { existsSync as existsSync4, readdirSync } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import path5 from "node:path";
+function getClaudeProjectsDir(options = {}) {
+  if (options.projectsDir) return path5.resolve(options.projectsDir);
+  return path5.join(homedir3(), ".claude", "projects");
+}
+function slugifyPath(absolutePath) {
+  return absolutePath.replace(/[\\/:]/g, "-");
+}
+function listJsonlFiles(dir) {
+  if (!existsSync4(dir)) return [];
+  try {
+    return readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path5.join(dir, entry.name)).sort();
+  } catch {
+    return [];
+  }
+}
+function discoverCurrentProjectFiles(cwd = process.cwd(), options = {}) {
+  const projectsDir = getClaudeProjectsDir(options);
+  const slug = slugifyPath(path5.resolve(cwd));
+  return listJsonlFiles(path5.join(projectsDir, slug));
+}
+function discoverBySessionId(sessionId, options = {}) {
+  const projectsDir = getClaudeProjectsDir(options);
+  if (!existsSync4(projectsDir) || sessionId.trim().length === 0) return [];
+  const target = `${sessionId}.jsonl`;
+  const matches = [];
+  try {
+    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path5.join(projectsDir, entry.name, target);
+      if (existsSync4(candidate)) matches.push(candidate);
+    }
+  } catch {
+    return [];
+  }
+  return matches.sort();
+}
+function discoverAllProjectFiles(options = {}) {
+  const projectsDir = getClaudeProjectsDir(options);
+  if (!existsSync4(projectsDir)) return [];
+  const files = [];
+  try {
+    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      files.push(...listJsonlFiles(path5.join(projectsDir, entry.name)));
+    }
+  } catch {
+    return [];
+  }
+  return files.sort();
+}
+
+// src/transcript/parse.ts
+import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
+
+// src/core/logger.ts
+import { appendFileSync, mkdirSync } from "node:fs";
+import path6 from "node:path";
+function log(entry, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    const dir = path6.join(home, "logs");
+    mkdirSync(dir, { recursive: true });
+    const now = options.now ?? /* @__PURE__ */ new Date();
+    const date5 = now.toISOString().slice(0, 10);
+    const file2 = path6.join(dir, `${date5}.ndjson`);
+    const line = JSON.stringify({ timestamp: now.toISOString(), ...entry });
+    appendFileSync(file2, line + "\n", "utf8");
+  } catch {
+  }
+}
+
+// src/transcript/parse.ts
+function parseTranscriptLine(line, options = {}) {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      log(
+        {
+          event: "transcript.parse.skip",
+          reason: "line did not parse to a JSON object",
+          sourceFile: options.sourceFile
+        },
+        { home: options.logHome }
+      );
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    log(
+      {
+        event: "transcript.parse.skip",
+        reason: `JSON parse error: ${err instanceof Error ? err.message : String(err)}`,
+        sourceFile: options.sourceFile,
+        // Bounded preview only — never log a whole (potentially huge) line.
+        preview: trimmed.slice(0, 200)
+      },
+      { home: options.logHome }
+    );
+    return null;
+  }
+}
+async function parseTranscriptFile(filePath, options = {}) {
+  const records = [];
+  let skipped = 0;
+  let totalLines = 0;
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: "utf8" }),
+    crlfDelay: Infinity
+  });
+  for await (const line of rl) {
+    if (line.trim().length === 0) continue;
+    totalLines += 1;
+    const record2 = parseTranscriptLine(line, { ...options, sourceFile: options.sourceFile ?? filePath });
+    if (record2) {
+      records.push(record2);
+    } else {
+      skipped += 1;
+    }
+  }
+  return { records, skipped, totalLines };
+}
+
+// src/transcript/analyze.ts
+var CACHE_BREAK_READ_RATIO = 0.5;
+function toNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+function toTurnSummary(record2) {
+  const usage = record2.message?.usage;
+  if (record2.type !== "assistant" || !usage) return null;
+  const id = record2.message?.id ?? record2.uuid ?? record2.requestId;
+  if (!id) return null;
+  const timestamp = typeof record2.timestamp === "string" ? record2.timestamp : void 0;
+  const timestampMs = timestamp ? new Date(timestamp).getTime() : NaN;
+  const inputTokens = toNumber(usage.input_tokens);
+  const cacheCreationTokens = toNumber(usage.cache_creation_input_tokens);
+  const cacheReadTokens = toNumber(usage.cache_read_input_tokens);
+  const outputTokens = toNumber(usage.output_tokens);
+  return {
+    id,
+    uuid: record2.uuid,
+    parentUuid: record2.parentUuid ?? null,
+    sessionId: record2.sessionId,
+    timestamp,
+    timestampMs: Number.isFinite(timestampMs) ? timestampMs : Number.POSITIVE_INFINITY,
+    isSidechain: record2.isSidechain === true,
+    model: record2.message?.model,
+    inputTokens,
+    cacheCreationTokens,
+    cacheReadTokens,
+    outputTokens,
+    totalTokens: inputTokens + cacheCreationTokens + cacheReadTokens + outputTokens,
+    thinkingTokens: toNumber(usage.output_tokens_details?.thinking_tokens),
+    cacheCreationEphemeral1h: toNumber(usage.cache_creation?.ephemeral_1h_input_tokens),
+    cacheCreationEphemeral5m: toNumber(usage.cache_creation?.ephemeral_5m_input_tokens)
+  };
+}
+function dedupeTurns(records) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const record2 of records) {
+    const turn = toTurnSummary(record2);
+    if (!turn) continue;
+    if (!seen.has(turn.id)) {
+      seen.set(turn.id, turn);
+    }
+  }
+  return [...seen.values()];
+}
+function byTimestampThenInsertion(turns) {
+  return turns.map((turn, index) => ({ turn, index })).sort((a, b) => a.turn.timestampMs - b.turn.timestampMs || a.index - b.index).map(({ turn }) => turn);
+}
+function findSidechainRoot(startParentUuid, byUuid, maxDepth = 1e3) {
+  if (!startParentUuid) return "unattributed-subagent";
+  let currentUuid = startParentUuid;
+  let lastUuid = startParentUuid;
+  let depth = 0;
+  while (currentUuid && depth < maxDepth) {
+    const record2 = byUuid.get(currentUuid);
+    if (!record2 || record2.isSidechain !== true) {
+      return currentUuid;
+    }
+    lastUuid = currentUuid;
+    currentUuid = record2.parentUuid;
+    depth += 1;
+  }
+  return lastUuid;
+}
+function detectCacheBreaks(thread, orderedTurns) {
+  const breaks = [];
+  for (let i = 1; i < orderedTurns.length; i++) {
+    const prev = orderedTurns[i - 1];
+    const cur = orderedTurns[i];
+    const prevCacheTotal = prev.cacheReadTokens + prev.cacheCreationTokens;
+    if (cur.cacheCreationTokens > 0 && prevCacheTotal > 0 && cur.cacheReadTokens < prevCacheTotal * CACHE_BREAK_READ_RATIO) {
+      breaks.push({
+        thread,
+        turnId: cur.id,
+        timestamp: cur.timestamp,
+        sessionId: cur.sessionId,
+        previousTurnId: prev.id,
+        previousCacheTotal: prevCacheTotal,
+        currentCacheRead: cur.cacheReadTokens,
+        currentCacheCreation: cur.cacheCreationTokens
+      });
+    }
+  }
+  return breaks;
+}
+function inRange(turn, startMs, endMs) {
+  if (!Number.isFinite(turn.timestampMs)) return true;
+  return turn.timestampMs >= startMs && turn.timestampMs <= endMs;
+}
+function emptyTotals() {
+  return {
+    inputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    thinkingTokens: 0,
+    cacheCreationEphemeral1h: 0,
+    cacheCreationEphemeral5m: 0
+  };
+}
+function addToTotals(totals, turn) {
+  totals.inputTokens += turn.inputTokens;
+  totals.cacheCreationTokens += turn.cacheCreationTokens;
+  totals.cacheReadTokens += turn.cacheReadTokens;
+  totals.outputTokens += turn.outputTokens;
+  totals.totalTokens += turn.totalTokens;
+  totals.thinkingTokens += turn.thinkingTokens;
+  totals.cacheCreationEphemeral1h += turn.cacheCreationEphemeral1h;
+  totals.cacheCreationEphemeral5m += turn.cacheCreationEphemeral5m;
+}
+function analyze(records, options = {}) {
+  const startMs = options.rangeStartMs ?? Number.NEGATIVE_INFINITY;
+  const endMs = options.rangeEndMs ?? Number.POSITIVE_INFINITY;
+  const topN = options.topN && options.topN > 0 ? Math.floor(options.topN) : 10;
+  const byUuid = /* @__PURE__ */ new Map();
+  for (const record2 of records) {
+    if (record2.uuid) byUuid.set(record2.uuid, record2);
+  }
+  const allTurns = dedupeTurns(records);
+  const mainThreadAll = byTimestampThenInsertion(allTurns.filter((t) => !t.isSidechain));
+  const sidechainAll = byTimestampThenInsertion(allTurns.filter((t) => t.isSidechain));
+  const rootByTurnId = /* @__PURE__ */ new Map();
+  for (const turn of sidechainAll) {
+    rootByTurnId.set(turn.id, findSidechainRoot(turn.parentUuid, byUuid));
+  }
+  const subagentChains = /* @__PURE__ */ new Map();
+  for (const turn of sidechainAll) {
+    const root = rootByTurnId.get(turn.id) ?? "unattributed-subagent";
+    const chain = subagentChains.get(root) ?? [];
+    chain.push(turn);
+    subagentChains.set(root, chain);
+  }
+  const allCacheBreaks = [...detectCacheBreaks("main", mainThreadAll)];
+  for (const [root, chain] of subagentChains) {
+    allCacheBreaks.push(...detectCacheBreaks(`subagent:${root}`, chain));
+  }
+  const mainThread = mainThreadAll.filter((t) => inRange(t, startMs, endMs));
+  const sidechain = sidechainAll.filter((t) => inRange(t, startMs, endMs));
+  const cacheBreaks = allCacheBreaks.filter((b) => {
+    const ts = b.timestamp ? new Date(b.timestamp).getTime() : NaN;
+    return !Number.isFinite(ts) || ts >= startMs && ts <= endMs;
+  });
+  const filteredTurns = [...mainThread, ...sidechain];
+  const totals = emptyTotals();
+  const sessionMap = /* @__PURE__ */ new Map();
+  for (const turn of filteredTurns) {
+    addToTotals(totals, turn);
+    const sessionId = turn.sessionId ?? "unknown-session";
+    const existing = sessionMap.get(sessionId) ?? {
+      sessionId,
+      turnCount: 0,
+      inputTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0
+    };
+    existing.turnCount += 1;
+    existing.inputTokens += turn.inputTokens;
+    existing.cacheCreationTokens += turn.cacheCreationTokens;
+    existing.cacheReadTokens += turn.cacheReadTokens;
+    existing.outputTokens += turn.outputTokens;
+    existing.totalTokens += turn.totalTokens;
+    sessionMap.set(sessionId, existing);
+  }
+  const subagentGroups = /* @__PURE__ */ new Map();
+  for (const turn of sidechain) {
+    const root = rootByTurnId.get(turn.id) ?? "unattributed-subagent";
+    const existing = subagentGroups.get(root) ?? {
+      rootUuid: root,
+      turnCount: 0,
+      totalTokens: 0,
+      inputTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      outputTokens: 0
+    };
+    existing.turnCount += 1;
+    existing.totalTokens += turn.totalTokens;
+    existing.inputTokens += turn.inputTokens;
+    existing.cacheCreationTokens += turn.cacheCreationTokens;
+    existing.cacheReadTokens += turn.cacheReadTokens;
+    existing.outputTokens += turn.outputTokens;
+    subagentGroups.set(root, existing);
+  }
+  const topTurns = [...filteredTurns].sort((a, b) => b.totalTokens - a.totalTokens).slice(0, topN);
+  return {
+    turnCount: filteredTurns.length,
+    mainThreadTurnCount: mainThread.length,
+    sidechainTurnCount: sidechain.length,
+    sessions: [...sessionMap.values()].sort((a, b) => b.totalTokens - a.totalTokens),
+    totals,
+    cacheBreaks,
+    subagents: [...subagentGroups.values()].sort((a, b) => b.totalTokens - a.totalTokens),
+    topTurns,
+    range: {
+      startMs: Number.isFinite(startMs) ? startMs : void 0,
+      endMs: Number.isFinite(endMs) ? endMs : void 0
+    }
+  };
+}
+
+// src/transcript/render.ts
+function formatNumber(n) {
+  return Math.round(n).toLocaleString("en-US");
+}
+function formatMaybeTimestamp(ts) {
+  return ts ?? "(unknown)";
+}
+function renderAsciiTable(headers, rows) {
+  const widths = headers.map(
+    (h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length))
+  );
+  const renderRow = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join("  ");
+  const separator = widths.map((w) => "-".repeat(w)).join("  ");
+  return [renderRow(headers), separator, ...rows.map(renderRow)].join("\n");
+}
+function renderMarkdownTable(headers, rows) {
+  const headerLine = `| ${headers.join(" | ")} |`;
+  const separatorLine = `| ${headers.map(() => "---").join(" | ")} |`;
+  const rowLines = rows.map((r) => `| ${r.join(" | ")} |`);
+  return [headerLine, separatorLine, ...rowLines].join("\n");
+}
+function renderJson(result) {
+  return JSON.stringify(result, null, 2);
+}
+function renderTable(result) {
+  const sections = [];
+  sections.push(
+    [
+      "optiflow report",
+      `  turns: ${result.turnCount} (main: ${result.mainThreadTurnCount}, subagent: ${result.sidechainTurnCount})`,
+      `  total tokens: ${formatNumber(result.totals.totalTokens)} (input ${formatNumber(result.totals.inputTokens)} + cache-creation ${formatNumber(result.totals.cacheCreationTokens)} + cache-read ${formatNumber(result.totals.cacheReadTokens)} + output ${formatNumber(result.totals.outputTokens)})`,
+      `  thinking tokens: ${formatNumber(result.totals.thinkingTokens)}`,
+      `  cache tiers: 1h=${formatNumber(result.totals.cacheCreationEphemeral1h)} 5m=${formatNumber(result.totals.cacheCreationEphemeral5m)}`,
+      `  cache breaks: ${result.cacheBreaks.length}`
+    ].join("\n")
+  );
+  if (result.sessions.length > 0) {
+    sections.push(
+      "\nSessions:\n" + renderAsciiTable(
+        ["sessionId", "turns", "total", "input", "cache-creation", "cache-read", "output"],
+        result.sessions.map((s) => [
+          s.sessionId,
+          String(s.turnCount),
+          formatNumber(s.totalTokens),
+          formatNumber(s.inputTokens),
+          formatNumber(s.cacheCreationTokens),
+          formatNumber(s.cacheReadTokens),
+          formatNumber(s.outputTokens)
+        ])
+      )
+    );
+  }
+  if (result.cacheBreaks.length > 0) {
+    sections.push(
+      "\nCache breaks:\n" + renderAsciiTable(
+        ["thread", "timestamp", "turnId", "prevCacheTotal", "curCacheRead", "curCacheCreation"],
+        result.cacheBreaks.map((b) => [
+          b.thread,
+          formatMaybeTimestamp(b.timestamp),
+          b.turnId,
+          formatNumber(b.previousCacheTotal),
+          formatNumber(b.currentCacheRead),
+          formatNumber(b.currentCacheCreation)
+        ])
+      )
+    );
+  }
+  if (result.subagents.length > 0) {
+    sections.push(
+      "\nSubagents (best-effort attribution \u2014 see analyze.ts):\n" + renderAsciiTable(
+        ["rootUuid", "turns", "total"],
+        result.subagents.map((s) => [s.rootUuid, String(s.turnCount), formatNumber(s.totalTokens)])
+      )
+    );
+  }
+  if (result.topTurns.length > 0) {
+    sections.push(
+      `
+Top ${result.topTurns.length} costliest turns:
+` + renderAsciiTable(
+        ["timestamp", "sessionId", "sidechain", "total", "input", "cache-creation", "cache-read", "output"],
+        result.topTurns.map((t) => [
+          formatMaybeTimestamp(t.timestamp),
+          t.sessionId ?? "(unknown)",
+          t.isSidechain ? "yes" : "no",
+          formatNumber(t.totalTokens),
+          formatNumber(t.inputTokens),
+          formatNumber(t.cacheCreationTokens),
+          formatNumber(t.cacheReadTokens),
+          formatNumber(t.outputTokens)
+        ])
+      )
+    );
+  }
+  return sections.join("\n");
+}
+function renderMarkdown(result) {
+  const sections = [];
+  sections.push(
+    [
+      "# optiflow report",
+      "",
+      `- **Turns**: ${result.turnCount} (main: ${result.mainThreadTurnCount}, subagent: ${result.sidechainTurnCount})`,
+      `- **Total tokens**: ${formatNumber(result.totals.totalTokens)} (input ${formatNumber(result.totals.inputTokens)} + cache-creation ${formatNumber(result.totals.cacheCreationTokens)} + cache-read ${formatNumber(result.totals.cacheReadTokens)} + output ${formatNumber(result.totals.outputTokens)})`,
+      `- **Thinking tokens**: ${formatNumber(result.totals.thinkingTokens)}`,
+      `- **Cache tiers**: 1h=${formatNumber(result.totals.cacheCreationEphemeral1h)} 5m=${formatNumber(result.totals.cacheCreationEphemeral5m)}`,
+      `- **Cache breaks**: ${result.cacheBreaks.length}`
+    ].join("\n")
+  );
+  if (result.sessions.length > 0) {
+    sections.push(
+      "\n## Sessions\n\n" + renderMarkdownTable(
+        ["sessionId", "turns", "total", "input", "cache-creation", "cache-read", "output"],
+        result.sessions.map((s) => [
+          s.sessionId,
+          String(s.turnCount),
+          formatNumber(s.totalTokens),
+          formatNumber(s.inputTokens),
+          formatNumber(s.cacheCreationTokens),
+          formatNumber(s.cacheReadTokens),
+          formatNumber(s.outputTokens)
+        ])
+      )
+    );
+  }
+  if (result.cacheBreaks.length > 0) {
+    sections.push(
+      "\n## Cache breaks\n\n" + renderMarkdownTable(
+        ["thread", "timestamp", "turnId", "prevCacheTotal", "curCacheRead", "curCacheCreation"],
+        result.cacheBreaks.map((b) => [
+          b.thread,
+          formatMaybeTimestamp(b.timestamp),
+          b.turnId,
+          formatNumber(b.previousCacheTotal),
+          formatNumber(b.currentCacheRead),
+          formatNumber(b.currentCacheCreation)
+        ])
+      )
+    );
+  }
+  if (result.subagents.length > 0) {
+    sections.push(
+      "\n## Subagents (best-effort attribution)\n\n" + renderMarkdownTable(
+        ["rootUuid", "turns", "total"],
+        result.subagents.map((s) => [s.rootUuid, String(s.turnCount), formatNumber(s.totalTokens)])
+      )
+    );
+  }
+  if (result.topTurns.length > 0) {
+    sections.push(
+      `
+## Top ${result.topTurns.length} costliest turns
+
+` + renderMarkdownTable(
+        ["timestamp", "sessionId", "sidechain", "total", "input", "cache-creation", "cache-read", "output"],
+        result.topTurns.map((t) => [
+          formatMaybeTimestamp(t.timestamp),
+          t.sessionId ?? "(unknown)",
+          t.isSidechain ? "yes" : "no",
+          formatNumber(t.totalTokens),
+          formatNumber(t.inputTokens),
+          formatNumber(t.cacheCreationTokens),
+          formatNumber(t.cacheReadTokens),
+          formatNumber(t.outputTokens)
+        ])
+      )
+    );
+  }
+  return sections.join("\n");
+}
+function renderReport(result, format) {
+  switch (format) {
+    case "json":
+      return renderJson(result);
+    case "markdown":
+      return renderMarkdown(result);
+    case "table":
+    default:
+      return renderTable(result);
+  }
+}
+
+// src/cli/commands/report.ts
+function parseRangeFlag(range, now = /* @__PURE__ */ new Date()) {
+  if (!range || range.trim().toLowerCase() === "all") return {};
+  const match = /^(\d+)\s*(d|h)$/i.exec(range.trim());
+  if (!match) {
+    return { warning: `unrecognized --range "${range}" (expected "Nd", "Nh", or "all") \u2014 showing all history instead` };
+  }
+  const amount = Number.parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  const windowMs = unit === "d" ? amount * 24 * 60 * 60 * 1e3 : amount * 60 * 60 * 1e3;
+  const endMs = now.getTime();
+  return { startMs: endMs - windowMs, endMs };
+}
+function normalizeFormat(format) {
+  if (format === "json") return "json";
+  if (format === "markdown" || format === "md") return "markdown";
+  return "table";
+}
+async function runReportCli(files, options = {}) {
+  const stderrLines = [];
+  const allRecords = [];
+  let totalSkipped = 0;
+  for (const file2 of files) {
+    try {
+      const { records, skipped } = await parseTranscriptFile(file2, { logHome: options.logHome });
+      allRecords.push(...records);
+      totalSkipped += skipped;
+    } catch (err) {
+      stderrLines.push(
+        `[optiflow report] could not read "${file2}": ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  const range = parseRangeFlag(options.range, options.now);
+  if (range.warning) stderrLines.push(`[optiflow report] ${range.warning}`);
+  const analysis = analyze(allRecords, {
+    rangeStartMs: range.startMs,
+    rangeEndMs: range.endMs,
+    topN: options.top
+  });
+  if (totalSkipped > 0) {
+    stderrLines.push(`[optiflow report] skipped ${totalSkipped} unparseable line(s) across ${files.length} file(s)`);
+  }
+  if (files.length === 0) {
+    stderrLines.push(
+      "[optiflow report] no transcript files found \u2014 nothing to report (see --session/--all, or run from the directory Claude Code was launched from)"
+    );
+  }
+  if (options.includeOptimizer) {
+    stderrLines.push(
+      "[optiflow report] --include-optimizer requested but not available: joining token-optimizer-mcp's own analytics DB (SQLite/better-sqlite3) is out of scope for this phase (no new dependency added) \u2014 showing transcript-only figures"
+    );
+  }
+  const format = normalizeFormat(options.format);
+  const stdout = `${renderReport(analysis, format)}
+`;
+  const stderr = stderrLines.length > 0 ? `${stderrLines.join("\n")}
+` : "";
+  return { stdout, stderr, analysis };
+}
+function resolveReportFiles(file2, options = {}) {
+  if (file2) return [file2];
+  if (options.session) return discoverBySessionId(options.session, { projectsDir: options.projectsDir });
+  if (options.all) return discoverAllProjectFiles({ projectsDir: options.projectsDir });
+  return discoverCurrentProjectFiles(options.cwd, { projectsDir: options.projectsDir });
+}
+function registerReportCommand(program2) {
+  program2.command("report [file]").description(
+    "Transcript token/cache analytics report \u2014 parses ~/.claude/projects/**/*.jsonl directly (a disjoint data source from token-optimizer's own analytics DB). Pass a file path to analyze one specific transcript directly."
+  ).option("--session <id>", "analyze the transcript for one specific session id, regardless of project slug").option("--all", "analyze transcripts across every project, not just the current one").option("--range <range>", 'filter turns by timestamp: "7d", "24h", or "all" (default: all)').option("--format <format>", "output format: table (default), json, or markdown/md", "table").option("--top <n>", "how many costliest turns to list", (v) => Number.parseInt(v, 10), 10).option("--include-optimizer", "attempt to join token-optimizer-mcp's analytics by sessionId (currently reports unavailable \u2014 see docs)").action(async (file2, opts) => {
+    const { config: config2 } = loadConfig();
+    const includeOptimizer = Boolean(opts.includeOptimizer) || config2.report.includeOptimizer;
+    const files = resolveReportFiles(file2, {
+      session: opts.session,
+      all: Boolean(opts.all)
+    });
+    const { stdout, stderr } = await runReportCli(files, {
+      format: opts.format,
+      range: opts.range,
+      top: opts.top,
+      includeOptimizer
+    });
+    process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+  });
+}
+
 // src/cli/index.ts
 var NOT_YET_IMPLEMENTED_COMMANDS = [
-  { name: "report", phase: "6", description: "Transcript token/cache analytics report." },
   { name: "statusline", phase: "4", description: "Render the statusline context meter." },
   { name: "chop", phase: "3", description: "Chop-style Bash/CLI-output interception." },
   { name: "checkpoint", phase: "7", description: "Session-handoff checkpoint/restore." },
@@ -19126,6 +19727,7 @@ function buildProgram() {
   ).version("0.1.0");
   registerDoctorCommand(program2);
   registerToonCommand(program2);
+  registerReportCommand(program2);
   for (const stub of NOT_YET_IMPLEMENTED_COMMANDS) {
     program2.command(stub.name).description(`${stub.description} (not yet implemented \u2014 see Phase ${stub.phase} of the plan)`).action(() => {
       console.log(
