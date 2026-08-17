@@ -9,7 +9,7 @@
 // instead just compares the configured version string against
 // vendor/token-optimizer-mcp/package.json's real `version` field.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -167,6 +167,73 @@ export function detectTokenOptimizerPin(
       status: "unknown",
     };
   }
+}
+
+export type UpstreamInvariantStatus = "ok" | "violated" | "unknown";
+
+export interface UpstreamInvariantInfo {
+  status: UpstreamInvariantStatus;
+  /** Files under vendor/token-optimizer-mcp/plugin/hooks/ found to contain "updatedInput", if any. */
+  offendingFiles: string[];
+  vendorHooksDir: string;
+}
+
+function collectHookSourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSyncSafe(dir)) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectHookSourceFiles(full));
+    } else if (entry.isFile() && (entry.name.endsWith(".mjs") || entry.name.endsWith(".js"))) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function readdirSyncSafe(dir: string): import("node:fs").Dirent[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The same check `scripts/verify-upstream-invariants.mjs` runs standalone in
+ * CI (see that file for the full rationale), surfaced in `optiflow doctor`
+ * too, per the plan's "must run in CI and in optiflow doctor." Deliberately
+ * duplicated rather than shared: the standalone script must stay
+ * dependency-free and buildable-free (runnable via plain `node
+ * scripts/...mjs` with no `npm run build` first), matching the same
+ * standalone-vs-bundled tradeoff `src/statusline/io.ts` already made for its
+ * own config reader.
+ */
+export function detectUpstreamInvariant(options: { cwd?: string } = {}): UpstreamInvariantInfo {
+  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  const vendorHooksDir = path.join(projectRoot, "vendor", "token-optimizer-mcp", "plugin", "hooks");
+
+  if (!existsSync(vendorHooksDir)) {
+    return { status: "unknown", offendingFiles: [], vendorHooksDir };
+  }
+
+  const offendingFiles: string[] = [];
+  for (const file of collectHookSourceFiles(vendorHooksDir)) {
+    try {
+      if (readFileSync(file, "utf8").includes("updatedInput")) {
+        offendingFiles.push(path.relative(projectRoot, file));
+      }
+    } catch {
+      // Unreadable file: not this check's job to report I/O errors, skip it.
+    }
+  }
+
+  return {
+    status: offendingFiles.length > 0 ? "violated" : "ok",
+    offendingFiles,
+    vendorHooksDir,
+  };
 }
 
 // ---------------------------------------------------------------------------

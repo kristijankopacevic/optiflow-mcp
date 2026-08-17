@@ -12,7 +12,8 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify-upstream": "node scripts/verify-upstream-invariants.mjs"
   },
   "dependencies": {
     "@toon-format/toon": "^4.1.1",

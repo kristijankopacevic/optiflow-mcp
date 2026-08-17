@@ -10,17 +10,20 @@ import {
   detectHeadroomWrap,
   detectNodeEnv,
   detectTokenOptimizerPin,
+  detectUpstreamInvariant,
   type GhAuthInfo,
   type HeadroomPathInfo,
   type HeadroomWrapInfo,
   type NodeEnvInfo,
   type TokenOptimizerPinInfo,
+  type UpstreamInvariantInfo,
 } from "./detect.js";
 
 export interface DoctorReport {
   node: NodeEnvInfo;
   configLoad: LoadedConfig;
   tokenOptimizerPin: TokenOptimizerPinInfo;
+  upstreamInvariant: UpstreamInvariantInfo;
   headroomOnPath: HeadroomPathInfo;
   headroomWrap: HeadroomWrapInfo;
   gh: GhAuthInfo;
@@ -39,6 +42,7 @@ export function runDoctor(options: RunDoctorOptions = {}): DoctorReport {
     tokenOptimizerPin: detectTokenOptimizerPin(configLoad.config, {
       cwd: options.cwd,
     }),
+    upstreamInvariant: detectUpstreamInvariant({ cwd: options.cwd }),
     headroomOnPath: detectHeadroomOnPath(),
     headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth(),
@@ -103,6 +107,13 @@ export function renderDoctorReport(report: DoctorReport): string {
         ? `MISMATCH (vendored: ${report.tokenOptimizerPin.vendoredVersion})`
         : "unknown (vendor/token-optimizer-mcp/package.json not found — submodule not initialized?)";
   lines.push(statusLine("Vendored submodule pin", pinStatusLabel));
+  const invariantLabel =
+    report.upstreamInvariant.status === "ok"
+      ? "ok — never emits updatedInput (Module 1's load-bearing assumption holds)"
+      : report.upstreamInvariant.status === "violated"
+        ? `VIOLATED — found in: ${report.upstreamInvariant.offendingFiles.join(", ")} (see scripts/verify-upstream-invariants.mjs)`
+        : "unknown (submodule not initialized)";
+  lines.push(statusLine("Upstream invariant (Risk R9)", invariantLabel));
   lines.push("");
 
   lines.push("headroom");

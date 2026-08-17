@@ -18718,7 +18718,7 @@ init_load();
 
 // src/install/detect.ts
 init_paths();
-import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync2, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir as homedir2 } from "node:os";
 import path4 from "node:path";
@@ -18805,6 +18805,47 @@ function detectTokenOptimizerPin(config2, options = {}) {
     };
   }
 }
+function collectHookSourceFiles(dir) {
+  const out = [];
+  if (!existsSync3(dir)) return out;
+  for (const entry of readdirSyncSafe(dir)) {
+    const full = path4.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectHookSourceFiles(full));
+    } else if (entry.isFile() && (entry.name.endsWith(".mjs") || entry.name.endsWith(".js"))) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+function readdirSyncSafe(dir) {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+function detectUpstreamInvariant(options = {}) {
+  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
+  const vendorHooksDir = path4.join(projectRoot, "vendor", "token-optimizer-mcp", "plugin", "hooks");
+  if (!existsSync3(vendorHooksDir)) {
+    return { status: "unknown", offendingFiles: [], vendorHooksDir };
+  }
+  const offendingFiles = [];
+  for (const file2 of collectHookSourceFiles(vendorHooksDir)) {
+    try {
+      if (readFileSync2(file2, "utf8").includes("updatedInput")) {
+        offendingFiles.push(path4.relative(projectRoot, file2));
+      }
+    } catch {
+    }
+  }
+  return {
+    status: offendingFiles.length > 0 ? "violated" : "ok",
+    offendingFiles,
+    vendorHooksDir
+  };
+}
 var HEADROOM_ENV_KEYS = ["ANTHROPIC_BASE_URL", "ENABLE_TOOL_SEARCH"];
 var HEADROOM_HOOK_MARKERS = ["headroom-init-claude", "headroom-wrap-selfheal"];
 function inspectClaudeSettingsFile(filePath) {
@@ -18847,6 +18888,7 @@ function runDoctor(options = {}) {
     tokenOptimizerPin: detectTokenOptimizerPin(configLoad.config, {
       cwd: options.cwd
     }),
+    upstreamInvariant: detectUpstreamInvariant({ cwd: options.cwd }),
     headroomOnPath: detectHeadroomOnPath(),
     headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth()
@@ -18897,6 +18939,8 @@ function renderDoctorReport(report) {
   lines.push(statusLine("Configured pin", report.tokenOptimizerPin.expectedVersion));
   const pinStatusLabel = report.tokenOptimizerPin.status === "match" ? `match (vendored: ${report.tokenOptimizerPin.vendoredVersion})` : report.tokenOptimizerPin.status === "mismatch" ? `MISMATCH (vendored: ${report.tokenOptimizerPin.vendoredVersion})` : "unknown (vendor/token-optimizer-mcp/package.json not found \u2014 submodule not initialized?)";
   lines.push(statusLine("Vendored submodule pin", pinStatusLabel));
+  const invariantLabel = report.upstreamInvariant.status === "ok" ? "ok \u2014 never emits updatedInput (Module 1's load-bearing assumption holds)" : report.upstreamInvariant.status === "violated" ? `VIOLATED \u2014 found in: ${report.upstreamInvariant.offendingFiles.join(", ")} (see scripts/verify-upstream-invariants.mjs)` : "unknown (submodule not initialized)";
+  lines.push(statusLine("Upstream invariant (Risk R9)", invariantLabel));
   lines.push("");
   lines.push("headroom");
   lines.push(
@@ -19743,7 +19787,7 @@ function registerToonCommand(program2) {
 }
 
 // src/transcript/discover.ts
-import { existsSync as existsSync4, readdirSync } from "node:fs";
+import { existsSync as existsSync4, readdirSync as readdirSync2 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import path5 from "node:path";
 function getClaudeProjectsDir(options = {}) {
@@ -19756,7 +19800,7 @@ function slugifyPath(absolutePath) {
 function listJsonlFiles(dir) {
   if (!existsSync4(dir)) return [];
   try {
-    return readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path5.join(dir, entry.name)).sort();
+    return readdirSync2(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path5.join(dir, entry.name)).sort();
   } catch {
     return [];
   }
@@ -19772,7 +19816,7 @@ function discoverBySessionId(sessionId, options = {}) {
   const target = `${sessionId}.jsonl`;
   const matches = [];
   try {
-    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+    for (const entry of readdirSync2(projectsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const candidate = path5.join(projectsDir, entry.name, target);
       if (existsSync4(candidate)) matches.push(candidate);
@@ -19787,7 +19831,7 @@ function discoverAllProjectFiles(options = {}) {
   if (!existsSync4(projectsDir)) return [];
   const files = [];
   try {
-    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+    for (const entry of readdirSync2(projectsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       files.push(...listJsonlFiles(path5.join(projectsDir, entry.name)));
     }
@@ -20357,7 +20401,7 @@ function registerReportCommand(program2) {
 }
 
 // src/handoff/checkpoint.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync4, readdirSync as readdirSync2, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync4, readdirSync as readdirSync3, unlinkSync, writeFileSync } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import path7 from "node:path";
 
@@ -20494,7 +20538,7 @@ function listCheckpointFiles(dir) {
   try {
     if (!existsSync5(dir)) return [];
     const entries = [];
-    for (const name of readdirSync2(dir)) {
+    for (const name of readdirSync3(dir)) {
       if (!name.endsWith(".json")) continue;
       const filePath = path7.join(dir, name);
       try {
@@ -20754,7 +20798,7 @@ import {
   copyFileSync,
   existsSync as existsSync7,
   mkdirSync as mkdirSync3,
-  readdirSync as readdirSync3,
+  readdirSync as readdirSync4,
   readFileSync as readFileSync6,
   renameSync,
   unlinkSync as unlinkSync2,
@@ -20837,7 +20881,7 @@ function findLatestBackup(settingsPath) {
   if (!existsSync7(dir)) return null;
   let entries;
   try {
-    entries = readdirSync3(dir);
+    entries = readdirSync4(dir);
   } catch {
     return null;
   }
