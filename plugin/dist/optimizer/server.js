@@ -3243,8 +3243,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path7) {
-      let input = path7;
+    function removeDotSegments(path8) {
+      let input = path8;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3496,8 +3496,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path7, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
+        const [path8, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path8 && path8 !== "/" ? path8 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -6916,12 +6916,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs4, exportName) {
+    function addFormats(ajv, list, fs5, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs4[f]);
+        ajv.addFormat(f, fs5[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -7542,6 +7542,9 @@ function getOptimizerHome() {
 }
 function getOptimizerCacheDir() {
   return path2.join(getOptimizerHome(), "cache");
+}
+function getOptimizerAnalyticsDbPath() {
+  return path2.join(getOptimizerHome(), "analytics.db");
 }
 function getOptimizerBackupsDir() {
   return path2.join(getOptimizerHome(), "backups");
@@ -11250,11 +11253,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports, module) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object3, path7) {
-      path7 = castPath(path7, object3);
-      var index2 = 0, length = path7.length;
+    function baseGet(object3, path8) {
+      path8 = castPath(path8, object3);
+      var index2 = 0, length = path8.length;
       while (object3 != null && index2 < length) {
-        object3 = object3[toKey(path7[index2++])];
+        object3 = object3[toKey(path8[index2++])];
       }
       return index2 && index2 == length ? object3 : void 0;
     }
@@ -11266,8 +11269,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports, module) {
     var baseGet = require_baseGet();
-    function get2(object3, path7, defaultValue) {
-      var result = object3 == null ? void 0 : baseGet(object3, path7);
+    function get2(object3, path8, defaultValue) {
+      var result = object3 == null ? void 0 : baseGet(object3, path8);
       return result === void 0 ? defaultValue : result;
     }
     module.exports = get2;
@@ -11293,11 +11296,11 @@ var require_hasPath = __commonJS({
     var isIndex = require_isIndex();
     var isLength = require_isLength();
     var toKey = require_toKey();
-    function hasPath(object3, path7, hasFunc) {
-      path7 = castPath(path7, object3);
-      var index2 = -1, length = path7.length, result = false;
+    function hasPath(object3, path8, hasFunc) {
+      path8 = castPath(path8, object3);
+      var index2 = -1, length = path8.length, result = false;
       while (++index2 < length) {
-        var key = toKey(path7[index2]);
+        var key = toKey(path8[index2]);
         if (!(result = object3 != null && hasFunc(object3, key))) {
           break;
         }
@@ -11318,8 +11321,8 @@ var require_hasIn = __commonJS({
   "node_modules/lodash/hasIn.js"(exports, module) {
     var baseHasIn = require_baseHasIn();
     var hasPath = require_hasPath();
-    function hasIn(object3, path7) {
-      return object3 != null && hasPath(object3, path7, baseHasIn);
+    function hasIn(object3, path8) {
+      return object3 != null && hasPath(object3, path8, baseHasIn);
     }
     module.exports = hasIn;
   }
@@ -11337,13 +11340,13 @@ var require_baseMatchesProperty = __commonJS({
     var toKey = require_toKey();
     var COMPARE_PARTIAL_FLAG = 1;
     var COMPARE_UNORDERED_FLAG = 2;
-    function baseMatchesProperty(path7, srcValue) {
-      if (isKey(path7) && isStrictComparable(srcValue)) {
-        return matchesStrictComparable(toKey(path7), srcValue);
+    function baseMatchesProperty(path8, srcValue) {
+      if (isKey(path8) && isStrictComparable(srcValue)) {
+        return matchesStrictComparable(toKey(path8), srcValue);
       }
       return function(object3) {
-        var objValue = get2(object3, path7);
-        return objValue === void 0 && objValue === srcValue ? hasIn(object3, path7) : baseIsEqual(srcValue, objValue, COMPARE_PARTIAL_FLAG | COMPARE_UNORDERED_FLAG);
+        var objValue = get2(object3, path8);
+        return objValue === void 0 && objValue === srcValue ? hasIn(object3, path8) : baseIsEqual(srcValue, objValue, COMPARE_PARTIAL_FLAG | COMPARE_UNORDERED_FLAG);
       };
     }
     module.exports = baseMatchesProperty;
@@ -11366,9 +11369,9 @@ var require_baseProperty = __commonJS({
 var require_basePropertyDeep = __commonJS({
   "node_modules/lodash/_basePropertyDeep.js"(exports, module) {
     var baseGet = require_baseGet();
-    function basePropertyDeep(path7) {
+    function basePropertyDeep(path8) {
       return function(object3) {
-        return baseGet(object3, path7);
+        return baseGet(object3, path8);
       };
     }
     module.exports = basePropertyDeep;
@@ -11382,8 +11385,8 @@ var require_property = __commonJS({
     var basePropertyDeep = require_basePropertyDeep();
     var isKey = require_isKey();
     var toKey = require_toKey();
-    function property(path7) {
-      return isKey(path7) ? baseProperty(toKey(path7)) : basePropertyDeep(path7);
+    function property(path8) {
+      return isKey(path8) ? baseProperty(toKey(path8)) : basePropertyDeep(path8);
     }
     module.exports = property;
   }
@@ -11445,8 +11448,8 @@ var require_has = __commonJS({
   "node_modules/lodash/has.js"(exports, module) {
     var baseHas = require_baseHas();
     var hasPath = require_hasPath();
-    function has(object3, path7) {
-      return object3 != null && hasPath(object3, path7, baseHas);
+    function has(object3, path8) {
+      return object3 != null && hasPath(object3, path8, baseHas);
     }
     module.exports = has;
   }
@@ -42037,10 +42040,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path7) {
-  if (!path7)
+function getElementAtPath(obj, path8) {
+  if (!path8)
     return obj;
-  return path7.reduce((acc, key) => acc?.[key], obj);
+  return path8.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -42449,11 +42452,11 @@ function explicitlyAborted(x4, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path7, issues) {
+function prefixIssues(path8, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path7);
+    iss.path.unshift(path8);
     return iss;
   });
 }
@@ -42600,16 +42603,16 @@ function flattenError(error2, mapper = (issue2) => issue2.message) {
 }
 function formatError(error2, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error3, path7 = []) => {
+  const processError = (error3, path8 = []) => {
     for (const issue2 of error3.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else {
-        const fullpath = [...path7, ...issue2.path];
+        const fullpath = [...path8, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -50475,16 +50478,16 @@ var Diff = class {
       }
     }
   }
-  addToPath(path7, added, removed, oldPosInc, options) {
-    const last = path7.lastComponent;
+  addToPath(path8, added, removed, oldPosInc, options) {
+    const last = path8.lastComponent;
     if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
       return {
-        oldPos: path7.oldPos + oldPosInc,
+        oldPos: path8.oldPos + oldPosInc,
         lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
       };
     } else {
       return {
-        oldPos: path7.oldPos + oldPosInc,
+        oldPos: path8.oldPos + oldPosInc,
         lastComponent: { count: 1, added, removed, previousComponent: last }
       };
     }
@@ -55539,10 +55542,10 @@ import { relative, basename as basename3, extname, join as join4, isAbsolute as 
 // src/optimizer/utils/search-scope.ts
 import { statSync as statSync3 } from "fs";
 import { dirname as dirname2, basename as basename2, isAbsolute, join as join3, resolve, sep } from "path";
-function resolveSearchScope(path7, cwd, fallback) {
+function resolveSearchScope(path8, cwd, fallback) {
   const base = cwd ?? fallback;
-  if (!path7) return { cwd: base, files: null, file: null };
-  const resolved = isAbsolute(path7) ? path7 : join3(base, path7);
+  if (!path8) return { cwd: base, files: null, file: null };
+  const resolved = isAbsolute(path8) ? path8 : join3(base, path8);
   let stats;
   try {
     stats = statSync3(resolved);
@@ -55565,8 +55568,8 @@ function resolveSearchScope(path7, cwd, fallback) {
     file: resolved
   };
 }
-function comparable(path7) {
-  const normalized = resolve(path7).split(/[\\/]/).join(sep);
+function comparable(path8) {
+  const normalized = resolve(path8).split(/[\\/]/).join(sep);
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 function limitToScopedFile(paths, scope) {
@@ -56996,12 +56999,12 @@ var SmartStatusTool = class {
    * Parse git status codes
    */
   parseStatusCodes(index2, workTree, filePath) {
-    let path7 = filePath;
+    let path8 = filePath;
     let oldPath;
     if (filePath.includes(" -> ")) {
       const parts = filePath.split(" -> ");
       oldPath = parts[0].trim();
-      path7 = parts[1].trim();
+      path8 = parts[1].trim();
     }
     let status;
     let staged = false;
@@ -57033,7 +57036,7 @@ var SmartStatusTool = class {
       return null;
     }
     return {
-      path: path7,
+      path: path8,
       status,
       oldPath,
       staged
@@ -60985,24 +60988,24 @@ var SmartConfigReadTool = class {
     }
     return errors;
   }
-  validatePropertyType(path7, value, property) {
+  validatePropertyType(path8, value, property) {
     const errors = [];
     const actualType = Array.isArray(value) ? "array" : typeof value;
     const expectedTypes = Array.isArray(property.type) ? property.type : [property.type];
     if (!expectedTypes.includes(actualType)) {
       errors.push({
-        path: path7,
+        path: path8,
         message: `Type mismatch: expected ${expectedTypes.join(" | ")}, got ${actualType}`,
         severity: "error",
-        suggestion: `Change "${path7}" to type ${expectedTypes[0]}`
+        suggestion: `Change "${path8}" to type ${expectedTypes[0]}`
       });
     }
     if (property.enum && !property.enum.includes(value)) {
       errors.push({
-        path: path7,
+        path: path8,
         message: `Invalid value: must be one of ${property.enum.join(", ")}`,
         severity: "error",
-        suggestion: `Set "${path7}" to one of: ${property.enum.join(", ")}`
+        suggestion: `Set "${path8}" to one of: ${property.enum.join(", ")}`
       });
     }
     if (actualType === "object" && property.properties) {
@@ -61020,7 +61023,7 @@ var SmartConfigReadTool = class {
       errors.push(
         ...nestedErrors.map((err) => ({
           ...err,
-          path: `${path7}.${err.path}`
+          path: `${path8}.${err.path}`
         }))
       );
     }
@@ -67055,15 +67058,15 @@ var SmartUser = class {
   /**
    * Get permission information for a path
    */
-  async getPermissionInfo(path7, username) {
+  async getPermissionInfo(path8, username) {
     const platform = process.platform;
     if (platform === "win32") {
       try {
-        assertSafeArg(path7, "path");
-        const { stdout } = await execFileSafe("icacls", [path7]);
+        assertSafeArg(path8, "path");
+        const { stdout } = await execFileSafe("icacls", [path8]);
         const lines = stdout.split("\n");
         return {
-          path: path7,
+          path: path8,
           owner: "N/A",
           group: "N/A",
           permissions: lines[1] || "N/A",
@@ -67080,8 +67083,8 @@ var SmartUser = class {
       }
     } else {
       try {
-        assertSafeArg(path7, "path");
-        const { stdout: lsOut } = await execFileSafe("ls", ["-ld", path7]);
+        assertSafeArg(path8, "path");
+        const { stdout: lsOut } = await execFileSafe("ls", ["-ld", path8]);
         const parts = lsOut.trim().split(/\s+/);
         const permissions = parts[0];
         const owner = parts[2];
@@ -67120,7 +67123,7 @@ var SmartUser = class {
           canExecute = permStr[8] === "x" || permStr[8] === "t";
         }
         return {
-          path: path7,
+          path: path8,
           owner,
           group,
           permissions,
@@ -67140,14 +67143,14 @@ var SmartUser = class {
   /**
    * Get ACL entries for a path
    */
-  async getACLEntries(path7) {
+  async getACLEntries(path8) {
     const platform = process.platform;
     if (platform === "win32") {
       return [];
     }
     try {
-      assertSafeArg(path7, "path");
-      const { stdout } = await execFileSafe("getfacl", [path7], {
+      assertSafeArg(path8, "path");
+      const { stdout } = await execFileSafe("getfacl", [path8], {
         ignoreExitCode: true
       });
       const lines = stdout.split("\n");
@@ -68853,15 +68856,15 @@ var KnowledgeGraphTool = class {
     return score;
   }
   reconstructPath(dijkstraResult, source, target) {
-    const path7 = [];
+    const path8 = [];
     let current = target;
     while (current && current !== source) {
-      path7.unshift(current);
+      path8.unshift(current);
       current = dijkstraResult[current]?.predecessor;
     }
     if (current === source) {
-      path7.unshift(source);
-      return path7;
+      path8.unshift(source);
+      return path8;
     }
     return [];
   }
@@ -68880,17 +68883,17 @@ var KnowledgeGraphTool = class {
   findAllPaths(graphData, source, target, maxHops) {
     const paths = [];
     const visited = /* @__PURE__ */ new Set();
-    const dfs = (current, path7) => {
+    const dfs = (current, path8) => {
       if (current === target) {
-        paths.push([...path7]);
+        paths.push([...path8]);
         return;
       }
-      if (path7.length >= maxHops + 1) return;
+      if (path8.length >= maxHops + 1) return;
       visited.add(current);
       const neighbors = graphData.graphlib.successors(current) || [];
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor)) {
-          dfs(neighbor, [...path7, neighbor]);
+          dfs(neighbor, [...path8, neighbor]);
         }
       }
       visited.delete(current);
@@ -68929,16 +68932,16 @@ var KnowledgeGraphTool = class {
         }
       }
     }
-    const path7 = [];
+    const path8 = [];
     let current = target;
     while (current && current !== source) {
-      path7.unshift(current);
+      path8.unshift(current);
       current = predecessor.get(current);
-      if (path7.length > maxHops) break;
+      if (path8.length > maxHops) break;
     }
     if (current === source) {
-      path7.unshift(source);
-      return path7;
+      path8.unshift(source);
+      return path8;
     }
     return [];
   }
@@ -73728,9 +73731,9 @@ var SmartGraphQL = class _SmartGraphQL {
    */
   detectFragmentOpportunities(parsed) {
     const groups = /* @__PURE__ */ new Map();
-    const traverse = (selections, path7) => {
+    const traverse = (selections, path8) => {
       for (const selection of selections) {
-        const here3 = [...path7, selection.name];
+        const here3 = [...path8, selection.name];
         if (selection.fields.length > 1) {
           const fields = selection.fields.map((f) => f.name).sort();
           const key = fields.join(",");
@@ -73867,8 +73870,8 @@ var SmartGraphQL = class _SmartGraphQL {
       const n7 = Number(raw);
       return Number.isFinite(n7) && n7 > 0 ? n7 : null;
     };
-    const walk2 = (selection, path7) => {
-      const here3 = [...path7, selection.name];
+    const walk2 = (selection, path8) => {
+      const here3 = [...path8, selection.name];
       if (this.isListField(selection)) {
         const nestedLists = selection.fields.filter((f) => this.isListField(f));
         for (const nested of nestedLists) {
@@ -75293,15 +75296,15 @@ var SmartREST = class {
       url = `${scheme}://${spec.host}${basePath}`;
     }
     const paths = Object.keys(spec.paths);
-    const endpoints = paths.reduce((count, path7) => {
-      return count + Object.keys(spec.paths[path7]).filter(
+    const endpoints = paths.reduce((count, path8) => {
+      return count + Object.keys(spec.paths[path8]).filter(
         (key) => ["get", "post", "put", "delete", "patch", "options", "head"].includes(
           key.toLowerCase()
         )
       ).length;
     }, 0);
     const resources = new Set(
-      paths.map((path7) => this.extractResourceName(path7))
+      paths.map((path8) => this.extractResourceName(path8))
     ).size;
     return {
       title: spec.info.title,
@@ -75314,8 +75317,8 @@ var SmartREST = class {
   analyzeEndpoints(spec, options) {
     const endpoints = [];
     const methodFilter = options.methods?.map((m2) => m2.toLowerCase());
-    for (const [path7, pathItem] of Object.entries(spec.paths)) {
-      if (options.resourceFilter && !path7.includes(options.resourceFilter)) {
+    for (const [path8, pathItem] of Object.entries(spec.paths)) {
+      if (options.resourceFilter && !path8.includes(options.resourceFilter)) {
         continue;
       }
       for (const [method, operation] of Object.entries(pathItem)) {
@@ -75327,7 +75330,7 @@ var SmartREST = class {
           continue;
         }
         const endpoint = {
-          path: path7,
+          path: path8,
           method: method.toUpperCase(),
           summary: operation.summary,
           description: operation.description,
@@ -75401,8 +75404,8 @@ var SmartREST = class {
     }
     return resources.sort((a2, b) => b.endpoints - a2.endpoints);
   }
-  extractResourceName(path7) {
-    const parts = path7.split("/").filter((p) => p && !p.startsWith("{"));
+  extractResourceName(path8) {
+    const parts = path8.split("/").filter((p) => p && !p.startsWith("{"));
     return parts[0] || "root";
   }
   checkAPIHealth(spec, endpoints) {
@@ -75842,8 +75845,8 @@ var SmartSchema = class {
   }
   async introspectSQLite(connectionString, _options) {
     const file = connectionString.replace(/^sqlite:(\/\/)?/i, "").replace(/^file:/i, "");
-    const { default: Database2 } = await import("better-sqlite3");
-    const db = new Database2(file, { readonly: true, fileMustExist: true });
+    const { default: Database3 } = await import("better-sqlite3");
+    const db = new Database3(file, { readonly: true, fileMustExist: true });
     try {
       const version2 = db.prepare("select sqlite_version() as v").get().v;
       const tableRows = db.prepare(
@@ -76012,20 +76015,20 @@ var SmartSchema = class {
     const visited = /* @__PURE__ */ new Set();
     const recursionStack = /* @__PURE__ */ new Set();
     const cycles = [];
-    const dfs = (node, path7) => {
+    const dfs = (node, path8) => {
       visited.add(node);
       recursionStack.add(node);
-      path7.push(node);
+      path8.push(node);
       const neighbors = graph.edges.get(node);
       if (neighbors) {
         for (const neighbor of neighbors) {
           if (!visited.has(neighbor)) {
-            if (dfs(neighbor, [...path7])) {
+            if (dfs(neighbor, [...path8])) {
               return true;
             }
           } else if (recursionStack.has(neighbor)) {
-            const cycleStart = path7.indexOf(neighbor);
-            const cycle = path7.slice(cycleStart);
+            const cycleStart = path8.indexOf(neighbor);
+            const cycle = path8.slice(cycleStart);
             cycles.push({
               cycle: [...cycle, neighbor],
               affectedTables: new Set(cycle)
@@ -77901,8 +77904,8 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
         version: data.version,
         projectPath: data.projectPath,
         files: new Map(
-          Object.entries(data.files).map(([path7, entry]) => [
-            path7,
+          Object.entries(data.files).map(([path8, entry]) => [
+            path8,
             {
               ...entry,
               patterns: new Set(entry.patterns || [])
@@ -77928,8 +77931,8 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
   cacheIndex(key, index2, ttl) {
     try {
       const filesArray = Array.from(index2.files.entries()).map(
-        ([path7, entry]) => [
-          path7,
+        ([path8, entry]) => [
+          path8,
           {
             ...entry,
             patterns: Array.from(entry.patterns)
@@ -79471,10 +79474,10 @@ var SmartDependenciesTool = class {
     const circular = [];
     const visited = /* @__PURE__ */ new Set();
     const stack = /* @__PURE__ */ new Set();
-    const detectCycle = (file, path7) => {
+    const detectCycle = (file, path8) => {
       if (stack.has(file)) {
-        const cycleStart = path7.indexOf(file);
-        const cycle = path7.slice(cycleStart).concat(file);
+        const cycleStart = path8.indexOf(file);
+        const cycle = path8.slice(cycleStart).concat(file);
         const depth = cycle.length - 1;
         let severity = "low";
         if (depth >= 5) severity = "high";
@@ -79487,12 +79490,12 @@ var SmartDependenciesTool = class {
       }
       visited.add(file);
       stack.add(file);
-      path7.push(file);
+      path8.push(file);
       const node = graph.get(file);
       if (node) {
         for (const imp of node.imports) {
           if (!imp.isExternal) {
-            detectCycle(imp.source, [...path7]);
+            detectCycle(imp.source, [...path8]);
           }
         }
       }
@@ -79649,14 +79652,14 @@ var SmartDependenciesTool = class {
       path: [opts.targetFile, f]
     }));
     while (queue.length > 0) {
-      const { file, depth, path: path7 } = queue.shift();
+      const { file, depth, path: path8 } = queue.shift();
       if (visited.has(file) || depth > opts.maxDepth) {
         continue;
       }
       visited.add(file);
       indirectDependents.push(file);
-      if (path7.length >= 3) {
-        criticalPath.push(path7);
+      if (path8.length >= 3) {
+        criticalPath.push(path8);
       }
       const node = graph.get(file);
       if (node) {
@@ -79665,7 +79668,7 @@ var SmartDependenciesTool = class {
             queue.push({
               file: dependent,
               depth: depth + 1,
-              path: [...path7, dependent]
+              path: [...path8, dependent]
             });
           }
         }
@@ -81492,10 +81495,10 @@ var SmartImportsTool = class {
     const cycles = [];
     const visited = /* @__PURE__ */ new Set();
     const recursionStack = /* @__PURE__ */ new Set();
-    const detectCycle = (currentFile, path7) => {
+    const detectCycle = (currentFile, path8) => {
       if (recursionStack.has(currentFile)) {
-        const cycleStart = path7.indexOf(currentFile);
-        const cycle = path7.slice(cycleStart).concat(currentFile);
+        const cycleStart = path8.indexOf(currentFile);
+        const cycle = path8.slice(cycleStart).concat(currentFile);
         cycles.push({
           cycle,
           severity: "warning",
@@ -81513,7 +81516,7 @@ var SmartImportsTool = class {
         if (imp.module.startsWith(".")) {
           const resolvedPath = this.resolveImportPath(currentFile, imp.module);
           if (resolvedPath) {
-            detectCycle(resolvedPath, [...path7, currentFile]);
+            detectCycle(resolvedPath, [...path8, currentFile]);
           }
         }
       }
@@ -94137,11 +94140,1638 @@ var SMART_CACHE_TOOL_DEFINITION = {
   }
 };
 
+// src/optimizer/tools/analytics/get-hook-analytics.ts
+var GET_HOOK_ANALYTICS_TOOL_DEFINITION = {
+  name: "get_hook_analytics",
+  description: "Get detailed token usage analytics broken down by hook phase (PreToolUse, PostToolUse, SessionStart, PreCompact, UserPromptSubmit). Shows which hook phases consume the most tokens and where optimization efforts should be focused.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      startDate: {
+        type: "string",
+        description: "Optional start date filter in ISO 8601 format (e.g., 2025-01-01T00:00:00Z)"
+      },
+      endDate: {
+        type: "string",
+        description: "Optional end date filter in ISO 8601 format (e.g., 2025-12-31T23:59:59Z)"
+      }
+    }
+  }
+};
+function getHookAnalyticsTool(analyticsManager) {
+  return async (args) => {
+    try {
+      const analytics = await analyticsManager.getHookAnalytics({
+        startDate: args.startDate,
+        endDate: args.endDate
+      });
+      return JSON.stringify(
+        {
+          success: true,
+          analytics,
+          dateRange: {
+            start: args.startDate || "all time",
+            end: args.endDate || "present"
+          }
+        },
+        null,
+        2
+      );
+    } catch (error2) {
+      return JSON.stringify(
+        {
+          success: false,
+          error: error2 instanceof Error ? error2.message : "Unknown error occurred"
+        },
+        null,
+        2
+      );
+    }
+  };
+}
+
+// src/optimizer/tools/analytics/get-action-analytics.ts
+var GET_ACTION_ANALYTICS_TOOL_DEFINITION = {
+  name: "get_action_analytics",
+  description: "Get detailed token usage analytics broken down by tool/action (Read, Write, Grep, Bash, count_tokens, etc.). Shows which tools consume the most tokens and identifies optimization opportunities for specific operations.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      startDate: {
+        type: "string",
+        description: "Optional start date filter in ISO 8601 format (e.g., 2025-01-01T00:00:00Z)"
+      },
+      endDate: {
+        type: "string",
+        description: "Optional end date filter in ISO 8601 format (e.g., 2025-12-31T23:59:59Z)"
+      }
+    }
+  }
+};
+function getActionAnalyticsTool(analyticsManager) {
+  return async (args) => {
+    try {
+      const analytics = await analyticsManager.getActionAnalytics({
+        startDate: args.startDate,
+        endDate: args.endDate
+      });
+      return JSON.stringify(
+        {
+          success: true,
+          analytics,
+          dateRange: {
+            start: args.startDate || "all time",
+            end: args.endDate || "present"
+          }
+        },
+        null,
+        2
+      );
+    } catch (error2) {
+      return JSON.stringify(
+        {
+          success: false,
+          error: error2 instanceof Error ? error2.message : "Unknown error occurred"
+        },
+        null,
+        2
+      );
+    }
+  };
+}
+
+// src/optimizer/tools/analytics/get-mcp-server-analytics.ts
+var GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION = {
+  name: "get_mcp_server_analytics",
+  description: "Get detailed token usage analytics broken down by MCP server (token-optimizer, filesystem, github, etc.). Shows which MCP servers are contributing the most to token usage and helps identify cross-server optimization opportunities.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      startDate: {
+        type: "string",
+        description: "Optional start date filter in ISO 8601 format (e.g., 2025-01-01T00:00:00Z)"
+      },
+      endDate: {
+        type: "string",
+        description: "Optional end date filter in ISO 8601 format (e.g., 2025-12-31T23:59:59Z)"
+      }
+    }
+  }
+};
+function getMcpServerAnalyticsTool(analyticsManager) {
+  return async (args) => {
+    try {
+      const analytics = await analyticsManager.getServerAnalytics({
+        startDate: args.startDate,
+        endDate: args.endDate
+      });
+      return JSON.stringify(
+        {
+          success: true,
+          analytics,
+          dateRange: {
+            start: args.startDate || "all time",
+            end: args.endDate || "present"
+          }
+        },
+        null,
+        2
+      );
+    } catch (error2) {
+      return JSON.stringify(
+        {
+          success: false,
+          error: error2 instanceof Error ? error2.message : "Unknown error occurred"
+        },
+        null,
+        2
+      );
+    }
+  };
+}
+
+// src/optimizer/tools/analytics/export-analytics.ts
+var EXPORT_ANALYTICS_TOOL_DEFINITION = {
+  name: "export_analytics",
+  description: "Export all analytics data in JSON or CSV format. Supports filtering by date range, hook phase, tool name, and MCP server. Useful for external analysis, reporting, and data integration.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      format: {
+        type: "string",
+        enum: ["json", "csv"],
+        description: "Output format: json or csv"
+      },
+      startDate: {
+        type: "string",
+        description: "Optional start date filter in ISO 8601 format (e.g., 2025-01-01T00:00:00Z)"
+      },
+      endDate: {
+        type: "string",
+        description: "Optional end date filter in ISO 8601 format (e.g., 2025-12-31T23:59:59Z)"
+      },
+      hookPhase: {
+        type: "string",
+        enum: [
+          "PreToolUse",
+          "PostToolUse",
+          "SessionStart",
+          "PreCompact",
+          "UserPromptSubmit",
+          "Unknown"
+        ],
+        description: "Optional filter by hook phase"
+      },
+      toolName: {
+        type: "string",
+        description: "Optional filter by tool/action name"
+      },
+      mcpServer: {
+        type: "string",
+        description: "Optional filter by MCP server name"
+      }
+    },
+    required: ["format"]
+  }
+};
+function getExportAnalyticsTool(analyticsManager) {
+  return async (args) => {
+    try {
+      let data;
+      const filters = {
+        startDate: args.startDate,
+        endDate: args.endDate,
+        hookPhase: args.hookPhase,
+        toolName: args.toolName,
+        mcpServer: args.mcpServer
+      };
+      if (args.format === "json") {
+        data = await analyticsManager.exportAsJson(filters);
+      } else if (args.format === "csv") {
+        data = await analyticsManager.exportAsCsv(filters);
+      } else {
+        return JSON.stringify(
+          {
+            success: false,
+            error: `Invalid format: ${args.format}. Must be 'json' or 'csv'.`
+          },
+          null,
+          2
+        );
+      }
+      const entries = await analyticsManager.getEntries(filters);
+      return JSON.stringify(
+        {
+          success: true,
+          format: args.format,
+          entryCount: entries.length,
+          filters: {
+            startDate: args.startDate || "none",
+            endDate: args.endDate || "none",
+            hookPhase: args.hookPhase || "none",
+            toolName: args.toolName || "none",
+            mcpServer: args.mcpServer || "none"
+          },
+          data,
+          exportedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        null,
+        2
+      );
+    } catch (error2) {
+      return JSON.stringify(
+        {
+          success: false,
+          error: error2 instanceof Error ? error2.message : "Unknown error occurred"
+        },
+        null,
+        2
+      );
+    }
+  };
+}
+
+// src/optimizer/analytics/savings-classification.ts
+var SAVINGS_MEASUREMENT_SCHEMA_VERSION = 2;
+function metadataOf(entry) {
+  return entry.metadata || {};
+}
+function finite(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function sha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+}
+function hasConsistentMaterializedDelta(entry, metadata) {
+  const baselineBytes = finite(metadata.baselineBytes);
+  const returnedBytes = finite(metadata.returnedBytes);
+  const bytesSaved = finite(metadata.bytesSaved);
+  return typeof entry.measurementId === "string" && entry.measurementId.length > 0 && metadata.measurementId === entry.measurementId && sha256(metadata.baselineSha256) && sha256(metadata.returnedSha256) && metadata.baselineSha256 !== metadata.returnedSha256 && typeof metadata.disclosureRef === "string" && /^[a-f0-9]{16}$/i.test(metadata.disclosureRef) && baselineBytes !== null && returnedBytes !== null && bytesSaved !== null && baselineBytes > returnedBytes && bytesSaved === baselineBytes - returnedBytes && entry.originalTokens > entry.optimizedTokens && entry.tokensSaved === entry.originalTokens - entry.optimizedTokens;
+}
+function hasConsistentExpansionDebit(entry, metadata) {
+  const returnedBytes = finite(metadata.returnedBytes);
+  return typeof entry.measurementId === "string" && entry.measurementId.length > 0 && metadata.measurementId === entry.measurementId && typeof metadata.expansionRef === "string" && /^[a-f0-9]{16}$/i.test(metadata.expansionRef) && typeof metadata.creditedMeasurementId === "string" && metadata.creditedMeasurementId.length > 0 && sha256(metadata.returnedSha256) && returnedBytes !== null && returnedBytes > 0 && entry.originalTokens === entry.optimizedTokens && entry.optimizedTokens > 0 && entry.tokensSaved === 0;
+}
+function classifySavings(entry) {
+  const metadata = metadataOf(entry);
+  const schemaVersion = Number(metadata.measurementSchemaVersion);
+  const measurementClass = String(metadata.measurementClass || "");
+  if (entry.savingsMeasured === true && schemaVersion === SAVINGS_MEASUREMENT_SCHEMA_VERSION && measurementClass === "verified-transport-reduction" && metadata.baselineKind === "materialized-undisclosed-mcp-result" && hasConsistentMaterializedDelta(entry, metadata)) {
+    return "verified-transport-reduction";
+  }
+  if (schemaVersion === SAVINGS_MEASUREMENT_SCHEMA_VERSION && measurementClass === "verified-transport-expansion-debit" && hasConsistentExpansionDebit(entry, metadata)) {
+    return "verified-transport-expansion-debit";
+  }
+  if (schemaVersion === SAVINGS_MEASUREMENT_SCHEMA_VERSION || ["actual-return-context-only", "optimizer-before-actual-return"].includes(
+    String(metadata.measurement || "")
+  )) {
+    return "observed-return-only";
+  }
+  return "unverified-reported";
+}
+function isVerifiedSavingsEntry(entry) {
+  return classifySavings(entry) === "verified-transport-reduction";
+}
+function verifiedTransportDelta(entry) {
+  const classification = classifySavings(entry);
+  if (classification === "verified-transport-reduction") {
+    return Math.max(0, Number(entry.tokensSaved) || 0);
+  }
+  if (classification === "verified-transport-expansion-debit") {
+    return -Math.max(0, Number(entry.optimizedTokens) || 0);
+  }
+  return 0;
+}
+function hasObservedReturnedContext(entry) {
+  return classifySavings(entry) !== "unverified-reported";
+}
+
+// src/optimizer/analytics/provider-pricing.ts
+var OPENAI_SOURCE = "https://developers.openai.com/api/docs/models/compare";
+var OPENAI_SOL_SOURCE = "https://developers.openai.com/api/docs/models/gpt-5.6-sol";
+var ANTHROPIC_SOURCE = "https://platform.claude.com/docs/en/about-claude/pricing";
+var ANTHROPIC_CACHE_SOURCE = "https://platform.claude.com/docs/en/build-with-claude/prompt-caching";
+var GEMINI_SOURCE = "https://ai.google.dev/gemini-api/docs/pricing";
+var COPILOT_SOURCE = "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing";
+var CATALOG_VERIFIED_AT = "2026-08-12T00:00:00.000Z";
+var openAi56Tier = (input, cached2, output) => [
+  {
+    maxInputTokens: 272e3,
+    uncachedInput: input,
+    cachedInput: cached2,
+    cacheWrite5m: input * 1.25,
+    cacheWrite1h: input * 1.25,
+    cacheWrite: input * 1.25,
+    output
+  },
+  {
+    uncachedInput: input * 2,
+    cachedInput: cached2 * 2,
+    cacheWrite5m: input * 2 * 1.25,
+    cacheWrite1h: input * 2 * 1.25,
+    cacheWrite: input * 2 * 1.25,
+    output: output * 1.5
+  }
+];
+var anthropicTier = (input, output) => [
+  {
+    uncachedInput: input,
+    cachedInput: input * 0.1,
+    cacheWrite5m: input * 1.25,
+    cacheWrite1h: input * 2,
+    cacheWrite: input * 1.25,
+    output
+  }
+];
+var geminiTier = (input, cached2, output) => [
+  {
+    uncachedInput: input,
+    cachedInput: cached2,
+    // Gemini reports cached reads in generation usage. Explicit cache storage
+    // is a separate time-based charge and is not invented when unobserved.
+    cacheWrite5m: 0,
+    cacheWrite1h: null,
+    cacheWrite: null,
+    output
+  }
+];
+var MODEL_PRICE_CATALOG = [
+  {
+    provider: "openai",
+    route: "openai-api",
+    model: "gpt-5.6-sol",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: OPENAI_SOL_SOURCE,
+    sourceLabel: "OpenAI API price",
+    tiers: openAi56Tier(5, 0.5, 30)
+  },
+  {
+    provider: "openai",
+    route: "openai-api",
+    model: "gpt-5.6-terra",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: OPENAI_SOURCE,
+    sourceLabel: "OpenAI API price",
+    tiers: openAi56Tier(2.5, 0.25, 15)
+  },
+  {
+    provider: "openai",
+    route: "openai-api",
+    model: "gpt-5.6-luna",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: OPENAI_SOURCE,
+    sourceLabel: "OpenAI API price",
+    tiers: openAi56Tier(1, 0.1, 6)
+  },
+  {
+    provider: "anthropic",
+    route: "anthropic-api",
+    model: "claude-opus-5",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: ANTHROPIC_SOURCE,
+    sourceLabel: "Anthropic API price",
+    tiers: anthropicTier(5, 25)
+  },
+  {
+    provider: "anthropic",
+    route: "anthropic-api",
+    model: "claude-sonnet-5",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    effectiveTo: "2026-09-01T00:00:00.000Z",
+    sourceUrl: ANTHROPIC_SOURCE,
+    sourceLabel: "Anthropic introductory API price",
+    tiers: anthropicTier(2, 10)
+  },
+  {
+    provider: "anthropic",
+    route: "anthropic-api",
+    model: "claude-sonnet-5",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    effectiveFrom: "2026-09-01T00:00:00.000Z",
+    sourceUrl: ANTHROPIC_SOURCE,
+    sourceLabel: "Anthropic standard API price",
+    tiers: anthropicTier(3, 15)
+  },
+  ...[
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-opus-4-5"
+  ].map(
+    (model) => ({
+      provider: "anthropic",
+      route: "anthropic-api",
+      model,
+      aliases: [],
+      currency: "USD",
+      verifiedAt: CATALOG_VERIFIED_AT,
+      sourceUrl: ANTHROPIC_CACHE_SOURCE,
+      sourceLabel: "Anthropic API and prompt-cache price",
+      tiers: anthropicTier(5, 25)
+    })
+  ),
+  ...["claude-sonnet-4-6", "claude-sonnet-4-5"].map(
+    (model) => ({
+      provider: "anthropic",
+      route: "anthropic-api",
+      model,
+      aliases: [],
+      currency: "USD",
+      verifiedAt: CATALOG_VERIFIED_AT,
+      sourceUrl: ANTHROPIC_CACHE_SOURCE,
+      sourceLabel: "Anthropic API and prompt-cache price",
+      tiers: anthropicTier(3, 15)
+    })
+  ),
+  {
+    provider: "anthropic",
+    route: "anthropic-api",
+    model: "claude-haiku-4-5",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: ANTHROPIC_CACHE_SOURCE,
+    sourceLabel: "Anthropic API and prompt-cache price",
+    tiers: anthropicTier(1, 5)
+  },
+  {
+    provider: "google",
+    route: "gemini-api",
+    model: "gemini-3.5-flash",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: GEMINI_SOURCE,
+    sourceLabel: "Gemini Developer API standard price",
+    tiers: geminiTier(1.5, 0.15, 9)
+  },
+  {
+    provider: "google",
+    route: "gemini-api",
+    model: "gemini-3.5-flash-lite",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: GEMINI_SOURCE,
+    sourceLabel: "Gemini Developer API standard price",
+    tiers: geminiTier(0.3, 0.03, 2.5)
+  },
+  {
+    provider: "google",
+    route: "gemini-api",
+    model: "gemini-2.5-flash",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: GEMINI_SOURCE,
+    sourceLabel: "Gemini Developer API standard price",
+    tiers: geminiTier(0.3, 0.03, 2.5)
+  },
+  {
+    provider: "google",
+    route: "gemini-api",
+    model: "gemini-2.5-flash-lite",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    sourceUrl: GEMINI_SOURCE,
+    sourceLabel: "Gemini Developer API standard price",
+    tiers: geminiTier(0.1, 0.01, 0.4)
+  },
+  // GitHub Copilot is a distinct billing route even when the underlying model
+  // id is identical to a direct provider model.
+  ...[
+    ["gpt-5.6-sol", 5, 0.5, 30, 272e3],
+    ["gpt-5.6-terra", 2.5, 0.25, 15, 272e3],
+    ["gpt-5.6-luna", 1, 0.1, 6, 2e5]
+  ].map(
+    ([model, input, cached2, output, threshold]) => ({
+      provider: "github",
+      route: "github-copilot",
+      model: String(model),
+      aliases: [],
+      currency: "USD",
+      verifiedAt: CATALOG_VERIFIED_AT,
+      sourceUrl: COPILOT_SOURCE,
+      sourceLabel: "GitHub Copilot AI-credit token price",
+      tiers: [
+        {
+          maxInputTokens: Number(threshold),
+          uncachedInput: Number(input),
+          cachedInput: Number(cached2),
+          cacheWrite5m: null,
+          cacheWrite1h: null,
+          cacheWrite: null,
+          output: Number(output)
+        },
+        {
+          uncachedInput: Number(input) * 2,
+          cachedInput: Number(cached2) * 2,
+          cacheWrite5m: null,
+          cacheWrite1h: null,
+          cacheWrite: null,
+          output: Number(output) * 1.5
+        }
+      ]
+    })
+  ),
+  {
+    provider: "github",
+    route: "github-copilot",
+    model: "claude-sonnet-5",
+    aliases: [],
+    currency: "USD",
+    verifiedAt: CATALOG_VERIFIED_AT,
+    effectiveTo: "2026-09-01T00:00:00.000Z",
+    sourceUrl: COPILOT_SOURCE,
+    sourceLabel: "GitHub Copilot promotional AI-credit token price",
+    tiers: [
+      {
+        uncachedInput: 2,
+        cachedInput: 0.2,
+        cacheWrite5m: 2.5,
+        cacheWrite1h: 4,
+        cacheWrite: 2.5,
+        output: 10
+      }
+    ]
+  }
+];
+function nonnegative(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+function normalizeUsageDimensions(usage = {}) {
+  return {
+    uncachedInputTokens: nonnegative(usage.uncachedInputTokens),
+    cachedInputTokens: nonnegative(usage.cachedInputTokens),
+    cacheWrite5mInputTokens: nonnegative(usage.cacheWrite5mInputTokens),
+    cacheWrite1hInputTokens: nonnegative(usage.cacheWrite1hInputTokens),
+    cacheWriteInputTokens: nonnegative(usage.cacheWriteInputTokens),
+    outputTokens: nonnegative(usage.outputTokens)
+  };
+}
+function inferProviderRoute(client, model, provider) {
+  const clientKey = String(client || "").toLowerCase();
+  const modelKey = String(model || "").toLowerCase();
+  if (clientKey.includes("copilot"))
+    return { provider: "github", route: "github-copilot" };
+  const explicit = String(provider || "").toLowerCase();
+  if (explicit.includes("openai"))
+    return { provider: "openai", route: "openai-api" };
+  if (explicit.includes("anthropic"))
+    return { provider: "anthropic", route: "anthropic-api" };
+  if (explicit.includes("google"))
+    return { provider: "google", route: "gemini-api" };
+  if (explicit.includes("alibaba") || explicit.includes("dashscope"))
+    return { provider: "alibaba", route: "dashscope-api" };
+  if (/^(gpt-|o\d|chatgpt-)/.test(modelKey))
+    return { provider: "openai", route: "openai-api" };
+  if (modelKey.startsWith("claude-"))
+    return { provider: "anthropic", route: "anthropic-api" };
+  if (modelKey.startsWith("gemini-"))
+    return { provider: "google", route: "gemini-api" };
+  if (modelKey.startsWith("qwen"))
+    return { provider: "alibaba", route: "dashscope-api" };
+  return { provider: explicit || "unknown", route: "unknown" };
+}
+function contractAt(route, model, timestamp) {
+  const at2 = Date.parse(timestamp);
+  const key = model.toLowerCase();
+  return MODEL_PRICE_CATALOG.find((contract) => {
+    const begins = contract.effectiveFrom ? Date.parse(contract.effectiveFrom) : Number.NEGATIVE_INFINITY;
+    const ends = contract.effectiveTo ? Date.parse(contract.effectiveTo) : Number.POSITIVE_INFINITY;
+    return contract.route === route && (contract.model === key || contract.aliases.includes(key)) && at2 >= begins && at2 < ends;
+  }) || null;
+}
+function tierFor(contract, promptTokens) {
+  return contract.tiers.find(
+    (tier) => tier.maxInputTokens === void 0 || promptTokens <= tier.maxInputTokens
+  ) || contract.tiers.at(-1);
+}
+function tierInputTokens(usage) {
+  return usage.uncachedInputTokens + usage.cachedInputTokens + Math.max(
+    usage.cacheWriteInputTokens,
+    usage.cacheWrite5mInputTokens + usage.cacheWrite1hInputTokens
+  );
+}
+function priceTokenUsage(input) {
+  const usage = normalizeUsageDimensions(input.usage);
+  const inferred = inferProviderRoute(
+    input.client,
+    input.model,
+    input.provider
+  );
+  const provider = input.provider || inferred.provider;
+  const route = input.route || inferred.route;
+  const timestamp = input.timestamp || (/* @__PURE__ */ new Date()).toISOString();
+  const model = String(input.model || "").trim().toLowerCase();
+  const contract = model ? contractAt(route, model, timestamp) : null;
+  if (!contract) {
+    return {
+      available: false,
+      provider,
+      route,
+      requestedModel: input.model || null,
+      resolvedModel: null,
+      currency: null,
+      amount: null,
+      ratesPerMillion: null,
+      usage,
+      breakdown: null,
+      sourceUrl: null,
+      sourceLabel: "No exact versioned price contract",
+      effectiveFrom: null,
+      effectiveTo: null,
+      verifiedAt: null,
+      reason: model ? `No exact ${route} price for model ${model} at ${timestamp}` : "The client did not report a model id"
+    };
+  }
+  const promptTokens = tierInputTokens(usage);
+  const tier = tierFor(contract, promptTokens);
+  const unsupportedDimension = [
+    [usage.cacheWrite5mInputTokens, tier.cacheWrite5m, "5-minute cache writes"],
+    [usage.cacheWrite1hInputTokens, tier.cacheWrite1h, "1-hour cache writes"],
+    [usage.cacheWriteInputTokens, tier.cacheWrite, "cache writes"]
+  ].find(([tokens, rate]) => Number(tokens) > 0 && rate === null);
+  if (unsupportedDimension) {
+    return {
+      available: false,
+      provider: contract.provider,
+      route: contract.route,
+      requestedModel: input.model || null,
+      resolvedModel: contract.model,
+      currency: contract.currency,
+      amount: null,
+      ratesPerMillion: tier,
+      usage,
+      breakdown: null,
+      sourceUrl: contract.sourceUrl,
+      sourceLabel: contract.sourceLabel,
+      effectiveFrom: contract.effectiveFrom || null,
+      effectiveTo: contract.effectiveTo || null,
+      verifiedAt: contract.verifiedAt,
+      reason: `The official ${contract.route} price source does not define ${unsupportedDimension[2]} for this model`
+    };
+  }
+  const perMillion = (tokens, rate) => rate === null ? 0 : tokens / 1e6 * rate;
+  const breakdown = {
+    uncachedInput: perMillion(usage.uncachedInputTokens, tier.uncachedInput),
+    cachedInput: perMillion(usage.cachedInputTokens, tier.cachedInput),
+    cacheWrite5m: perMillion(usage.cacheWrite5mInputTokens, tier.cacheWrite5m),
+    cacheWrite1h: perMillion(usage.cacheWrite1hInputTokens, tier.cacheWrite1h),
+    cacheWrite: perMillion(usage.cacheWriteInputTokens, tier.cacheWrite),
+    output: perMillion(usage.outputTokens, tier.output)
+  };
+  return {
+    available: true,
+    provider: contract.provider,
+    route: contract.route,
+    requestedModel: input.model || null,
+    resolvedModel: contract.model,
+    currency: contract.currency,
+    amount: Object.values(breakdown).reduce((sum, value) => sum + value, 0),
+    ratesPerMillion: tier,
+    usage,
+    breakdown,
+    sourceUrl: contract.sourceUrl,
+    sourceLabel: contract.sourceLabel,
+    effectiveFrom: contract.effectiveFrom || null,
+    effectiveTo: contract.effectiveTo || null,
+    verifiedAt: contract.verifiedAt,
+    reason: null
+  };
+}
+
+// src/optimizer/tools/analytics/get-optimization-report.ts
+var GET_OPTIMIZATION_REPORT_TOOL_DEFINITION = {
+  name: "get_optimization_report",
+  description: "Get a provenance-gated token report. Verified savings require a materialized MCP payload before and after optimization; historical and tool-reported estimates are excluded. Direct API-price equivalents use each exact captured model and route; ambiguous operations remain unpriced.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      startDate: {
+        type: "string",
+        description: "Optional start date filter in ISO 8601 format (e.g., 2025-01-01T00:00:00Z)"
+      },
+      endDate: {
+        type: "string",
+        description: "Optional end date filter in ISO 8601 format (e.g., 2025-12-31T23:59:59Z)"
+      },
+      sessionId: {
+        type: "string",
+        description: "Optional session ID to scope the report to a single session."
+      },
+      topN: {
+        type: "number",
+        description: "Limit each breakdown to the top N rows by tokens saved (default: 10)."
+      }
+    }
+  }
+};
+function num(n7) {
+  return Math.round(n7).toLocaleString("en-US");
+}
+function pct(n7) {
+  return `${n7.toFixed(1)}%`;
+}
+function directPrice(entries) {
+  let amount = 0;
+  let pricedOperations = 0;
+  const eligible = entries.filter(
+    (entry) => verifiedTransportDelta(entry) !== 0
+  );
+  for (const entry of eligible) {
+    const tokens = verifiedTransportDelta(entry);
+    const metadata = entry.metadata || {};
+    const priced = priceTokenUsage({
+      client: entry.client || String(metadata.client || ""),
+      provider: String(metadata.provider || ""),
+      route: String(metadata.pricingRoute || metadata.route || ""),
+      model: entry.model || String(metadata.model || ""),
+      timestamp: entry.timestamp,
+      usage: { uncachedInputTokens: Math.abs(tokens) }
+    });
+    if (!priced.available || priced.currency !== "USD" || priced.amount === null)
+      continue;
+    amount += Math.sign(tokens) * priced.amount;
+    pricedOperations += 1;
+  }
+  return {
+    amount: pricedOperations ? amount : null,
+    display: pricedOperations === 0 ? "not priced" : Math.abs(amount) < 0.01 ? "<$0.01" : `$${amount.toFixed(2)}`,
+    pricedOperations,
+    eligibleOperations: eligible.length
+  };
+}
+function bar(fraction, width = 20) {
+  const filled = Math.max(0, Math.min(width, Math.round(fraction * width)));
+  return "\u2588".repeat(filled) + "\u2591".repeat(width - filled);
+}
+function renderTable(title, rows, topN) {
+  if (rows.length === 0) return `${title}
+  (no data yet)
+`;
+  const shown = rows.slice(0, topN);
+  const maxSaved = Math.max(...shown.map((r) => r.totalTokensSaved), 1);
+  const nameW = Math.max(4, ...shown.map((r) => r.name.length));
+  const lines = shown.map((r) => {
+    const name = r.name.padEnd(nameW);
+    const saved = num(r.totalTokensSaved).padStart(10);
+    const savePct = pct(r.savingsPercentage).padStart(7);
+    const ops = String(r.totalOperations).padStart(5);
+    return `  ${name}  ${saved}  ${savePct}  ${ops}  ${bar(
+      r.totalTokensSaved / maxSaved
+    )}`;
+  });
+  const header = `  ${"name".padEnd(nameW)}  ${"saved".padStart(
+    10
+  )}  ${"save%".padStart(7)}  ${"ops".padStart(5)}`;
+  const extra = rows.length > topN ? `
+  ... and ${rows.length - topN} more
+` : "\n";
+  return `${title}
+${header}
+${lines.join("\n")}
+${extra}`;
+}
+function getOptimizationReportTool(analyticsManager) {
+  return async (args) => {
+    try {
+      const topN = args.topN && args.topN > 0 ? args.topN : 10;
+      const range = { startDate: args.startDate, endDate: args.endDate };
+      const [hook, action, server, totalCount, scopedEntries] = await Promise.all([
+        analyticsManager.getHookAnalytics(range),
+        analyticsManager.getActionAnalytics(range),
+        analyticsManager.getServerAnalytics(range),
+        analyticsManager.count(),
+        analyticsManager.getEntries({
+          startDate: args.startDate,
+          endDate: args.endDate,
+          sessionId: args.sessionId
+        })
+      ]);
+      let summary = action.summary;
+      let byAction = action.byAction;
+      if (args.sessionId) {
+        const entries = scopedEntries;
+        const verifiedEntries = entries.filter(isVerifiedSavingsEntry);
+        const observedEntries = entries.filter(hasObservedReturnedContext);
+        const totalOriginalTokens = verifiedEntries.reduce(
+          (s, e) => s + e.originalTokens,
+          0
+        );
+        const totalOptimizedTokens = observedEntries.reduce(
+          (s, e) => s + e.optimizedTokens,
+          0
+        );
+        const totalTokensSaved = entries.reduce(
+          (s, e) => s + verifiedTransportDelta(e),
+          0
+        );
+        summary = {
+          totalOperations: entries.length,
+          totalTokensSaved,
+          totalOriginalTokens,
+          totalOptimizedTokens
+        };
+      }
+      const savingsPercentage = summary.totalOriginalTokens > 0 ? summary.totalTokensSaved / summary.totalOriginalTokens * 100 : 0;
+      const scope = args.sessionId ? `session ${args.sessionId}` : `${args.startDate || "all time"} \u2192 ${args.endDate || "present"}`;
+      const cost = directPrice(scopedEntries);
+      const formatted = [
+        "\u2554\u2550\u2550 Token Optimizer \u2014 Verified Savings Report \u2550\u2550\u2557",
+        `  scope: ${scope}`,
+        "",
+        `  \u2728 Verified saved     : ${num(summary.totalTokensSaved)}`,
+        `  \u{1F4B5} Direct API price  : ${cost.display} (${num(cost.pricedOperations)}/${num(cost.eligibleOperations)} savings operations exactly modeled)`,
+        `  \u{1F4E5} Original tokens    : ${num(summary.totalOriginalTokens)}`,
+        `  \u{1F4E6} After optimization : ${num(summary.totalOptimizedTokens)}`,
+        `  \u{1F4C9} Overall reduction  : ${pct(savingsPercentage)}  ${bar(
+          savingsPercentage / 100
+        )}`,
+        `  \u{1F527} Operations tracked : ${num(
+          summary.totalOperations
+        )}  (${num(totalCount)} all-time)`,
+        "",
+        renderTable("\u25B8 By action (tool)", byAction, topN),
+        renderTable("\u25B8 By hook phase", hook.byHook, topN),
+        renderTable("\u25B8 By MCP server", server.byServer, topN)
+      ].join("\n");
+      return JSON.stringify(
+        {
+          success: true,
+          scope,
+          summary: { ...summary, savingsPercentage },
+          costEquivalentUsd: cost.amount,
+          pricing: {
+            source: "versioned-provider-model-catalog",
+            pricedOperations: cost.pricedOperations,
+            eligibleOperations: cost.eligibleOperations,
+            definition: "one immediate uncached-input equivalent per verified transport delta; hypothetical future cache reuse is excluded"
+          },
+          measurement: {
+            definition: "materialized undisclosed MCP payload tokens minus initial returned payload tokens, less later linked expansion payloads",
+            legacyPolicy: "rows without versioned comparable-baseline provenance are excluded"
+          },
+          byAction,
+          byHook: hook.byHook,
+          byServer: server.byServer,
+          formatted
+        },
+        null,
+        2
+      );
+    } catch (error2) {
+      return JSON.stringify(
+        {
+          success: false,
+          error: error2 instanceof Error ? error2.message : "Unknown error occurred"
+        },
+        null,
+        2
+      );
+    }
+  };
+}
+
+// src/optimizer/analytics/analytics-storage.ts
+init_paths2();
+import Database2 from "better-sqlite3";
+import fs4 from "node:fs";
+import path7 from "node:path";
+var SqliteAnalyticsStorage = class {
+  db;
+  batchQueue = [];
+  batchTimer = null;
+  BATCH_SIZE = 100;
+  BATCH_DELAY_MS = 5e3;
+  // 5 seconds
+  constructor(dbPath) {
+    const finalPath = dbPath || getOptimizerAnalyticsDbPath();
+    const dir = path7.dirname(finalPath);
+    if (!fs4.existsSync(dir)) {
+      fs4.mkdirSync(dir, { recursive: true });
+    }
+    this.db = new Database2(finalPath);
+    this.initializeDatabase();
+  }
+  /**
+   * Initialize database schema
+   */
+  initializeDatabase() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS analytics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hook_phase TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        mcp_server TEXT NOT NULL,
+        original_tokens INTEGER NOT NULL,
+        optimized_tokens INTEGER NOT NULL,
+        tokens_saved INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        session_id TEXT,
+        metadata TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_hook_phase ON analytics(hook_phase);
+      CREATE INDEX IF NOT EXISTS idx_tool_name ON analytics(tool_name);
+      CREATE INDEX IF NOT EXISTS idx_mcp_server ON analytics(mcp_server);
+      CREATE INDEX IF NOT EXISTS idx_timestamp ON analytics(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_session_id ON analytics(session_id);
+    `);
+    const columns = new Set(
+      this.db.prepare("PRAGMA table_info(analytics)").all().map((column) => column.name)
+    );
+    for (const [name, definition] of [
+      ["client", "TEXT"],
+      ["client_version", "TEXT"],
+      ["model", "TEXT"],
+      ["model_version", "TEXT"],
+      ["measurement_id", "TEXT"],
+      // A pre-existing row has no provenance proving that its two token fields
+      // are comparable. Defaulting this column to true silently certified every
+      // historical estimate during migration. New writers opt in explicitly.
+      ["savings_measured", "INTEGER NOT NULL DEFAULT 0"]
+    ]) {
+      if (!columns.has(name))
+        this.db.exec(`ALTER TABLE analytics ADD COLUMN ${name} ${definition}`);
+    }
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_client ON analytics(client);
+      CREATE INDEX IF NOT EXISTS idx_model ON analytics(model);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_measurement_id
+        ON analytics(measurement_id)
+        WHERE measurement_id LIKE 'mcp:%';
+    `);
+  }
+  /**
+   * Save a single analytics entry (batched for performance)
+   */
+  async save(entry) {
+    this.batchQueue.push(entry);
+    if (this.batchQueue.length >= this.BATCH_SIZE) {
+      await this.flushBatch();
+    } else {
+      this.scheduleBatchFlush();
+    }
+  }
+  /**
+   * Save multiple analytics entries in a single transaction
+   */
+  async saveBatch(entries) {
+    if (entries.length === 0) return;
+    const stmt = this.db.prepare(`
+      INSERT INTO analytics (
+        hook_phase, tool_name, mcp_server,
+        original_tokens, optimized_tokens, tokens_saved,
+        timestamp, session_id, metadata,
+        client, client_version, model, model_version, savings_measured,
+        measurement_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT DO NOTHING
+    `);
+    const insertMany = this.db.transaction((entries2) => {
+      for (const entry of entries2) {
+        stmt.run(
+          entry.hookPhase,
+          entry.toolName,
+          entry.mcpServer,
+          entry.originalTokens,
+          entry.optimizedTokens,
+          entry.tokensSaved,
+          entry.timestamp,
+          entry.sessionId || null,
+          entry.metadata ? JSON.stringify(entry.metadata) : null,
+          entry.client || null,
+          entry.clientVersion || null,
+          entry.model || null,
+          entry.modelVersion || null,
+          entry.savingsMeasured === true ? 1 : 0,
+          entry.measurementId || null
+        );
+      }
+    });
+    insertMany(entries);
+  }
+  /**
+   * Schedule a delayed batch flush
+   */
+  scheduleBatchFlush() {
+    if (this.batchTimer) {
+      return;
+    }
+    this.batchTimer = setTimeout(() => {
+      void this.flushBatch().catch((err) => {
+        console.error("Failed to flush analytics batch:", err);
+      });
+    }, this.BATCH_DELAY_MS);
+    this.batchTimer.unref();
+  }
+  /**
+   * Flush the current batch to database
+   */
+  async flushBatch() {
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+      this.batchTimer = null;
+    }
+    if (this.batchQueue.length === 0) {
+      return;
+    }
+    const entries = [...this.batchQueue];
+    this.batchQueue = [];
+    await this.saveBatch(entries);
+  }
+  /**
+   * Query analytics entries with optional filters
+   */
+  async query(filters) {
+    await this.flushBatch();
+    let sql = "SELECT * FROM analytics WHERE 1=1";
+    const params = [];
+    if (filters) {
+      if (filters.hookPhase) {
+        sql += " AND hook_phase = ?";
+        params.push(filters.hookPhase);
+      }
+      if (filters.toolName) {
+        sql += " AND tool_name = ?";
+        params.push(filters.toolName);
+      }
+      if (filters.mcpServer) {
+        sql += " AND mcp_server = ?";
+        params.push(filters.mcpServer);
+      }
+      if (filters.sessionId) {
+        sql += " AND session_id = ?";
+        params.push(filters.sessionId);
+      }
+    }
+    sql += " ORDER BY timestamp DESC";
+    const rows = this.db.prepare(sql).all(...params);
+    return this.rowsToEntries(rows);
+  }
+  /**
+   * Get all entries within a date range
+   */
+  async queryByDateRange(startDate, endDate) {
+    await this.flushBatch();
+    const sql = `
+      SELECT * FROM analytics
+      WHERE timestamp >= ? AND timestamp <= ?
+      ORDER BY timestamp DESC
+    `;
+    const rows = this.db.prepare(sql).all(startDate, endDate);
+    return this.rowsToEntries(rows);
+  }
+  /**
+   * Clear all analytics data
+   */
+  async clear() {
+    await this.flushBatch();
+    this.db.prepare("DELETE FROM analytics").run();
+  }
+  /**
+   * Get total count of stored entries
+   */
+  async count() {
+    await this.flushBatch();
+    const result = this.db.prepare("SELECT COUNT(*) as count FROM analytics").get();
+    return result.count;
+  }
+  /**
+   * Convert database rows to AnalyticsEntry objects
+   */
+  rowsToEntries(rows) {
+    return rows.map((row) => ({
+      hookPhase: row.hook_phase,
+      toolName: row.tool_name,
+      mcpServer: row.mcp_server,
+      originalTokens: row.original_tokens,
+      optimizedTokens: row.optimized_tokens,
+      tokensSaved: row.tokens_saved,
+      timestamp: row.timestamp,
+      sessionId: row.session_id || void 0,
+      metadata: row.metadata ? JSON.parse(row.metadata) : void 0,
+      client: row.client || void 0,
+      clientVersion: row.client_version || void 0,
+      model: row.model || void 0,
+      modelVersion: row.model_version || void 0,
+      savingsMeasured: row.savings_measured !== 0,
+      measurementId: row.measurement_id || void 0
+    }));
+  }
+  /**
+   * Close the database connection
+   */
+  async close() {
+    if (this.batchQueue.length > 0) {
+      await this.saveBatch(this.batchQueue);
+      this.batchQueue = [];
+    }
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+      this.batchTimer = null;
+    }
+    this.db.close();
+  }
+};
+
+// src/optimizer/analytics/analytics-manager.ts
+var AnalyticsManager = class {
+  storage;
+  constructor(storage) {
+    this.storage = storage || new SqliteAnalyticsStorage();
+  }
+  /**
+   * Track a single operation
+   */
+  async track(entry) {
+    const fullEntry = {
+      ...entry,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.storage.save(fullEntry);
+  }
+  /**
+   * Track a batch of operations
+   */
+  async trackBatch(entries) {
+    const fullEntries = entries.map((entry) => ({
+      ...entry,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    }));
+    await this.storage.saveBatch(fullEntries);
+  }
+  /**
+   * Get per-hook analytics breakdown
+   */
+  async getHookAnalytics(options) {
+    let entries;
+    if (options?.startDate || options?.endDate) {
+      const start = options?.startDate ?? "0001-01-01T00:00:00.000Z";
+      const end = options?.endDate ?? (/* @__PURE__ */ new Date()).toISOString();
+      entries = await this.storage.queryByDateRange(start, end);
+    } else {
+      entries = await this.storage.query();
+    }
+    return this.aggregateByHook(entries);
+  }
+  /**
+   * Get per-action analytics breakdown
+   */
+  async getActionAnalytics(options) {
+    let entries;
+    if (options?.startDate || options?.endDate) {
+      const start = options?.startDate ?? "0001-01-01T00:00:00.000Z";
+      const end = options?.endDate ?? (/* @__PURE__ */ new Date()).toISOString();
+      entries = await this.storage.queryByDateRange(start, end);
+    } else {
+      entries = await this.storage.query();
+    }
+    return this.aggregateByAction(entries);
+  }
+  /**
+   * Get per-MCP-server analytics breakdown
+   */
+  async getServerAnalytics(options) {
+    let entries;
+    if (options?.startDate || options?.endDate) {
+      const start = options?.startDate ?? "0001-01-01T00:00:00.000Z";
+      const end = options?.endDate ?? (/* @__PURE__ */ new Date()).toISOString();
+      entries = await this.storage.queryByDateRange(start, end);
+    } else {
+      entries = await this.storage.query();
+    }
+    return this.aggregateByServer(entries);
+  }
+  /**
+   * Get all analytics entries with optional filters
+   */
+  async getEntries(filters) {
+    if (filters?.startDate || filters?.endDate) {
+      const start = filters?.startDate ?? "0001-01-01T00:00:00.000Z";
+      const end = filters?.endDate ?? (/* @__PURE__ */ new Date()).toISOString();
+      const entries = await this.storage.queryByDateRange(start, end);
+      return entries.filter((entry) => {
+        if (filters.hookPhase && entry.hookPhase !== filters.hookPhase) {
+          return false;
+        }
+        if (filters.toolName && entry.toolName !== filters.toolName) {
+          return false;
+        }
+        if (filters.mcpServer && entry.mcpServer !== filters.mcpServer) {
+          return false;
+        }
+        if (filters.sessionId && entry.sessionId !== filters.sessionId) {
+          return false;
+        }
+        return true;
+      });
+    }
+    return await this.storage.query(filters);
+  }
+  /**
+   * Clear all analytics data
+   */
+  async clear() {
+    await this.storage.clear();
+  }
+  /**
+   * Get total count of analytics entries
+   */
+  async count() {
+    return await this.storage.count();
+  }
+  /**
+   * Aggregate entries by hook phase
+   */
+  aggregateByHook(entries) {
+    const hookMap = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      const existing = hookMap.get(entry.hookPhase) || [];
+      existing.push(entry);
+      hookMap.set(entry.hookPhase, existing);
+    }
+    const byHook = [];
+    let totalOperations = 0;
+    let totalTokensSaved = 0;
+    let totalOriginalTokens = 0;
+    let totalOptimizedTokens = 0;
+    for (const [hookPhase, hookEntries] of hookMap.entries()) {
+      const stats = this.calculateAggregatedStats(hookPhase, hookEntries);
+      byHook.push(stats);
+      totalOperations += stats.totalOperations;
+      totalTokensSaved += stats.totalTokensSaved;
+      totalOriginalTokens += stats.totalOriginalTokens;
+      totalOptimizedTokens += stats.totalOptimizedTokens;
+    }
+    byHook.sort((a2, b) => b.totalTokensSaved - a2.totalTokensSaved);
+    return {
+      summary: {
+        totalOperations,
+        totalTokensSaved,
+        totalOriginalTokens,
+        totalOptimizedTokens
+      },
+      byHook
+    };
+  }
+  /**
+   * Aggregate entries by tool/action
+   */
+  aggregateByAction(entries) {
+    const actionMap = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      const existing = actionMap.get(entry.toolName) || [];
+      existing.push(entry);
+      actionMap.set(entry.toolName, existing);
+    }
+    const byAction = [];
+    let totalOperations = 0;
+    let totalTokensSaved = 0;
+    let totalOriginalTokens = 0;
+    let totalOptimizedTokens = 0;
+    for (const [toolName, toolEntries] of actionMap.entries()) {
+      const stats = this.calculateAggregatedStats(toolName, toolEntries);
+      byAction.push(stats);
+      totalOperations += stats.totalOperations;
+      totalTokensSaved += stats.totalTokensSaved;
+      totalOriginalTokens += stats.totalOriginalTokens;
+      totalOptimizedTokens += stats.totalOptimizedTokens;
+    }
+    byAction.sort((a2, b) => b.totalTokensSaved - a2.totalTokensSaved);
+    return {
+      summary: {
+        totalOperations,
+        totalTokensSaved,
+        totalOriginalTokens,
+        totalOptimizedTokens
+      },
+      byAction
+    };
+  }
+  /**
+   * Aggregate entries by MCP server
+   */
+  aggregateByServer(entries) {
+    const serverMap = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      const existing = serverMap.get(entry.mcpServer) || [];
+      existing.push(entry);
+      serverMap.set(entry.mcpServer, existing);
+    }
+    const byServer = [];
+    let totalOperations = 0;
+    let totalTokensSaved = 0;
+    let totalOriginalTokens = 0;
+    let totalOptimizedTokens = 0;
+    for (const [serverName, serverEntries] of serverMap.entries()) {
+      const stats = this.calculateAggregatedStats(serverName, serverEntries);
+      byServer.push(stats);
+      totalOperations += stats.totalOperations;
+      totalTokensSaved += stats.totalTokensSaved;
+      totalOriginalTokens += stats.totalOriginalTokens;
+      totalOptimizedTokens += stats.totalOptimizedTokens;
+    }
+    byServer.sort((a2, b) => b.totalTokensSaved - a2.totalTokensSaved);
+    return {
+      summary: {
+        totalOperations,
+        totalTokensSaved,
+        totalOriginalTokens,
+        totalOptimizedTokens
+      },
+      byServer
+    };
+  }
+  /**
+   * Calculate aggregated statistics for a group of entries
+   */
+  calculateAggregatedStats(name, entries) {
+    const totalOperations = entries.length;
+    const savingsEntries = entries.filter(isVerifiedSavingsEntry);
+    const returnedEntries = entries.filter(hasObservedReturnedContext);
+    const totalOriginalTokens = savingsEntries.reduce(
+      (sum, e) => sum + e.originalTokens,
+      0
+    );
+    const totalOptimizedTokens = returnedEntries.reduce(
+      (sum, e) => sum + e.optimizedTokens,
+      0
+    );
+    const totalTokensSaved = entries.reduce(
+      (sum, e) => sum + verifiedTransportDelta(e),
+      0
+    );
+    const averageTokensSaved = totalTokensSaved / totalOperations;
+    const savingsPercentage = totalOriginalTokens > 0 ? totalTokensSaved / totalOriginalTokens * 100 : 0;
+    const timestamps = entries.map((e) => e.timestamp).sort();
+    const firstSeen = timestamps[0];
+    const lastSeen = timestamps[timestamps.length - 1];
+    return {
+      name,
+      totalOperations,
+      totalOriginalTokens,
+      totalOptimizedTokens,
+      totalTokensSaved,
+      averageTokensSaved,
+      savingsPercentage,
+      firstSeen,
+      lastSeen
+    };
+  }
+  /**
+   * Export analytics data as JSON
+   */
+  async exportAsJson(filters) {
+    const entries = await this.getEntries(filters);
+    return JSON.stringify(entries, null, 2);
+  }
+  /**
+   * Export analytics data as CSV
+   */
+  async exportAsCsv(filters) {
+    const entries = await this.getEntries(filters);
+    if (entries.length === 0) {
+      return "hookPhase,toolName,mcpServer,originalTokens,optimizedTokens,tokensSaved,timestamp,sessionId\n";
+    }
+    const header = "hookPhase,toolName,mcpServer,originalTokens,optimizedTokens,tokensSaved,timestamp,sessionId\n";
+    const rows = entries.map((entry) => {
+      return [
+        entry.hookPhase,
+        entry.toolName,
+        entry.mcpServer,
+        entry.originalTokens,
+        entry.optimizedTokens,
+        entry.tokensSaved,
+        entry.timestamp,
+        entry.sessionId || ""
+      ].map((value) => {
+        const str = String(value);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(",");
+    });
+    return header + rows.join("\n") + "\n";
+  }
+  /**
+   * Close the underlying storage and flush any pending writes
+   */
+  async close() {
+    if (this.storage && typeof this.storage.close === "function") {
+      await this.storage.close();
+    }
+  }
+};
+
+// src/optimizer/analytics/record-tool-analytics.ts
+init_token_counter();
+import { createHash as createHash33, randomUUID } from "node:crypto";
+var resultTokenCounter = new TokenCounter();
+function sha2562(text) {
+  return createHash33("sha256").update(text, "utf8").digest("hex");
+}
+var VALID_HOOK_PHASES = [
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "PreCompact",
+  "UserPromptSubmit",
+  "Unknown"
+];
+var ORIGINAL_KEYS = [
+  "originalTokens",
+  "originalTokenCount",
+  "tokensBefore",
+  "beforeTokens",
+  "inputTokens"
+];
+var OPTIMIZED_KEYS = [
+  "optimizedTokens",
+  "compressedTokens",
+  "cachedTokens",
+  "tokensAfter",
+  "afterTokens",
+  "outputTokens"
+];
+var SAVED_KEYS = [
+  "tokensSaved",
+  "savedTokens",
+  "tokens_saved",
+  "tokenSavings"
+];
+var NESTED_CONTAINERS = [
+  "metadata",
+  "stats",
+  "statistics",
+  "summary",
+  "optimization",
+  "tokenAnalysis",
+  "tokens",
+  "result",
+  "data"
+];
+function firstNumber(obj, keys) {
+  for (const k3 of keys) {
+    const v2 = obj[k3];
+    if (typeof v2 === "number" && Number.isFinite(v2)) return v2;
+  }
+  return void 0;
+}
+function tripletFrom(obj) {
+  const original = firstNumber(obj, ORIGINAL_KEYS);
+  const optimized = firstNumber(obj, OPTIMIZED_KEYS);
+  const saved = firstNumber(obj, SAVED_KEYS);
+  const known = [original, optimized, saved].filter(
+    (n7) => typeof n7 === "number"
+  ).length;
+  if (known < 2) {
+    if (typeof saved === "number" && typeof original === "number") {
+    }
+    return null;
+  }
+  let o = original;
+  let opt = optimized;
+  let s = saved;
+  if (o === void 0 && opt !== void 0 && s !== void 0) o = opt + s;
+  if (opt === void 0 && o !== void 0 && s !== void 0) opt = o - s;
+  if (s === void 0 && o !== void 0 && opt !== void 0) s = o - opt;
+  if (o === void 0 || opt === void 0 || s === void 0) return null;
+  if (o < 0 || opt < 0) return null;
+  if (o === 0 && opt === 0) return null;
+  return { originalTokens: o, optimizedTokens: opt, tokensSaved: s };
+}
+function extractSavings(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const obj = payload;
+  const top = tripletFrom(obj);
+  if (top) return top;
+  for (const key of NESTED_CONTAINERS) {
+    const child = obj[key];
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      const nested = tripletFrom(child);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+function currentHookPhase() {
+  const raw = process.env.TOKEN_OPTIMIZER_HOOK_PHASE;
+  if (raw && VALID_HOOK_PHASES.includes(raw)) {
+    return raw;
+  }
+  return "Unknown";
+}
+async function recordToolAnalytics(manager, toolName, result, attribution = {}, baselineResult = null) {
+  try {
+    if (!result || result.isError) return;
+    const text = (result.content || []).filter((content) => typeof content?.text === "string").map((content) => content.text || "").join("\n");
+    if (!text) return;
+    let payload = null;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+    }
+    if (payload && typeof payload === "object" && payload.success === false) {
+      return;
+    }
+    let baselinePayload = payload;
+    let baselineText = null;
+    if (baselineResult) {
+      baselineText = (baselineResult.content || []).filter((content) => typeof content?.text === "string").map((content) => content.text || "").join("\n");
+      try {
+        baselinePayload = JSON.parse(baselineText);
+      } catch {
+        baselinePayload = null;
+      }
+    }
+    const reported = extractSavings(baselinePayload);
+    const returnedTokens = resultTokenCounter.count(text).tokens;
+    const baselineTokens = baselineText ? resultTokenCounter.count(baselineText).tokens : returnedTokens;
+    const baselineBytes = baselineText ? Buffer.byteLength(baselineText, "utf8") : Buffer.byteLength(text, "utf8");
+    const returnedBytes = Buffer.byteLength(text, "utf8");
+    const savingsMeasured = baselineText !== null && baselineText !== text && baselineTokens > returnedTokens && baselineBytes > returnedBytes;
+    const originalTokens = savingsMeasured ? baselineTokens : returnedTokens;
+    const tokensSaved = savingsMeasured ? baselineTokens - returnedTokens : 0;
+    const sessionId = process.env.TOKEN_OPTIMIZER_SESSION_ID || (payload && typeof payload === "object" ? payload.sessionId : void 0);
+    const resultMeta = result._meta?.tokenOptimizer;
+    const transportMeta = resultMeta && typeof resultMeta === "object" ? resultMeta : {};
+    const measurementId = attribution.operationId || randomUUID();
+    const expansionRef = typeof transportMeta.expansionRef === "string" ? transportMeta.expansionRef : null;
+    let creditedMeasurementId = null;
+    if (expansionRef) {
+      const existing = await manager.getEntries();
+      const credited = existing.find(
+        (entry) => isVerifiedSavingsEntry(entry) && entry.metadata?.disclosureRef === expansionRef && typeof entry.measurementId === "string"
+      );
+      creditedMeasurementId = credited?.measurementId || null;
+    }
+    await manager.track({
+      hookPhase: currentHookPhase(),
+      toolName,
+      // Was 'token-optimizer' in vendor; matches this server's own identity
+      // (see server.ts's `createOptimizerServer()`: name: 'optiflow-optimizer').
+      mcpServer: "optiflow-optimizer",
+      originalTokens,
+      optimizedTokens: returnedTokens,
+      tokensSaved,
+      savingsMeasured,
+      measurementId,
+      ...sessionId ? { sessionId } : {},
+      ...attribution.client ? { client: attribution.client } : {},
+      ...attribution.clientVersion ? { clientVersion: attribution.clientVersion } : {},
+      ...attribution.model ? { model: attribution.model } : {},
+      ...attribution.modelVersion ? { modelVersion: attribution.modelVersion } : {},
+      metadata: {
+        measurementId,
+        measurementSchemaVersion: SAVINGS_MEASUREMENT_SCHEMA_VERSION,
+        measurement: savingsMeasured ? "materialized-transport-before-after" : expansionRef && creditedMeasurementId ? "actual-expansion-transport-debit" : "actual-return-context-only",
+        measurementClass: savingsMeasured ? "verified-transport-reduction" : expansionRef && creditedMeasurementId ? "verified-transport-expansion-debit" : "observed-return-only",
+        baselineKind: savingsMeasured ? "materialized-undisclosed-mcp-result" : null,
+        baselineBytes,
+        returnedBytes,
+        bytesSaved: savingsMeasured ? baselineBytes - returnedBytes : 0,
+        baselineSha256: baselineText ? sha2562(baselineText) : null,
+        returnedSha256: sha2562(text),
+        disclosureRef: typeof transportMeta.disclosureRef === "string" ? transportMeta.disclosureRef : null,
+        expansionRef,
+        creditedMeasurementId,
+        tokenCountMethod: "tiktoken-gpt-4-compatible-local-estimate",
+        tokenCounterModel: resultTokenCounter.model,
+        reportedToolSavings: savingsMeasured ? null : reported,
+        client: attribution.client || "unattributed",
+        clientVersion: attribution.clientVersion || null,
+        model: attribution.model || null,
+        modelVersion: attribution.modelVersion || null
+      }
+    });
+  } catch {
+  }
+}
+
 // src/optimizer/tools/build-systems/smart-build.ts
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash33 } from "crypto";
+import { createHash as createHash34 } from "crypto";
 import { readFileSync as readFileSync22, existsSync as existsSync20, readdirSync as readdirSync6, statSync as statSync12 } from "fs";
 import { join as join21 } from "path";
 init_paths2();
@@ -94308,7 +95938,7 @@ var SmartBuild = class {
    * Generate cache key based on source files and config
    */
   async generateCacheKey(tsconfig) {
-    const hash = createHash33("sha256");
+    const hash = createHash34("sha256");
     hash.update(this.cacheNamespace);
     const tsconfigPath = join21(this.projectRoot, tsconfig);
     if (existsSync20(tsconfigPath)) {
@@ -94534,7 +96164,7 @@ var SMART_BUILD_TOOL_DEFINITION = {
 init_cache_engine();
 init_paths2();
 import { spawn as spawn4 } from "child_process";
-import { createHash as createHash34 } from "crypto";
+import { createHash as createHash35 } from "crypto";
 import { readFileSync as readFileSync23, existsSync as existsSync21 } from "fs";
 import { join as join22 } from "path";
 var SmartDocker = class {
@@ -94795,11 +96425,11 @@ var SmartDocker = class {
         options.dockerfile || "Dockerfile"
       );
       if (existsSync21(dockerfilePath)) {
-        const hash = createHash34("md5").update(readFileSync23(dockerfilePath)).digest("hex");
+        const hash = createHash35("md5").update(readFileSync23(dockerfilePath)).digest("hex");
         keyParts.push(hash);
       }
     }
-    return createHash34("md5").update(keyParts.join(":")).digest("hex");
+    return createHash35("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Count layers in a Dockerfile
@@ -95012,7 +96642,7 @@ var SMART_DOCKER_TOOL_DEFINITION = {
 
 // src/optimizer/tools/build-systems/smart-install.ts
 init_cache_engine();
-import { createHash as createHash35 } from "crypto";
+import { createHash as createHash36 } from "crypto";
 import { readFileSync as readFileSync24, existsSync as existsSync22 } from "fs";
 import { join as join23 } from "path";
 init_paths2();
@@ -95258,9 +96888,9 @@ var SmartInstall = class {
    */
   generateCacheKey(packageManager, packages, dev) {
     const packageJsonPath = join23(this.projectRoot, "package.json");
-    const packageJsonHash = existsSync22(packageJsonPath) ? createHash35("md5").update(readFileSync24(packageJsonPath)).digest("hex") : "no-package-json";
+    const packageJsonHash = existsSync22(packageJsonPath) ? createHash36("md5").update(readFileSync24(packageJsonPath)).digest("hex") : "no-package-json";
     const key = `${packageManager}:${packages.join(",")}:${dev}:${packageJsonHash}`;
-    return createHash35("md5").update(key).digest("hex");
+    return createHash36("md5").update(key).digest("hex");
   }
   /**
    * Get cached result
@@ -95414,7 +97044,7 @@ var SMART_INSTALL_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash36 } from "crypto";
+import { createHash as createHash37 } from "crypto";
 import { readFileSync as readFileSync25, existsSync as existsSync23 } from "fs";
 import { join as join24 } from "path";
 init_paths2();
@@ -95513,7 +97143,7 @@ var SmartLint = class {
    * Generate cache key based on source files
    */
   async generateCacheKey(files) {
-    const hash = createHash36("sha256");
+    const hash = createHash37("sha256");
     hash.update(this.cacheNamespace);
     hash.update(files.join(":"));
     const eslintConfigPath = join24(this.projectRoot, "eslint.config.js");
@@ -95638,8 +97268,8 @@ var SmartLint = class {
         ruleId,
         count: data.occurrences.length,
         fixable: data.fixable,
-        files: Array.from(fileMap.entries()).map(([path7, locations]) => ({
-          path: path7,
+        files: Array.from(fileMap.entries()).map(([path8, locations]) => ({
+          path: path8,
           locations
         }))
       };
@@ -95773,7 +97403,7 @@ var SMART_LINT_TOOL_DEFINITION = {
 // src/optimizer/tools/build-systems/smart-logs.ts
 init_cache_engine();
 init_paths2();
-import { createHash as createHash37 } from "crypto";
+import { createHash as createHash38 } from "crypto";
 import { existsSync as existsSync24, readFileSync as readFileSync26 } from "fs";
 import { join as join25 } from "path";
 var SmartLogs = class {
@@ -96148,7 +97778,7 @@ var SmartLogs = class {
       tail.toString(),
       since || ""
     ];
-    return createHash37("md5").update(keyParts.join(":")).digest("hex");
+    return createHash38("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -96354,7 +97984,7 @@ var SMART_LOGS_TOOL_DEFINITION = {
 import { spawn as spawn5 } from "child_process";
 init_cache_engine();
 init_paths2();
-import { createHash as createHash38 } from "crypto";
+import { createHash as createHash39 } from "crypto";
 import * as dns from "dns";
 import * as net from "net";
 import { promisify as promisify3 } from "util";
@@ -96689,7 +98319,7 @@ var SmartNetwork = class {
       ports.join(","),
       hostnames.join(",")
     ];
-    return createHash38("md5").update(keyParts.join(":")).digest("hex");
+    return createHash39("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -97343,10 +98973,10 @@ var SMART_PROCESSES_TOOL_DEFINITION = {
 import { spawn as spawn6 } from "child_process";
 
 // src/optimizer/utils/disk-output.ts
-var pct = (used, total) => Math.round(used / total * 100 * 100) / 100;
-function parseWindowsDiskOutput(output, path7) {
+var pct2 = (used, total) => Math.round(used / total * 100 * 100) / 100;
+function parseWindowsDiskOutput(output, path8) {
   const lines = output.split("\n").filter((l) => l.trim());
-  const drive = /^([A-Za-z]:)/.exec(path7)?.[1]?.toUpperCase();
+  const drive = /^([A-Za-z]:)/.exec(path8)?.[1]?.toUpperCase();
   const dataLine = lines.find((l) => {
     const caption = l.trim().split(/\s+/)[0]?.toUpperCase();
     if (!caption?.endsWith(":")) return false;
@@ -97360,9 +98990,9 @@ function parseWindowsDiskOutput(output, path7) {
   if (!Number.isFinite(free) || !Number.isFinite(total) || total <= 0)
     return null;
   const used = total - free;
-  return { path: parts[0], total, used, free, usagePercent: pct(used, total) };
+  return { path: parts[0], total, used, free, usagePercent: pct2(used, total) };
 }
-function parseUnixDiskOutput(output, path7) {
+function parseUnixDiskOutput(output, path8) {
   const lines = output.split("\n").filter((l) => l.trim());
   const dataLine = lines.slice(1).find((l) => {
     const parts2 = l.trim().split(/\s+/);
@@ -97379,13 +99009,13 @@ function parseUnixDiskOutput(output, path7) {
   if (!Number.isFinite(total) || !Number.isFinite(used) || !Number.isFinite(free))
     return null;
   if (!Number.isFinite(usagePercent)) return null;
-  return { path: path7, total, used, free, usagePercent };
+  return { path: path8, total, used, free, usagePercent };
 }
 
 // src/optimizer/tools/build-systems/smart-system-metrics.ts
 init_cache_engine();
 init_paths2();
-import { createHash as createHash39 } from "crypto";
+import { createHash as createHash40 } from "crypto";
 import * as os3 from "os";
 var SmartSystemMetrics = class {
   cache;
@@ -97511,8 +99141,8 @@ var SmartSystemMetrics = class {
    */
   async getDiskMetrics(paths) {
     const metrics = [];
-    for (const path7 of paths) {
-      const diskInfo = await this.getDiskInfo(path7);
+    for (const path8 of paths) {
+      const diskInfo = await this.getDiskInfo(path8);
       if (diskInfo) {
         metrics.push(diskInfo);
       }
@@ -97522,7 +99152,7 @@ var SmartSystemMetrics = class {
   /**
    * Get disk info for a specific path
    */
-  async getDiskInfo(path7) {
+  async getDiskInfo(path8) {
     return new Promise((resolve5) => {
       let output = "";
       let command;
@@ -97532,20 +99162,20 @@ var SmartSystemMetrics = class {
         args = ["logicaldisk", "get", "size,freespace,caption"];
       } else {
         try {
-          assertSafePathArg(path7, "path");
+          assertSafePathArg(path8, "path");
         } catch {
           resolve5(null);
           return;
         }
         command = "df";
-        args = ["-k", path7];
+        args = ["-k", path8];
       }
       const child = spawn6(command, args, { shell: false, windowsHide: true });
       child.stdout.on("data", (data) => {
         output += data.toString();
       });
       child.on("close", () => {
-        const parsed = this.parseDiskOutput(output, path7);
+        const parsed = this.parseDiskOutput(output, path8);
         resolve5(parsed);
       });
       child.on("error", () => {
@@ -97556,8 +99186,8 @@ var SmartSystemMetrics = class {
   /**
    * Parse disk output
    */
-  parseDiskOutput(output, path7) {
-    return process.platform === "win32" ? parseWindowsDiskOutput(output, path7) : parseUnixDiskOutput(output, path7);
+  parseDiskOutput(output, path8) {
+    return process.platform === "win32" ? parseWindowsDiskOutput(output, path8) : parseUnixDiskOutput(output, path8);
   }
   /**
    * Detect anomalies by comparing current with previous
@@ -97649,7 +99279,7 @@ var SmartSystemMetrics = class {
    */
   generateCacheKey(includeDisk, diskPaths) {
     const keyParts = [includeDisk.toString(), diskPaths.join(",")];
-    return createHash39("md5").update(keyParts.join(":")).digest("hex");
+    return createHash40("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -97810,7 +99440,7 @@ var SMART_SYSTEM_METRICS_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash40 } from "crypto";
+import { createHash as createHash41 } from "crypto";
 import { readFileSync as readFileSync27, existsSync as existsSync25 } from "fs";
 import { join as join26 } from "path";
 init_paths2();
@@ -98296,7 +99926,7 @@ ${tail}` : "")
    * Generate cache key based on test file contents
    */
   async generateCacheKey(pattern) {
-    const hash = createHash40("sha256");
+    const hash = createHash41("sha256");
     hash.update(this.cacheNamespace);
     hash.update(pattern || "all");
     const packageJsonPath = join26(this.projectRoot, "package.json");
@@ -98548,7 +100178,7 @@ var SMART_TEST_TOOL_DEFINITION = {
 init_cache_engine();
 init_metrics();
 init_token_counter();
-import { createHash as createHash41 } from "crypto";
+import { createHash as createHash42 } from "crypto";
 import { readFileSync as readFileSync28, existsSync as existsSync26 } from "fs";
 import { join as join27 } from "path";
 init_paths2();
@@ -98754,7 +100384,7 @@ var SmartTypeCheck = class {
    * Generate cache key
    */
   async generateCacheKey(tsconfig) {
-    const hash = createHash41("sha256");
+    const hash = createHash42("sha256");
     hash.update(this.cacheNamespace);
     const tsconfigPath = join27(this.projectRoot, tsconfig);
     if (existsSync26(tsconfigPath)) {
@@ -99041,12 +100671,20 @@ var ALL_TOOL_DEFINITIONS = [
   CACHE_REPLICATION_TOOL_DEFINITION,
   CACHE_WARMUP_TOOL_DEFINITION,
   PREDICTIVE_CACHE_TOOL_DEFINITION,
-  SMART_CACHE_TOOL_DEFINITION
+  SMART_CACHE_TOOL_DEFINITION,
+  GET_HOOK_ANALYTICS_TOOL_DEFINITION,
+  GET_ACTION_ANALYTICS_TOOL_DEFINITION,
+  GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION,
+  EXPORT_ANALYTICS_TOOL_DEFINITION,
+  GET_OPTIMIZATION_REPORT_TOOL_DEFINITION
 ];
 function ok(result) {
   return {
     content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
   };
+}
+function okPreformatted(text) {
+  return { content: [{ type: "text", text }] };
 }
 function errorResult(error2) {
   return {
@@ -99125,24 +100763,30 @@ function createOptimizerRuntime() {
   const cacheWarmup = getCacheWarmupTool(cache, tokenCounter, metrics);
   const predictiveCache = getPredictiveCacheTool(cache, tokenCounter, metrics);
   const smartCache = getSmartCacheTool(cache, tokenCounter, metrics);
-  const registry2 = {
+  const analyticsManager = new AnalyticsManager();
+  const getHookAnalytics = getHookAnalyticsTool(analyticsManager);
+  const getActionAnalytics = getActionAnalyticsTool(analyticsManager);
+  const getMcpServerAnalytics = getMcpServerAnalyticsTool(analyticsManager);
+  const exportAnalytics = getExportAnalyticsTool(analyticsManager);
+  const getOptimizationReport = getOptimizationReportTool(analyticsManager);
+  const rawRegistry = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
     smart_read: async (args) => {
-      const { path: path7, ...options } = args;
-      return ok(await smartRead.read(path7, options));
+      const { path: path8, ...options } = args;
+      return ok(await smartRead.read(path8, options));
     },
     // Matches vendor `case 'smart_write'`.
     smart_write: async (args) => {
-      const { path: path7, content, ...options } = args;
-      return ok(await smartWrite.write(path7, content, options));
+      const { path: path8, content, ...options } = args;
+      return ok(await smartWrite.write(path8, content, options));
     },
     // Matches vendor `case 'smart_edit'`.
     smart_edit: async (args) => {
-      const { path: path7, operations, ...options } = args;
+      const { path: path8, operations, ...options } = args;
       return ok(
         await smartEdit.edit(
-          path7,
+          path8,
           operations,
           options
         )
@@ -99173,8 +100817,8 @@ function createOptimizerRuntime() {
     // `path` field first (NOT `filePath` — vendor's own comment documents a
     // real bug caused by getting this wrong), forwards the rest as options.
     smart_config_read: async (args) => {
-      const { path: path7, ...options } = args;
-      return ok(await smartConfigRead.read(path7, options));
+      const { path: path8, ...options } = args;
+      return ok(await smartConfigRead.read(path8, options));
     },
     // Matches vendor `case 'smart_tsconfig'`: whole-args-object.
     smart_tsconfig: async (args) => ok(await smartTsConfig.run(args)),
@@ -99294,9 +100938,35 @@ function createOptimizerRuntime() {
     cache_optimizer: async (args) => ok(await cacheOptimizer.run(args)),
     cache_partition: async (args) => ok(await cachePartition.run(args)),
     cache_replication: async (args) => ok(await cacheReplication.run(args)),
-    smart_cache: async (args) => ok(await smartCache.run(args))
+    smart_cache: async (args) => ok(await smartCache.run(args)),
+    // analytics: all 5 dispatch via `okPreformatted()`, NOT `ok()` -- see
+    // that helper's own comment and src/optimizer/tools/analytics/index.ts's
+    // header for why (these factories already return a JSON string, unlike
+    // every other category's real object result). Matches vendor's real
+    // dispatch exactly: `content: [{ type: 'text', text: result }]` with no
+    // re-stringify (verified directly, src/server/index.ts lines 2851-2884).
+    get_hook_analytics: async (args) => okPreformatted(await getHookAnalytics(args)),
+    get_action_analytics: async (args) => okPreformatted(await getActionAnalytics(args)),
+    get_mcp_server_analytics: async (args) => okPreformatted(await getMcpServerAnalytics(args)),
+    export_analytics: async (args) => okPreformatted(await exportAnalytics(args)),
+    get_optimization_report: async (args) => okPreformatted(await getOptimizationReport(args))
   };
-  return { registry: registry2, cache, close: () => cache.close() };
+  const registry2 = {};
+  for (const [name, handler] of Object.entries(rawRegistry)) {
+    registry2[name] = async (args) => {
+      const result = await handler(args);
+      await recordToolAnalytics(analyticsManager, name, result, {});
+      return result;
+    };
+  }
+  return {
+    registry: registry2,
+    cache,
+    close: async () => {
+      await analyticsManager.close();
+      cache.close();
+    }
+  };
 }
 function createOptimizerServer() {
   const { registry: registry2 } = createOptimizerRuntime();

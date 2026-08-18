@@ -65,10 +65,26 @@
 // dispatch-shape defects (cache_compression's module-singleton stale
 // CacheEngine; cache_benchmark's double-JSON-encoded string result) not
 // replicated here, matching the same "dispatch via a directly-constructed
-// shared instance instead" fix already applied to smart_symbols. Still-
-// deferred categories (analytics tools — blocked on the separate
-// src/analytics/ persistence merge —, dashboard-monitoring) have no tools
-// copied or wired yet. It replaces
+// shared instance instead" fix already applied to smart_symbols. analytics
+// (this checkpoint) is now FULLY wired — all 5 real tools
+// (get_hook_analytics/get_action_analytics/get_mcp_server_analytics/
+// export_analytics/get_optimization_report), the category an earlier
+// checkpoint explicitly deferred because its whole dependency —
+// src/optimizer/analytics/ (ported this checkpoint, a sibling of
+// src/optimizer/core/, NOT a tools/ category — see that directory's own
+// per-file headers) — didn't exist yet. See
+// src/optimizer/tools/analytics/index.ts's header for the dispatch-shape
+// finding (pre-formatted JSON-string return, dispatched via a dedicated
+// `okPreformatted()` instead of the generic `ok()`) and
+// src/optimizer/analytics/record-tool-analytics.ts's header plus this
+// function's own comment above the `rawRegistry` → `registry` wrapping loop
+// for the real architectural decision: EVERY tool call (not just the 5
+// analytics tools) is now recorded via `recordToolAnalytics()`, matching
+// vendor's real "one place every tool result passes through" breadth,
+// in an honest no-fabricated-savings degraded mode (no
+// discloseResult()/mcpEvidence baseline pipeline ported — out of scope).
+// Still-deferred: dashboard-monitoring (no tools copied or wired yet).
+// It replaces
 // token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
@@ -171,6 +187,25 @@ import { getCacheWarmupTool, CACHE_WARMUP_TOOL_DEFINITION } from "./tools/advanc
 import { getPredictiveCacheTool, PREDICTIVE_CACHE_TOOL_DEFINITION } from "./tools/advanced-caching/predictive-cache.js";
 import { getSmartCacheTool, SMART_CACHE_TOOL_DEFINITION } from "./tools/advanced-caching/smart-cache.js";
 
+// analytics: all 5 real tools wired (get_hook_analytics/get_action_analytics/
+// get_mcp_server_analytics/export_analytics/get_optimization_report) -- see
+// src/optimizer/tools/analytics/index.ts's header for the dispatch-shape
+// finding (pre-formatted JSON-string return, not an object -- dispatched via
+// a dedicated `okPreformatted()` below, not the generic `ok()` every other
+// category uses) and src/optimizer/analytics/record-tool-analytics.ts's own
+// header for the Part-1 architectural decision (every registry entry gets
+// wrapped with analytics recording, matching vendor's real "one place every
+// tool result passes through" breadth, in an honest no-fabricated-savings
+// degraded mode -- no discloseResult()/mcpEvidence baseline pipeline exists
+// yet).
+import { getHookAnalyticsTool, GET_HOOK_ANALYTICS_TOOL_DEFINITION } from "./tools/analytics/get-hook-analytics.js";
+import { getActionAnalyticsTool, GET_ACTION_ANALYTICS_TOOL_DEFINITION } from "./tools/analytics/get-action-analytics.js";
+import { getMcpServerAnalyticsTool, GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION } from "./tools/analytics/get-mcp-server-analytics.js";
+import { getExportAnalyticsTool, EXPORT_ANALYTICS_TOOL_DEFINITION } from "./tools/analytics/export-analytics.js";
+import { getOptimizationReportTool, GET_OPTIMIZATION_REPORT_TOOL_DEFINITION } from "./tools/analytics/get-optimization-report.js";
+import { AnalyticsManager } from "./analytics/analytics-manager.js";
+import { recordToolAnalytics } from "./analytics/record-tool-analytics.js";
+
 import { getSmartBuildTool, SMART_BUILD_TOOL_DEFINITION } from "./tools/build-systems/smart-build.js";
 import { getSmartDocker, SMART_DOCKER_TOOL_DEFINITION } from "./tools/build-systems/smart-docker.js";
 import { getSmartInstall, SMART_INSTALL_TOOL_DEFINITION } from "./tools/build-systems/smart-install.js";
@@ -246,6 +281,11 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   CACHE_WARMUP_TOOL_DEFINITION,
   PREDICTIVE_CACHE_TOOL_DEFINITION,
   SMART_CACHE_TOOL_DEFINITION,
+  GET_HOOK_ANALYTICS_TOOL_DEFINITION,
+  GET_ACTION_ANALYTICS_TOOL_DEFINITION,
+  GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION,
+  EXPORT_ANALYTICS_TOOL_DEFINITION,
+  GET_OPTIMIZATION_REPORT_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -257,6 +297,17 @@ function ok(result: unknown): ToolCallResult {
   return {
     content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
   };
+}
+
+/**
+ * For the analytics category's 5 tools, whose factories return an
+ * ALREADY-JSON-stringified string (verified against vendor's real dispatch --
+ * see src/optimizer/tools/analytics/index.ts's header). Using `ok()` here
+ * would double-encode the string, the same defect class checkpoints 6/7
+ * found in `runSmartSymbols`/`runCacheBenchmark` and did not replicate.
+ */
+function okPreformatted(text: string): ToolCallResult {
+  return { content: [{ type: "text", text }] };
 }
 
 function errorResult(error: unknown): ToolCallResult {
@@ -280,10 +331,15 @@ export type ToolHandler = (
 export interface OptimizerRuntime {
   registry: Record<string, ToolHandler>;
   cache: CacheEngine;
-  /** Releases the underlying SQLite handle. Callers (tests especially,
-   * since Windows won't let a temp dir be removed while its cache.db is
-   * still open) must call this when done with the runtime. */
-  close: () => void;
+  /** Releases the underlying SQLite handle(s) -- `cache`'s own `cache.db`
+   * AND (new in this checkpoint) the analytics manager's separate
+   * `analytics.db` (`AnalyticsManager`/`SqliteAnalyticsStorage` open their
+   * own independent `better-sqlite3` handle, not `cache`'s). Callers (tests
+   * especially, since Windows won't let a temp dir be removed while either
+   * database is still open) must call this when done with the runtime. Now
+   * async (was sync) because flushing the analytics manager's pending
+   * batched writes on close is itself async. */
+  close: () => Promise<void>;
 }
 
 /**
@@ -393,7 +449,21 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const predictiveCache = getPredictiveCacheTool(cache, tokenCounter, metrics);
   const smartCache = getSmartCacheTool(cache, tokenCounter, metrics);
 
-  const registry: Record<string, ToolHandler> = {
+  // analytics: one shared AnalyticsManager (opens its own SQLite handle at
+  // ~/.optiflow/optimizer/analytics.db, separate from `cache`'s -- see
+  // OptimizerRuntime.close's own comment), matching every other category's
+  // "one shared instance" convention. Each of the 5 factories takes ONLY
+  // this manager (verified directly against vendor's real dispatch
+  // construction, src/server/index.ts lines 492-496 -- no cache/tokenCounter/
+  // metrics arg, unlike every other category here).
+  const analyticsManager = new AnalyticsManager();
+  const getHookAnalytics = getHookAnalyticsTool(analyticsManager);
+  const getActionAnalytics = getActionAnalyticsTool(analyticsManager);
+  const getMcpServerAnalytics = getMcpServerAnalyticsTool(analyticsManager);
+  const exportAnalytics = getExportAnalyticsTool(analyticsManager);
+  const getOptimizationReport = getOptimizationReportTool(analyticsManager);
+
+  const rawRegistry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
     smart_read: async (args) => {
@@ -575,9 +645,73 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     cache_partition: async (args) => ok(await cachePartition.run(args as any)),
     cache_replication: async (args) => ok(await cacheReplication.run(args as any)),
     smart_cache: async (args) => ok(await smartCache.run(args as any)),
+
+    // analytics: all 5 dispatch via `okPreformatted()`, NOT `ok()` -- see
+    // that helper's own comment and src/optimizer/tools/analytics/index.ts's
+    // header for why (these factories already return a JSON string, unlike
+    // every other category's real object result). Matches vendor's real
+    // dispatch exactly: `content: [{ type: 'text', text: result }]` with no
+    // re-stringify (verified directly, src/server/index.ts lines 2851-2884).
+    get_hook_analytics: async (args) => okPreformatted(await getHookAnalytics(args as any)),
+    get_action_analytics: async (args) => okPreformatted(await getActionAnalytics(args as any)),
+    get_mcp_server_analytics: async (args) => okPreformatted(await getMcpServerAnalytics(args as any)),
+    export_analytics: async (args) => okPreformatted(await exportAnalytics(args as any)),
+    get_optimization_report: async (args) => okPreformatted(await getOptimizationReport(args as any)),
   };
 
-  return { registry, cache, close: () => cache.close() };
+  // ARCHITECTURAL DECISION (Part 1 of this checkpoint -- see
+  // src/optimizer/analytics/record-tool-analytics.ts's own header for the
+  // full reasoning): vendor's real src/server/index.ts calls
+  // `recordToolAnalytics()` on the result of EVERY tool dispatch --
+  // "THE ONE PLACE EVERY TOOL RESULT PASSES THROUGH" per that file's own
+  // comment, not just the 5 analytics-category tools. That breadth is real
+  // vendor behavior, not incidental, so it's replicated here: every entry in
+  // `rawRegistry` (all 67 tools, including the 5 analytics ones themselves,
+  // exactly matching vendor's own switch-statement shape where the analytics
+  // cases fall inside the same `handleToolCall()` that gets recorded
+  // afterwards) is wrapped below with a call to `recordToolAnalytics()`
+  // AFTER the real handler runs, so both `createOptimizerServer()`'s stdio
+  // dispatch AND direct `registry[name](args)` calls (e.g. from tests) are
+  // recorded identically -- one wrapping point instead of duplicating it in
+  // both `createOptimizerServer()`'s CallTool handler and here.
+  //
+  // No `baselineResult` / `attribution` is threaded through (optiflow has no
+  // `discloseResult()`/`mcpEvidence` subsystem yet -- out of this
+  // checkpoint's scope): this means `savingsMeasured` is always `false` and
+  // `tokensSaved` is always `0` for every recorded entry (an HONEST
+  // degraded mode, not a fabricated one -- no savings claim is invented).
+  // What's still real: `totalOperations` and `totalOptimizedTokens` (the
+  // actual returned-payload token count) per tool/hook-phase/server, so
+  // `get_hook_analytics`/`get_action_analytics`/`get_mcp_server_analytics`
+  // have real non-zero usage data from the very first tool call, rather than
+  // an always-empty store. Recording failures never break the underlying
+  // tool call (`recordToolAnalytics()` swallows its own errors internally,
+  // per that function's own "must never break a tool call" contract) and
+  // are not awaited-and-ignored here either -- they ARE awaited, so a
+  // flush failure surfaces as a slow response rather than a silently lost
+  // write, but never as a thrown error back to the caller.
+  const registry: Record<string, ToolHandler> = {};
+  for (const [name, handler] of Object.entries(rawRegistry)) {
+    registry[name] = async (args) => {
+      const result = await handler(args);
+      await recordToolAnalytics(analyticsManager, name, result as any, {});
+      return result;
+    };
+  }
+
+  return {
+    registry,
+    cache,
+    close: async () => {
+      // `AnalyticsManager`/`SqliteAnalyticsStorage` open their OWN SQLite
+      // handle (~/.optiflow/optimizer/analytics.db), separate from `cache`'s
+      // -- both must be closed, matching this file's own established
+      // "every SQLite handle this runtime opened gets closed here" contract
+      // (see OptimizerRuntime.close's own comment).
+      await analyticsManager.close();
+      cache.close();
+    },
+  };
 }
 
 export function createOptimizerServer(): Server {

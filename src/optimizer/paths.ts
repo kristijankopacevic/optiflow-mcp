@@ -86,3 +86,29 @@ export function getOptimizerBackupsDir(): string {
 export function getOptimizerReportsDir(): string {
   return path.join(getOptimizerHome(), "reports");
 }
+
+/**
+ * Replaces `analytics/optimization-storage.ts`'s own hardcoded
+ * `join(homedir(), '.token-optimizer', 'optimization.db')` default --
+ * `getDefaultOptimizationDbPath()`'s real vendor default before this
+ * reconciliation. A separate on-disk SQLite database from
+ * `getOptimizerAnalyticsDbPath()` (that one stores per-call token-savings
+ * *events*; this one is a content-addressed original-text -> optimized-text
+ * cache keyed by hash, a different schema/purpose vendor itself kept as a
+ * separate file), so it earns its own helper rather than reusing one.
+ */
+export function getOptimizerOptimizationDbPath(): string {
+  return path.join(getOptimizerHome(), "optimization.db");
+}
+
+/**
+ * Replaces `analytics/native-provider-usage.ts`'s own hardcoded
+ * `path.join(home, '.token-optimizer', 'unrooted')` -- the sibling of
+ * `getOptimizerWikiDir()` for graph data belonging to a project with no
+ * detected git root. Only used by that file's own default-home scan path
+ * (a custom `homeDirectory` override, used for test fixtures, still resolves
+ * relative to the literal passed-in home -- see that file's own comment).
+ */
+export function getOptimizerUnrootedDir(): string {
+  return path.join(getOptimizerHome(), "unrooted");
+}

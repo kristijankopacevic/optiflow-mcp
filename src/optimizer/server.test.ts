@@ -30,8 +30,11 @@ beforeAll(() => {
   runtime = createOptimizerRuntime();
 });
 
-afterAll(() => {
-  runtime.close();
+afterAll(async () => {
+  // Now async: `runtime.close()` also flushes/closes the analytics
+  // manager's own SQLite handle (see server.ts's `OptimizerRuntime.close`
+  // comment) alongside `cache`'s.
+  await runtime.close();
   try {
     // Best-effort: better-sqlite3 on Windows can hold the WAL/shm sidecar
     // files open for a moment after close(), which makes an immediate
@@ -136,6 +139,13 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "cache_optimizer",
         "cache_partition",
         "cache_replication",
+        // analytics (all 5 real tools wired, zero deferrals -- see
+        // src/optimizer/tools/analytics/index.ts's header)
+        "get_hook_analytics",
+        "get_action_analytics",
+        "get_mcp_server_analytics",
+        "export_analytics",
+        "get_optimization_report",
       ].sort()
     );
   });
@@ -1155,6 +1165,129 @@ describe("advanced-caching tools (real end-to-end)", () => {
     expect(parsed.success).toBe(true);
     expect(typeof parsed.latencyDistribution.mean).toBe("number");
   }, 10000);
+});
+
+describe("analytics tools (real end-to-end)", () => {
+  // The runtime-wide `recordToolAnalytics()` wrapping in `createOptimizerRuntime()`
+  // (see server.ts's own comment above its `rawRegistry` -> `registry` loop)
+  // means EVERY prior test in this file that called `runtime.registry.xxx(...)`
+  // has already been recorded against this same shared `runtime`. These tests
+  // use a before/after delta on a specific action name rather than an absolute
+  // count, so they stay correct regardless of what earlier describe blocks did.
+
+  async function actionTotalOps(actionName: string): Promise<number> {
+    const result = await runtime.registry.get_action_analytics({});
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    const row = parsed.analytics.byAction.find(
+      (r: { name: string }) => r.name === actionName
+    );
+    return row ? row.totalOperations : 0;
+  }
+
+  it("a real tool call through the dispatch table is recorded and shows up in get_action_analytics", async () => {
+    // smart_status (used by an earlier describe block) legitimately returns
+    // `{ success: false }` in this sandbox (no real git repo under workDir),
+    // and `recordToolAnalytics()` correctly skips recording an in-band
+    // failure ("Don't record failures the tool reported in-band" -- see that
+    // function's own source) -- so it's the wrong action to probe here.
+    // smart_process's `status` operation has no such precondition.
+    const before = await actionTotalOps("smart_process");
+    const callResult = await runtime.registry.smart_process({ operation: "status" });
+    expect(callResult.isError).toBeFalsy();
+
+    const after = await actionTotalOps("smart_process");
+    expect(after).toBe(before + 1);
+  });
+
+  it("get_hook_analytics reflects real recorded calls under the 'Unknown' hook phase (no TOKEN_OPTIMIZER_HOOK_PHASE set in tests)", async () => {
+    // Every registry call is recorded, including get_hook_analytics's OWN
+    // call to itself (matching vendor's real "one place every tool result
+    // passes through" breadth -- see server.ts's own comment above the
+    // rawRegistry -> registry wrapping loop). So the "before" read below
+    // adds ONE entry of its own (toolName: get_hook_analytics, hookPhase:
+    // Unknown) between being read and the "after" read -- the expected delta
+    // is 2 (that self-recording, plus the smart_process call), not 1.
+    const before = await runtime.registry.get_hook_analytics({});
+    const beforeParsed = JSON.parse(before.content[0].text);
+    const beforeUnknown = beforeParsed.analytics.byHook.find(
+      (r: { name: string }) => r.name === "Unknown"
+    );
+    const beforeOps = beforeUnknown ? beforeUnknown.totalOperations : 0;
+
+    await runtime.registry.smart_process({ operation: "status" });
+
+    const after = await runtime.registry.get_hook_analytics({});
+    const afterParsed = JSON.parse(after.content[0].text);
+    expect(afterParsed.success).toBe(true);
+    const afterUnknown = afterParsed.analytics.byHook.find(
+      (r: { name: string }) => r.name === "Unknown"
+    );
+    expect(afterUnknown.totalOperations).toBe(beforeOps + 2);
+  });
+
+  it("get_mcp_server_analytics attributes recorded calls to optiflow's own server identity, not vendor's 'token-optimizer'", async () => {
+    await runtime.registry.smart_env({ envContent: "A=1\n" });
+    const result = await runtime.registry.get_mcp_server_analytics({});
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    const byServer: Array<{ name: string; totalOperations: number }> =
+      parsed.analytics.byServer;
+    expect(byServer.some((r) => r.name === "optiflow-optimizer")).toBe(true);
+    expect(byServer.some((r) => r.name === "token-optimizer")).toBe(false);
+  });
+
+  it("export_analytics requires format and rejects a missing one (not silently defaulted)", async () => {
+    const result = await runtime.registry.export_analytics({} as any);
+    expect(result.isError).toBeFalsy(); // the tool itself handles this, doesn't throw
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toMatch(/format/i);
+  });
+
+  it("export_analytics with format: 'json' exports real recorded entries", async () => {
+    await runtime.registry.smart_pretty({
+      operation: "detect-language",
+      code: "const x = 1;",
+    });
+    const result = await runtime.registry.export_analytics({ format: "json" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.format).toBe("json");
+    expect(parsed.entryCount).toBeGreaterThan(0);
+    const entries = JSON.parse(parsed.data);
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries.length).toBe(parsed.entryCount);
+  });
+
+  it("export_analytics with format: 'csv' exports the same real data as CSV", async () => {
+    const result = await runtime.registry.export_analytics({ format: "csv" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.format).toBe("csv");
+    expect(parsed.data.startsWith("hookPhase,toolName,mcpServer")).toBe(true);
+  });
+
+  it("get_optimization_report reflects real recorded operations, with tokensSaved honestly at 0 (no disclosure/baseline pipeline wired)", async () => {
+    const result = await runtime.registry.get_optimization_report({});
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    // Every prior real tool call in this file recorded through the same
+    // shared runtime -- there is real, non-zero usage data by now.
+    expect(parsed.summary.totalOperations).toBeGreaterThan(0);
+    // Honest degraded mode (see record-tool-analytics.ts's header): no
+    // baselineResult is ever threaded through this merge's dispatch-level
+    // recording, so no entry is ever classified 'verified-transport-reduction'
+    // and the report must never claim a savings figure it can't back up.
+    expect(parsed.summary.totalTokensSaved).toBe(0);
+    expect(parsed.costEquivalentUsd).toBeNull();
+    expect(typeof parsed.formatted).toBe("string");
+  });
 });
 
 describe("createOptimizerServer()", () => {
