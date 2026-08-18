@@ -5,6 +5,12 @@
  * - Diff-based updates (send only changes)
  * - Automatic chunking for large files
  * - Syntax-aware truncation
+ * - AST-aware code compression for oversized recognized-language source
+ *   files (Phase 5c: `src/native/code-compressor.ts`), and Kompress
+ *   ONNX-based prose compression (Phase 5c, opt-in) for oversized
+ *   non-code files, both tried BEFORE the older blunt truncation fallback
+ *   — see the `read()` method's large-file branch for exactly where and
+ *   why each sits in the decision chain.
  * - Cache integration with git awareness
  * - Token tracking and metrics
  */
@@ -23,6 +29,9 @@ import {
   detectFileType,
   isMinified,
 } from '../shared/syntax-utils.js';
+import { compressCode } from '../../../native/code-compressor.js';
+import { compressWithKompress } from '../../../native/kompress.js';
+import { loadConfig } from '../../../config/load.js';
 
 export interface SmartReadOptions {
   // Cache options
@@ -67,6 +76,20 @@ export interface SmartReadResult {
     chunkCount?: number;
     /** Which chunk this response carries; present only when chunked. */
     chunkIndex?: number;
+    /**
+     * Present only when `truncated` is true, distinguishing WHICH of the
+     * large-file strategies actually produced `content` — added because
+     * `truncated: true` alone doesn't say whether the file was dumbly cut
+     * (`"truncated"`/`"minified-truncated"`) or compressed structurally
+     * (`"code-compressed"`: AST-aware, elided function bodies only;
+     * `"kompressed"`: ONNX word-level keep/drop). An overstated or
+     * mislabeled saving is the kind of number this project must never
+     * produce (see the chunking-fix comments elsewhere in this file) —
+     * this field exists so a caller that cares can tell them apart instead
+     * of assuming every `truncated: true` response lost content the same
+     * (blunt) way.
+     */
+    compressionStrategy?: 'truncated' | 'minified-truncated' | 'code-compressed' | 'kompressed';
   };
   diff?: {
     added: string[];
@@ -156,6 +179,7 @@ export class SmartReadTool {
       | { added: string[]; removed: string[]; unchanged: number }
       | undefined;
     let tokensSaved = 0;
+    let compressionStrategy: SmartReadResult['metadata']['compressionStrategy'];
 
     // If we have cached data and diff mode is enabled.
     //
@@ -225,15 +249,103 @@ export class SmartReadTool {
         const actualMaxSize = maxSize - truncationMsg.length;
         finalContent = rawContent.substring(0, actualMaxSize) + truncationMsg;
         truncated = true;
+        compressionStrategy = 'minified-truncated';
       } else {
-        // If file is larger than maxSize, truncate it
-        const truncateResult = truncateContent(rawContent, maxSize, {
-          keepTop: 100,
-          keepBottom: 50,
-          preserveStructure,
-        });
-        finalContent = truncateResult.truncated;
-        truncated = true;
+        // BEFORE this file's original blunt head+tail truncation
+        // (`truncateContent`, below), try two structure-aware alternatives
+        // in order — both fail open (never throw out of this method; a
+        // dependency failure here just falls through to the pre-existing
+        // truncation behavior, unchanged) and both require a REAL measured
+        // reduction before being adopted, matching this file's own
+        // "an overstated saving is the one number this project must never
+        // produce" standard:
+        //
+        // 1. CodeCompressor (`src/native/code-compressor.ts`) — AST-aware,
+        //    only for a language it actually recognizes (`detectLanguage`
+        //    returning anything other than "unknown"). Preserves imports/
+        //    signatures/types verbatim and elides only function/method
+        //    bodies beyond their allocated line budget — a strictly better
+        //    fit for source code than cutting the file at an arbitrary byte
+        //    offset, which can (and often does) sever a function mid-body.
+        // 2. Kompress (`src/native/kompress.ts`) — ONNX word-level keep/drop,
+        //    tried only when CodeCompressor declined (i.e. this isn't a
+        //    file it recognizes as source code — the case its own word-
+        //    dropping approach is actually suited to: prose/log/config
+        //    text, not source where dropping arbitrary words breaks syntax).
+        //    Opt-in via `kompress.enabled` in optiflow.config.json (see
+        //    `src/config/defaults.ts`'s doc comment on that section for
+        //    why: it downloads a ~274MB ONNX model on first use, a cost
+        //    CodeCompressor/the existing truncation don't share) — disabled
+        //    by default, so this is a no-op unless a project opts in.
+        let usedStructuralCompression = false;
+
+        try {
+          const codeResult = await compressCode(rawContent);
+          const codeCompressedTokens = this.tokenCounter.count(codeResult.compressed).tokens;
+          if (
+            codeResult.language !== 'unknown' &&
+            codeResult.wasModified &&
+            codeResult.compressed.length < rawContent.length &&
+            codeCompressedTokens < originalTokens
+          ) {
+            finalContent = codeResult.compressed;
+            truncated = true;
+            compressionStrategy = 'code-compressed';
+            usedStructuralCompression = true;
+          }
+        } catch {
+          // Fail open: CodeCompressor unavailable/threw — fall through to
+          // Kompress, then to the pre-existing truncation fallback below.
+        }
+
+        if (!usedStructuralCompression) {
+          try {
+            const { config } = loadConfig();
+            const kompressResult = await compressWithKompress(rawContent, {
+              enabled: config.kompress.enabled,
+              allowDownload: config.kompress.allowDownload,
+              variant: config.kompress.variant,
+            });
+            if (
+              kompressResult.available &&
+              kompressResult.compressionRatio < 1.0 &&
+              kompressResult.compressed.length < rawContent.length
+            ) {
+              finalContent = kompressResult.compressed;
+              truncated = true;
+              compressionStrategy = 'kompressed';
+              usedStructuralCompression = true;
+            }
+          } catch {
+            // Fail open: Kompress unavailable/threw (model not downloaded,
+            // ONNX runtime issue, etc.) — fall through to truncation below.
+          }
+        }
+
+        if (!usedStructuralCompression) {
+          // Neither structural option applied (not recognized code, or
+          // didn't measurably help, or Kompress is disabled/unavailable) —
+          // the file's original behavior, byte-for-byte unchanged.
+          const truncateResult = truncateContent(rawContent, maxSize, {
+            keepTop: 100,
+            keepBottom: 50,
+            preserveStructure,
+          });
+          finalContent = truncateResult.truncated;
+          truncated = true;
+          compressionStrategy = 'truncated';
+        } else if (finalContent.length > maxSize) {
+          // A structural strategy applied but still left the result over
+          // maxSize (e.g. a file with very few compressible bodies) — cut
+          // it down further with the same existing truncation, on top of
+          // the already-compressed content rather than the raw original.
+          const truncateResult = truncateContent(finalContent, maxSize, {
+            keepTop: 100,
+            keepBottom: 50,
+            preserveStructure,
+          });
+          finalContent = truncateResult.truncated;
+        }
       }
 
       const truncatedTokens = this.tokenCounter.count(finalContent).tokens;
@@ -334,6 +446,11 @@ export class SmartReadTool {
         // Navigation, not content. Attaching every chunk here defeated the
         // entire point of chunking: the caller received the whole file anyway.
         ...(chunked ? { chunkCount, chunkIndex } : {}),
+        // Which large-file strategy actually produced `content` — see this
+        // field's own doc comment on `SmartReadResult.metadata` for why
+        // `truncated: true` alone isn't specific enough now that
+        // CodeCompressor/Kompress can also produce it.
+        ...(truncated ? { compressionStrategy } : {}),
       },
       diff: diffData,
     };

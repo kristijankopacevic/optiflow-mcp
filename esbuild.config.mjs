@@ -52,9 +52,27 @@ const plannedEntries = [
  * `__require2` wrapper cannot satisfy ("Dynamic require of 'process' is not
  * supported"), crashing the server at import time. Bundling works for a
  * plain `require`, just not this specific CJS/ESM interop pattern.
+ *
+ * `onnxruntime-node`/`@huggingface/transformers` (v2 Phase 5c: wired into
+ * `src/optimizer/tools/file-operations/smart-read.ts`'s Kompress path,
+ * pulling both into `plugin/dist/optimizer/server.js`'s bundle for the
+ * first time) hit the exact same `.node`-native-addon class of problem as
+ * `better-sqlite3` — confirmed by running `npm run build` before and after
+ * this wiring landed: esbuild has no loader for the platform-specific
+ * `onnxruntime_binding.node` files `onnxruntime-node`'s own `require()`
+ * resolves at runtime (including the copy `@huggingface/transformers`
+ * vendors as its own nested dependency), and fails the build outright
+ * rather than silently producing a broken bundle.
  * @type {string[]}
  */
-const nativeExternals = ["better-sqlite3", "tiktoken", "yaml", "@iarna/toml"];
+const nativeExternals = [
+  "better-sqlite3",
+  "tiktoken",
+  "yaml",
+  "@iarna/toml",
+  "onnxruntime-node",
+  "@huggingface/transformers",
+];
 
 /**
  * Bundled directly to `plugin/hooks/*.mjs` (NOT `plugin/dist/`) — these are
