@@ -36,3 +36,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Proves the plugin still starts with zero node_modules present — the
+      # exact shape of a real marketplace install (see
+      # src/plugin-install.itest.ts's header for why this is a separate,
+      # slower check from `npm test` rather than folded into it).
+      - run: npm run test:plugin-install
