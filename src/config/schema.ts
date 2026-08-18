@@ -9,22 +9,12 @@
 import { z } from "zod";
 import { DEFAULT_CONFIG } from "./defaults.js";
 
-export const EngineTokenOptimizerSchema = z.object({
-  mode: z.enum(["npx", "disabled"]).default(DEFAULT_CONFIG.engines.tokenOptimizer.mode),
-  package: z.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.package),
-  version: z.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.version),
-});
-
-export const EngineHeadroomSchema = z.object({
-  mode: z.enum(["path", "disabled"]).default(DEFAULT_CONFIG.engines.headroom.mode),
-  binary: z.string().default(DEFAULT_CONFIG.engines.headroom.binary),
-  enabled: z.boolean().default(DEFAULT_CONFIG.engines.headroom.enabled),
-});
-
-export const EnginesSchema = z.object({
-  tokenOptimizer: EngineTokenOptimizerSchema.default(DEFAULT_CONFIG.engines.tokenOptimizer),
-  headroom: EngineHeadroomSchema.default(DEFAULT_CONFIG.engines.headroom),
-});
+// v2 cleanup: `engines.tokenOptimizer`/`engines.headroom` (mode: "npx"/
+// "disabled", "path"/"disabled", a version pin, a PATH binary name) used to
+// configure how v1 invoked each upstream as a separate process. Removed —
+// both are genuinely merged into this codebase now (src/optimizer/**,
+// native/headroom-core/), so there is no external process/version/binary
+// left to configure. See docs/ADR/0002-real-merge-not-orchestration.md.
 
 export const ChopSchema = z.object({
   enabled: z.boolean().default(DEFAULT_CONFIG.chop.enabled),
@@ -86,7 +76,6 @@ export const SmartCrusherSchema = z.object({
 });
 
 export const OptiflowConfigSchema = z.object({
-  engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
   toon: ToonSchema.default(DEFAULT_CONFIG.toon),
   statusline: StatuslineSchema.default(DEFAULT_CONFIG.statusline),

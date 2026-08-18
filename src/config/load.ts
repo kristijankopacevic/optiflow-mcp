@@ -17,13 +17,19 @@ import { OptiflowConfigSchema, type OptiflowConfig } from "./schema.js";
 import { findProjectRoot, getOptiflowHome } from "../core/paths.js";
 
 const TOP_LEVEL_SECTIONS = [
-  "engines",
   "chop",
   "toon",
   "statusline",
   "handoff",
   "report",
   "telemetry",
+  // kompress/smartCrusher (v2 Phase 5c) were added to schema.ts/defaults.ts
+  // but not here — without this, a project/user config's "kompress"/
+  // "smartCrusher" section was silently dropped before it ever reached
+  // zod (mergeLayers only ever copies keys listed here), so neither was
+  // actually overridable despite the schema/defaults supporting it.
+  "kompress",
+  "smartCrusher",
 ] as const;
 
 type RawConfig = Record<string, unknown>;

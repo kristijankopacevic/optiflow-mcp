@@ -49,18 +49,6 @@ var init_defaults = __esm({
   "src/config/defaults.ts"() {
     "use strict";
     DEFAULT_CONFIG = {
-      engines: {
-        tokenOptimizer: {
-          mode: "npx",
-          package: "@ooples/token-optimizer-mcp",
-          version: "5.7.0"
-        },
-        headroom: {
-          mode: "path",
-          binary: "headroom",
-          enabled: true
-        }
-      },
       chop: {
         enabled: false,
         allowlist: ["git", "docker", "kubectl", "npm", "terraform"],
@@ -15196,26 +15184,12 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var EngineTokenOptimizerSchema, EngineHeadroomSchema, EnginesSchema, ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, SmartCrusherSchema, OptiflowConfigSchema;
+var ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, SmartCrusherSchema, OptiflowConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
     init_zod();
     init_defaults();
-    EngineTokenOptimizerSchema = external_exports.object({
-      mode: external_exports.enum(["npx", "disabled"]).default(DEFAULT_CONFIG.engines.tokenOptimizer.mode),
-      package: external_exports.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.package),
-      version: external_exports.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.version)
-    });
-    EngineHeadroomSchema = external_exports.object({
-      mode: external_exports.enum(["path", "disabled"]).default(DEFAULT_CONFIG.engines.headroom.mode),
-      binary: external_exports.string().default(DEFAULT_CONFIG.engines.headroom.binary),
-      enabled: external_exports.boolean().default(DEFAULT_CONFIG.engines.headroom.enabled)
-    });
-    EnginesSchema = external_exports.object({
-      tokenOptimizer: EngineTokenOptimizerSchema.default(DEFAULT_CONFIG.engines.tokenOptimizer),
-      headroom: EngineHeadroomSchema.default(DEFAULT_CONFIG.engines.headroom)
-    });
     ChopSchema = external_exports.object({
       enabled: external_exports.boolean().default(DEFAULT_CONFIG.chop.enabled),
       allowlist: external_exports.array(external_exports.string()).default(DEFAULT_CONFIG.chop.allowlist),
@@ -15260,7 +15234,6 @@ var init_schema = __esm({
       minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
     });
     OptiflowConfigSchema = external_exports.object({
-      engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
       chop: ChopSchema.default(DEFAULT_CONFIG.chop),
       toon: ToonSchema.default(DEFAULT_CONFIG.toon),
       statusline: StatuslineSchema.default(DEFAULT_CONFIG.statusline),
@@ -15350,13 +15323,19 @@ var init_load = __esm({
     init_schema();
     init_paths();
     TOP_LEVEL_SECTIONS = [
-      "engines",
       "chop",
       "toon",
       "statusline",
       "handoff",
       "report",
-      "telemetry"
+      "telemetry",
+      // kompress/smartCrusher (v2 Phase 5c) were added to schema.ts/defaults.ts
+      // but not here — without this, a project/user config's "kompress"/
+      // "smartCrusher" section was silently dropped before it ever reached
+      // zod (mergeLayers only ever copies keys listed here), so neither was
+      // actually overridable despite the schema/defaults supporting it.
+      "kompress",
+      "smartCrusher"
     ];
   }
 });

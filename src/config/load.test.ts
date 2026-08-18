@@ -25,7 +25,7 @@ describe("loadConfig", () => {
     expect(sources.userGlobal).toBeNull();
     expect(sources.project).toBeNull();
     expect(config.chop.enabled).toBe(false);
-    expect(config.engines.tokenOptimizer.version).toBe(DEFAULT_CONFIG.engines.tokenOptimizer.version);
+    expect(config.toon.minSavingsPercent).toBe(DEFAULT_CONFIG.toon.minSavingsPercent);
   });
 
   it("merges user-global config over defaults", () => {
@@ -105,6 +105,21 @@ describe("loadConfig", () => {
     const { config, sources } = loadConfig({ cwd: projectDir, home: homeDir });
     expect(sources.project).toBeNull(); // unreadable -> treated as absent
     expect(config.chop.enabled).toBe(false);
+  });
+
+  it("a project config can override kompress/smartCrusher (regression: these were missing from TOP_LEVEL_SECTIONS)", () => {
+    writeFileSync(
+      path.join(projectDir, "optiflow.config.json"),
+      JSON.stringify({ kompress: { enabled: true }, smartCrusher: { minSavingsPercent: 12 } }),
+      "utf8"
+    );
+
+    const { config } = loadConfig({ cwd: projectDir, home: homeDir });
+    expect(config.kompress.enabled).toBe(true);
+    expect(config.smartCrusher.minSavingsPercent).toBe(12);
+    // Untouched fields in the same sections still come from defaults.
+    expect(config.kompress.variant).toBe(DEFAULT_CONFIG.kompress.variant);
+    expect(config.smartCrusher.enabled).toBe(DEFAULT_CONFIG.smartCrusher.enabled);
   });
 
   it("finds a project root via a nested .git marker and resolves the project config there", () => {

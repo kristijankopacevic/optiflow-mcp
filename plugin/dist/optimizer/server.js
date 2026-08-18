@@ -64858,18 +64858,6 @@ import path5 from "node:path";
 
 // src/config/defaults.ts
 var DEFAULT_CONFIG = {
-  engines: {
-    tokenOptimizer: {
-      mode: "npx",
-      package: "@ooples/token-optimizer-mcp",
-      version: "5.7.0"
-    },
-    headroom: {
-      mode: "path",
-      binary: "headroom",
-      enabled: true
-    }
-  },
   chop: {
     enabled: false,
     allowlist: ["git", "docker", "kubectl", "npm", "terraform"],
@@ -64922,20 +64910,6 @@ var DEFAULT_CONFIG = {
 };
 
 // src/config/schema.ts
-var EngineTokenOptimizerSchema = external_exports.object({
-  mode: external_exports.enum(["npx", "disabled"]).default(DEFAULT_CONFIG.engines.tokenOptimizer.mode),
-  package: external_exports.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.package),
-  version: external_exports.string().default(DEFAULT_CONFIG.engines.tokenOptimizer.version)
-});
-var EngineHeadroomSchema = external_exports.object({
-  mode: external_exports.enum(["path", "disabled"]).default(DEFAULT_CONFIG.engines.headroom.mode),
-  binary: external_exports.string().default(DEFAULT_CONFIG.engines.headroom.binary),
-  enabled: external_exports.boolean().default(DEFAULT_CONFIG.engines.headroom.enabled)
-});
-var EnginesSchema = external_exports.object({
-  tokenOptimizer: EngineTokenOptimizerSchema.default(DEFAULT_CONFIG.engines.tokenOptimizer),
-  headroom: EngineHeadroomSchema.default(DEFAULT_CONFIG.engines.headroom)
-});
 var ChopSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.chop.enabled),
   allowlist: external_exports.array(external_exports.string()).default(DEFAULT_CONFIG.chop.allowlist),
@@ -64980,7 +64954,6 @@ var SmartCrusherSchema = external_exports.object({
   minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
 });
 var OptiflowConfigSchema = external_exports.object({
-  engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
   toon: ToonSchema.default(DEFAULT_CONFIG.toon),
   statusline: StatuslineSchema.default(DEFAULT_CONFIG.statusline),
@@ -64994,13 +64967,19 @@ var OptiflowConfigSchema = external_exports.object({
 // src/config/load.ts
 init_paths();
 var TOP_LEVEL_SECTIONS = [
-  "engines",
   "chop",
   "toon",
   "statusline",
   "handoff",
   "report",
-  "telemetry"
+  "telemetry",
+  // kompress/smartCrusher (v2 Phase 5c) were added to schema.ts/defaults.ts
+  // but not here — without this, a project/user config's "kompress"/
+  // "smartCrusher" section was silently dropped before it ever reached
+  // zod (mergeLayers only ever copies keys listed here), so neither was
+  // actually overridable despite the schema/defaults supporting it.
+  "kompress",
+  "smartCrusher"
 ];
 function readJsonObject(filePath) {
   try {
