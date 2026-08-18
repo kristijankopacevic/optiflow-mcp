@@ -91,6 +91,17 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "sentiment_analysis",
         "wiki_read",
         "wiki_write",
+        // api-database
+        "smart_api_fetch",
+        "smart_cache_api",
+        "smart_database",
+        "smart_graphql",
+        "smart_migration",
+        "smart_orm",
+        "smart_rest",
+        "smart_schema",
+        "smart_sql",
+        "smart_websocket",
       ].sort()
     );
   });
@@ -220,6 +231,185 @@ describe("system-operations + intelligence tools (real end-to-end)", () => {
     expect(result.isError).toBeFalsy();
     const parsed = JSON.parse(result.content[0].text);
     expect(Array.isArray(parsed.findings)).toBe(true);
+  });
+});
+
+describe("api-database tools (real end-to-end)", () => {
+  it("smart_sql analyzes a real query's type, tables, and complexity (no DB connection needed)", async () => {
+    const result = await runtime.registry.smart_sql({
+      action: "analyze",
+      query: "SELECT id, name FROM users WHERE id = 1",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.analysis.queryType).toBe("SELECT");
+    expect(parsed.analysis.tables).toContain("users");
+    expect(parsed.metrics.originalTokens).toBeGreaterThan(0);
+  });
+
+  it("smart_orm detects a real N+1 query pattern (query-inside-a-for-loop)", async () => {
+    const result = await runtime.registry.smart_orm({
+      ormCode: `
+        for (const user of users) {
+          const posts = await prisma.post.findMany({ where: { userId: user.id } });
+        }
+      `,
+      ormType: "prisma",
+      detectN1: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.n1Problems.hasN1).toBe(true);
+    expect(parsed.n1Problems.instances.length).toBeGreaterThan(0);
+    expect(parsed.n1Problems.instances[0].type).toBe("loop_query");
+  });
+
+  it("smart_graphql detects a real N+1 problem from nested paginated list fields", async () => {
+    const result = await runtime.registry.smart_graphql({
+      query: `
+        query {
+          users(first: 20) {
+            posts(first: 10) {
+              title
+            }
+          }
+        }
+      `,
+      detectN1: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.query.operation).toBe("query");
+    expect(parsed.optimizations.n1Problems.length).toBeGreaterThan(0);
+  });
+
+  it("smart_rest parses a real OpenAPI spec passed as specContent (no network)", async () => {
+    const spec = {
+      openapi: "3.0.0",
+      info: { title: "Test API", version: "1.0.0" },
+      paths: {
+        "/users": {
+          get: { summary: "List users", responses: { "200": { description: "OK" } } },
+        },
+        "/users/{id}": {
+          get: { summary: "Get user", responses: { "200": { description: "OK" } } },
+        },
+      },
+    };
+    const result = await runtime.registry.smart_rest({
+      specContent: JSON.stringify(spec),
+      analyzeEndpoints: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.api.endpoints).toBeGreaterThanOrEqual(2);
+    expect(parsed.api.title).toBe("Test API");
+  });
+
+  it("smart_cache_api real round-trips a set then get through the actual CacheEngine", async () => {
+    const request = { url: "https://api.example.com/users", method: "GET" };
+    const setResult = await runtime.registry.smart_cache_api({
+      action: "set",
+      request,
+      response: { data: [1, 2, 3] },
+      ttl: 300,
+    });
+    expect(setResult.isError).toBeFalsy();
+    const setParsed = JSON.parse(setResult.content[0].text);
+    expect(setParsed.success).toBe(true);
+    expect(setParsed.cached).toBe(true);
+
+    const getResult = await runtime.registry.smart_cache_api({
+      action: "get",
+      request,
+    });
+    expect(getResult.isError).toBeFalsy();
+    const getParsed = JSON.parse(getResult.content[0].text);
+    expect(getParsed.success).toBe(true);
+    expect(getParsed.cached).toBe(true);
+    expect(getParsed.data._cached).toBe(true);
+  });
+
+  it("smart_schema introspects a real SQLite database file via better-sqlite3 (no mocked schema)", async () => {
+    const { default: Database } = await import("better-sqlite3");
+    const dbPath = path.join(workDir, "real-schema-test.db");
+    const db = new Database(dbPath);
+    db.exec(`
+      CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL);
+      CREATE TABLE posts (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+    `);
+    db.close();
+
+    const result = await runtime.registry.smart_schema({
+      connectionString: dbPath,
+      mode: "full",
+      forceRefresh: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(typeof parsed.result).toBe("string");
+    // Real table names from the real SQLite file, not a fabricated schema.
+    expect(parsed.result).toContain("users");
+    expect(parsed.result).toContain("posts");
+  });
+
+  it("smart_schema honestly errors (does not fabricate a schema) for postgres/mysql connection strings", async () => {
+    await expect(
+      runtime.registry.smart_schema({
+        connectionString: "postgres://localhost/mydb",
+        mode: "full",
+        forceRefresh: true,
+      })
+    ).rejects.toThrow(/PostgreSQL introspection is not available/);
+  });
+
+  it("smart_api_fetch rejects a clearly-invalid URL rather than crashing silently", async () => {
+    await expect(
+      runtime.registry.smart_api_fetch({ method: "GET", url: "not a valid url" })
+    ).rejects.toThrow(/Invalid URL/);
+  });
+
+  it("smart_websocket reports a clear error (not a crash) for history on a connection that was never opened", async () => {
+    await expect(
+      runtime.registry.smart_websocket({
+        action: "history",
+        url: "wss://never-connected.example.com",
+      })
+    ).rejects.toThrow("No connection found");
+  });
+
+  // smart_database and smart_migration are wired to real dispatch, but per
+  // src/optimizer/tools/api-database/index.ts's documented caveat, their
+  // actual data is vendor's own explicitly-marked placeholder/mock output
+  // (no real DB driver, no real migration-file scanning exists in this
+  // package). These tests confirm the real plumbing (caching, token
+  // accounting, dispatch, error handling) works end-to-end -- not that the
+  // returned data reflects a real database.
+  it("smart_database dispatches a query action end-to-end (vendor's own mocked query executor, not a real DB)", async () => {
+    const result = await runtime.registry.smart_database({
+      action: "query",
+      query: "SELECT * FROM users",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(typeof parsed.result).toBe("string");
+    expect(parsed.tokens.baseline).toBeGreaterThan(0);
+  });
+
+  it("smart_migration dispatches a list action end-to-end (vendor's own fabricated migration data, not a real scan)", async () => {
+    const result = await runtime.registry.smart_migration({
+      action: "list",
+      limit: 5,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(typeof parsed.result).toBe("string");
+    expect(parsed.tokens.baseline).toBeGreaterThan(0);
   });
 });
 

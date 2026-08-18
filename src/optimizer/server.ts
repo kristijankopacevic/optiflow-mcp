@@ -6,11 +6,20 @@
 // checkpoint by checkpoint, NOT all at once): a real, working optiflow-owned
 // MCP server, currently wired to file-operations (smart_read/write/edit/
 // glob/grep/status/diff/log/branch/merge), configuration (smart_env/
-// package_json/config_read/tsconfig/workflow), and output-formatting
-// (smart_pretty). Still-deferred categories (advanced-caching, analytics
-// tools — blocked on the separate src/analytics/ persistence merge —,
-// api-database, build-systems, code-analysis, dashboard-monitoring,
-// intelligence, system-operations) are neither copied nor wired yet. It
+// package_json/config_read/tsconfig/workflow), output-formatting
+// (smart_pretty), system-operations (smart_process/service/cron/user),
+// intelligence (knowledge_graph/sentiment_analysis/wiki_read/wiki_write),
+// and api-database (smart_api_fetch/cache_api/database/graphql/migration/
+// orm/rest/schema/sql/websocket — see
+// src/optimizer/tools/api-database/index.ts for which of these do real
+// analysis vs. vendor's own mocked/placeholder pieces). Still-deferred
+// categories (advanced-caching, analytics tools — blocked on the separate
+// src/analytics/ persistence merge —, code-analysis, dashboard-monitoring)
+// have no tools copied or wired yet. build-systems is a partial exception:
+// only its shared run-node-bin.ts helper is pre-copied (a dependency of
+// smart_package_json in the configuration category, not a build-systems
+// tool itself) — none of build-systems' own smart_build/install/lint/test/
+// typecheck tools are copied or wired. It
 // replaces token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
@@ -67,6 +76,17 @@ import { getSentimentAnalysisTool, SENTIMENT_ANALYSIS_TOOL_DEFINITION } from "./
 import { wikiRead, WIKI_READ_TOOL_DEFINITION } from "./tools/intelligence/wiki-read.js";
 import { wikiWrite, WIKI_WRITE_TOOL_DEFINITION } from "./tools/intelligence/wiki-write.js";
 
+import { getSmartApiFetch, SMART_API_FETCH_TOOL_DEFINITION } from "./tools/api-database/smart-api-fetch.js";
+import { getSmartCacheApi, SMART_CACHE_API_TOOL_DEFINITION } from "./tools/api-database/smart-cache-api.js";
+import { getSmartDatabase, SMART_DATABASE_TOOL_DEFINITION } from "./tools/api-database/smart-database.js";
+import { getSmartGraphQL, SMART_GRAPHQL_TOOL_DEFINITION } from "./tools/api-database/smart-graphql.js";
+import { getSmartMigration, SMART_MIGRATION_TOOL_DEFINITION } from "./tools/api-database/smart-migration.js";
+import { getSmartOrm, SMART_ORM_TOOL_DEFINITION } from "./tools/api-database/smart-orm.js";
+import { getSmartRest, SMART_REST_TOOL_DEFINITION } from "./tools/api-database/smart-rest.js";
+import { getSmartSchema, SMART_SCHEMA_TOOL_DEFINITION } from "./tools/api-database/smart-schema.js";
+import { getSmartSql, SMART_SQL_TOOL_DEFINITION } from "./tools/api-database/smart-sql.js";
+import { getSmartWebSocket, SMART_WEBSOCKET_TOOL_DEFINITION } from "./tools/api-database/smart-websocket.js";
+
 /** All tools currently wired into the dispatch table (not just copied-in). */
 export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_READ_TOOL_DEFINITION,
@@ -93,6 +113,16 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SENTIMENT_ANALYSIS_TOOL_DEFINITION,
   WIKI_READ_TOOL_DEFINITION,
   WIKI_WRITE_TOOL_DEFINITION,
+  SMART_API_FETCH_TOOL_DEFINITION,
+  SMART_CACHE_API_TOOL_DEFINITION,
+  SMART_DATABASE_TOOL_DEFINITION,
+  SMART_GRAPHQL_TOOL_DEFINITION,
+  SMART_MIGRATION_TOOL_DEFINITION,
+  SMART_ORM_TOOL_DEFINITION,
+  SMART_REST_TOOL_DEFINITION,
+  SMART_SCHEMA_TOOL_DEFINITION,
+  SMART_SQL_TOOL_DEFINITION,
+  SMART_WEBSOCKET_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -169,6 +199,17 @@ export function createOptimizerRuntime(): OptimizerRuntime {
 
   const knowledgeGraph = getKnowledgeGraphTool(cache, tokenCounter, metrics);
   const sentimentAnalysis = getSentimentAnalysisTool(cache, tokenCounter, metrics);
+
+  const smartApiFetch = getSmartApiFetch(cache, tokenCounter, metrics);
+  const smartCacheApi = getSmartCacheApi(cache, tokenCounter, metrics);
+  const smartDatabase = getSmartDatabase(cache, tokenCounter, metrics);
+  const smartGraphQL = getSmartGraphQL(cache, tokenCounter, metrics);
+  const smartMigration = getSmartMigration(cache, tokenCounter, metrics);
+  const smartOrm = getSmartOrm(cache, tokenCounter, metrics);
+  const smartRest = getSmartRest(cache, tokenCounter, metrics);
+  const smartSchema = getSmartSchema(cache, tokenCounter, metrics);
+  const smartSql = getSmartSql(cache, tokenCounter, metrics);
+  const smartWebSocket = getSmartWebSocket(cache, tokenCounter, metrics);
 
   const registry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
@@ -259,6 +300,29 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     // than throwing, per their own source.
     wiki_read: async (args) => ok(await wikiRead(args as any)),
     wiki_write: async (args) => ok(await wikiWrite(args as any)),
+
+    // api-database: every one of these matches vendor's real dispatch
+    // exactly -- `case 'smart_xxx': { const options = args as any; const
+    // result = await smartXxx.run(options); ... }` -- whole-args-object,
+    // no positional field pulled out first, for all 10 tools in this
+    // category (verified by reading vendor's src/server/index.ts directly).
+    // See src/optimizer/tools/api-database/index.ts for which of these do
+    // genuine analysis (7 tools), which return real-or-honestly-erroring
+    // results (smart_schema: real SQLite introspection, explicit "no
+    // driver" errors for postgres/mysql rather than fabrication), and
+    // which still return placeholder/mocked data (smart_database,
+    // smart_migration) for pieces that would otherwise need a live DB/HTTP
+    // connection this MCP tool doesn't have.
+    smart_api_fetch: async (args) => ok(await smartApiFetch.run(args as any)),
+    smart_cache_api: async (args) => ok(await smartCacheApi.run(args as any)),
+    smart_database: async (args) => ok(await smartDatabase.run(args as any)),
+    smart_graphql: async (args) => ok(await smartGraphQL.run(args as any)),
+    smart_migration: async (args) => ok(await smartMigration.run(args as any)),
+    smart_orm: async (args) => ok(await smartOrm.run(args as any)),
+    smart_rest: async (args) => ok(await smartRest.run(args as any)),
+    smart_schema: async (args) => ok(await smartSchema.run(args as any)),
+    smart_sql: async (args) => ok(await smartSql.run(args as any)),
+    smart_websocket: async (args) => ok(await smartWebSocket.run(args as any)),
   };
 
   return { registry, cache, close: () => cache.close() };
