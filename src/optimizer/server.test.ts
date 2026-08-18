@@ -113,6 +113,11 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "smart_system_metrics",
         "smart_test",
         "smart_typecheck",
+        // code-analysis (only 3 of 9 real tools wired -- see
+        // src/optimizer/tools/code-analysis/index.ts's header)
+        "smart_ast_grep",
+        "smart_security",
+        "smart_dependencies",
       ].sort()
     );
   });
@@ -611,6 +616,142 @@ describe("build-systems tools (real end-to-end)", () => {
     },
     60_000
   );
+});
+
+describe("code-analysis tools (real end-to-end)", () => {
+  // smart_ast_grep is deliberately NOT exercised here: with `@ast-grep/cli`
+  // not installed anywhere on this machine (confirmed directly -- no
+  // node_modules/@ast-grep, no `sg`/`ast-grep` on PATH), a real call falls
+  // through to the tool's own `npx --package @ast-grep/cli` fetch path,
+  // which needs network access and can download a multi-megabyte native
+  // binary -- slow and non-deterministic for this suite. It IS exercised in
+  // the manual stdio smoke test (see the phase report) where a longer,
+  // one-off real run is acceptable.
+
+  it("smart_security really flags a hardcoded API key in a real fixture file via regex pattern matching (not a mocked finding)", async () => {
+    writeFileSync(
+      path.join(workDir, "config.ts"),
+      "export const apiKey = 'sk-proj-abcdefghijklmnopqrstuvwx';\n",
+      "utf-8"
+    );
+
+    const result = await runtime.registry.smart_security({
+      projectRoot: workDir,
+      force: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    // `summary.success` means "no critical/high findings" (secure), not
+    // "the scan ran" -- a real critical secrets finding correctly makes
+    // this false.
+    expect(parsed.summary.success).toBe(false);
+    expect(parsed.summary.filesScanned).toBeGreaterThanOrEqual(1);
+    expect(parsed.summary.totalFindings).toBeGreaterThanOrEqual(1);
+    const categories = parsed.findingsByCategory.map((c: any) => c.category);
+    expect(categories).toContain("secrets");
+  });
+
+  it(
+    "smart_security honors a per-call projectRoot on the shared singleton (regression test for the projectRoot-staleness fix)",
+    async () => {
+      // Call 1: a directory WITH a real finding.
+      const vulnDir = mkdtempSync(path.join(tmpdir(), "optiflow-sec-vuln-"));
+      writeFileSync(
+        path.join(vulnDir, "config.ts"),
+        "export const apiKey = 'sk-proj-abcdefghijklmnopqrstuvwx';\n",
+        "utf-8"
+      );
+      // Call 2: a DIFFERENT, clean directory with no findings at all.
+      const cleanDir = mkdtempSync(path.join(tmpdir(), "optiflow-sec-clean-"));
+      writeFileSync(
+        path.join(cleanDir, "clean.ts"),
+        "export const greeting = 'hello';\n",
+        "utf-8"
+      );
+
+      try {
+        const first = await runtime.registry.smart_security({
+          projectRoot: vulnDir,
+          force: true,
+        });
+        const firstParsed = JSON.parse(first.content[0].text);
+        expect(firstParsed.summary.totalFindings).toBeGreaterThanOrEqual(1);
+
+        // Same shared singleton instance, a SECOND call with a different
+        // projectRoot. Before the fix, `SmartSecurity.run()` never re-read
+        // `options.projectRoot`, so this would silently keep scanning
+        // `vulnDir` (or the server's own cwd) instead of `cleanDir`.
+        const second = await runtime.registry.smart_security({
+          projectRoot: cleanDir,
+          force: true,
+        });
+        const secondParsed = JSON.parse(second.content[0].text);
+        expect(secondParsed.summary.totalFindings).toBe(0);
+        expect(secondParsed.summary.filesScanned).toBeGreaterThanOrEqual(1);
+      } finally {
+        rmSync(vulnDir, { recursive: true, force: true });
+        rmSync(cleanDir, { recursive: true, force: true });
+      }
+    },
+    30_000
+  );
+
+  it("smart_dependencies really parses real imports/exports via @babel/parser from a real .ts fixture (proves the typescript-estree substitution)", async () => {
+    writeFileSync(
+      path.join(workDir, "util.ts"),
+      "export function greet(name: string): string {\n  return `hi ${name}`;\n}\n",
+      "utf-8"
+    );
+    writeFileSync(
+      path.join(workDir, "main.ts"),
+      "import { greet } from './util';\n\nexport const message = greet('world');\n",
+      "utf-8"
+    );
+
+    const result = await runtime.registry.smart_dependencies({
+      cwd: workDir,
+      mode: "graph",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.graph).toBeTruthy();
+    expect(parsed.graph.nodes).toEqual(
+      expect.arrayContaining(["main.ts", "util.ts"])
+    );
+    // main.ts really imports util.ts -- a real edge from real Babel-parsed
+    // AST, not a fabricated graph.
+    expect(parsed.graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: "main.ts", to: "util.ts" }),
+      ])
+    );
+  });
+
+  it("smart_dependencies degrades gracefully on an unparseable file (real parse-error skip, not a crash)", async () => {
+    writeFileSync(
+      path.join(workDir, "good.ts"),
+      "export const ok = 1;\n",
+      "utf-8"
+    );
+    writeFileSync(
+      path.join(workDir, "broken.ts"),
+      "export const broken = ((( not valid syntax at all ]",
+      "utf-8"
+    );
+
+    const result = await runtime.registry.smart_dependencies({
+      cwd: workDir,
+      mode: "graph",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    // The broken file is silently skipped (analyzeFile returns null on a
+    // parse error); the valid file is still analyzed for real.
+    expect(parsed.graph.nodes).toContain("good.ts");
+    expect(parsed.graph.nodes).not.toContain("broken.ts");
+  });
 });
 
 describe("createOptimizerServer()", () => {
