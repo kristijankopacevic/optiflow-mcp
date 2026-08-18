@@ -19,8 +19,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-
       - run: npm install
+
+      # v2: headroom's real SmartCrusher/TOIN algorithm (native/headroom-core/,
+      # forked and feature-stripped from vendor/headroom) is compiled to
+      # WebAssembly and the output IS committed (native/headroom-wasm/pkg/ —
+      # same reasoning as plugin/dist/, since a plugin install never runs
+      # cargo/wasm-pack). Rebuilding it here anyway, before running tests
+      # against it, proves the Rust source still actually builds — a
+      # committed-but-stale artifact would otherwise mask a real regression
+      # in native/headroom-core/ that nobody happened to rebuild+recommit for.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      # Prebuilt binary, not `cargo install wasm-pack` (which compiles from
+      # source and takes several minutes even on a fast machine — confirmed
+      # directly on the dev machine this was first built on).
+      - uses: taiki-e/install-action@wasm-pack
+      - run: npm run build:wasm
+
       - run: npm run lint
       - run: npm test
       - run: npm run build
