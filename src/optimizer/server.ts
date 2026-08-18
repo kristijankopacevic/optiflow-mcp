@@ -2,10 +2,16 @@
 // optiflow's own MCP server for the merged optimizer tools (ported from
 // vendor/token-optimizer-mcp, MIT-licensed — see THIRD_PARTY_LICENSES.md).
 //
-// SCOPE (see the merge plan's Phase 5 gate): this is a real, working
-// optiflow-owned MCP server wired to the file-operations tool category
-// (smart_read/write/edit/glob/grep/status/diff/log/branch/merge) as the
-// vertical slice for this phase. It replaces token-optimizer-mcp's own
+// SCOPE (see the merge plan's Phase 5 gate — this grows incrementally,
+// checkpoint by checkpoint, NOT all at once): a real, working optiflow-owned
+// MCP server, currently wired to file-operations (smart_read/write/edit/
+// glob/grep/status/diff/log/branch/merge), configuration (smart_env/
+// package_json/config_read/tsconfig/workflow), and output-formatting
+// (smart_pretty). Still-deferred categories (advanced-caching, analytics
+// tools — blocked on the separate src/analytics/ persistence merge —,
+// api-database, build-systems, code-analysis, dashboard-monitoring,
+// intelligence, system-operations) are neither copied nor wired yet. It
+// replaces token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
 // are copied-but-not-yet-wired) with a small, real dispatch table built
@@ -44,6 +50,23 @@ import { getSmartLogTool, SMART_LOG_TOOL_DEFINITION } from "./tools/file-operati
 import { getSmartBranchTool, SMART_BRANCH_TOOL_DEFINITION } from "./tools/file-operations/smart-branch.js";
 import { getSmartMergeTool, SMART_MERGE_TOOL_DEFINITION } from "./tools/file-operations/smart-merge.js";
 
+import { getSmartEnv, SMART_ENV_TOOL_DEFINITION } from "./tools/configuration/smart-env.js";
+import { getSmartPackageJson, SMART_PACKAGE_JSON_TOOL_DEFINITION } from "./tools/configuration/smart-package-json.js";
+import { getSmartConfigReadTool, SMART_CONFIG_READ_TOOL_DEFINITION } from "./tools/configuration/smart-config-read.js";
+import { getSmartTsConfig, SMART_TSCONFIG_TOOL_DEFINITION } from "./tools/configuration/smart-tsconfig.js";
+import { getSmartWorkflowTool, SMART_WORKFLOW_TOOL_DEFINITION } from "./tools/configuration/smart-workflow.js";
+import { getSmartPretty, SMART_PRETTY_TOOL_DEFINITION } from "./tools/output-formatting/smart-pretty.js";
+
+import { getSmartProcess, SMART_PROCESS_TOOL_DEFINITION } from "./tools/system-operations/smart-process.js";
+import { getSmartService, SMART_SERVICE_TOOL_DEFINITION } from "./tools/system-operations/smart-service.js";
+import { getSmartCron, SMART_CRON_TOOL_DEFINITION } from "./tools/system-operations/smart-cron.js";
+import { getSmartUser, SMART_USER_TOOL_DEFINITION } from "./tools/system-operations/smart-user.js";
+
+import { getKnowledgeGraphTool, KNOWLEDGE_GRAPH_TOOL_DEFINITION } from "./tools/intelligence/knowledge-graph.js";
+import { getSentimentAnalysisTool, SENTIMENT_ANALYSIS_TOOL_DEFINITION } from "./tools/intelligence/sentiment-analysis.js";
+import { wikiRead, WIKI_READ_TOOL_DEFINITION } from "./tools/intelligence/wiki-read.js";
+import { wikiWrite, WIKI_WRITE_TOOL_DEFINITION } from "./tools/intelligence/wiki-write.js";
+
 /** All tools currently wired into the dispatch table (not just copied-in). */
 export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_READ_TOOL_DEFINITION,
@@ -56,6 +79,20 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_LOG_TOOL_DEFINITION,
   SMART_BRANCH_TOOL_DEFINITION,
   SMART_MERGE_TOOL_DEFINITION,
+  SMART_ENV_TOOL_DEFINITION,
+  SMART_PACKAGE_JSON_TOOL_DEFINITION,
+  SMART_CONFIG_READ_TOOL_DEFINITION,
+  SMART_TSCONFIG_TOOL_DEFINITION,
+  SMART_WORKFLOW_TOOL_DEFINITION,
+  SMART_PRETTY_TOOL_DEFINITION,
+  SMART_PROCESS_TOOL_DEFINITION,
+  SMART_SERVICE_TOOL_DEFINITION,
+  SMART_CRON_TOOL_DEFINITION,
+  SMART_USER_TOOL_DEFINITION,
+  KNOWLEDGE_GRAPH_TOOL_DEFINITION,
+  SENTIMENT_ANALYSIS_TOOL_DEFINITION,
+  WIKI_READ_TOOL_DEFINITION,
+  WIKI_WRITE_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -118,6 +155,21 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const smartBranch = getSmartBranchTool(cache, tokenCounter, metrics);
   const smartMerge = getSmartMergeTool(cache, tokenCounter, metrics);
 
+  const smartEnv = getSmartEnv(cache, tokenCounter, metrics);
+  const smartPackageJson = getSmartPackageJson(cache, tokenCounter, metrics);
+  const smartConfigRead = getSmartConfigReadTool(cache, tokenCounter, metrics);
+  const smartTsConfig = getSmartTsConfig(cache, tokenCounter, metrics);
+  const smartWorkflow = getSmartWorkflowTool(cache, tokenCounter, metrics);
+  const smartPretty = getSmartPretty(cache, tokenCounter, metrics);
+
+  const smartProcess = getSmartProcess(cache, tokenCounter, metrics);
+  const smartService = getSmartService(cache, tokenCounter, metrics);
+  const smartCron = getSmartCron(cache, tokenCounter, metrics);
+  const smartUser = getSmartUser(cache, tokenCounter, metrics);
+
+  const knowledgeGraph = getKnowledgeGraphTool(cache, tokenCounter, metrics);
+  const sentimentAnalysis = getSentimentAnalysisTool(cache, tokenCounter, metrics);
+
   const registry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
@@ -164,6 +216,49 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     smart_log: async (args) => ok(await smartLog.log(args)),
     smart_branch: async (args) => ok(await smartBranch.branch(args)),
     smart_merge: async (args) => ok(await smartMerge.merge(args)),
+    // Matches vendor `case 'smart_env'`: whole-args-object, no destructuring.
+    smart_env: async (args) => ok(await smartEnv.run(args as any)),
+    // Matches vendor `case 'smart_package_json'`: whole-args-object.
+    smart_package_json: async (args) => ok(await smartPackageJson.run(args as any)),
+    // Matches vendor `case 'smart_config_read'`: destructures the schema's
+    // `path` field first (NOT `filePath` — vendor's own comment documents a
+    // real bug caused by getting this wrong), forwards the rest as options.
+    smart_config_read: async (args) => {
+      const { path, ...options } = args as { path: string };
+      return ok(await smartConfigRead.read(path, options));
+    },
+    // Matches vendor `case 'smart_tsconfig'`: whole-args-object.
+    smart_tsconfig: async (args) => ok(await smartTsConfig.run(args as any)),
+    // Not dispatched anywhere in vendor's own server (genuinely unwired
+    // upstream) — schema's positional field is `filePath`, not `path`.
+    smart_workflow: async (args) => {
+      const { filePath, ...options } = args as { filePath: string };
+      return ok(await smartWorkflow.analyze(filePath, options));
+    },
+    // Matches vendor `case 'smart_pretty'`: whole-args-object.
+    smart_pretty: async (args) => ok(await smartPretty.run(args as any)),
+
+    // system-operations: all four are whole-args-object, matching the
+    // getX(cache, tokenCounter, metrics).run(options) pattern used throughout.
+    smart_process: async (args) => ok(await smartProcess.run(args as any)),
+    smart_service: async (args) => ok(await smartService.run(args as any)),
+    smart_cron: async (args) => ok(await smartCron.run(args as any)),
+    smart_user: async (args) => ok(await smartUser.run(args as any)),
+
+    // intelligence: knowledge_graph and sentiment_analysis are not actually
+    // dispatched anywhere in vendor's own server (genuinely unwired
+    // upstream) but are real, working, compiling tools — wired here as an
+    // improvement over vendor's own coverage, whole-args-object per their
+    // schemas.
+    knowledge_graph: async (args) => ok(await knowledgeGraph.run(args as any)),
+    sentiment_analysis: async (args) => ok(await sentimentAnalysis.run(args as any)),
+    // wiki_read/wiki_write are plain functions (no class/factory), not
+    // dispatched via a shared instance. Their real behavior depends on
+    // hooks-core/wiki.mjs, not yet ported into src/optimizer/ (later phase) —
+    // they degrade gracefully to a real, typed "nothing found" result rather
+    // than throwing, per their own source.
+    wiki_read: async (args) => ok(await wikiRead(args as any)),
+    wiki_write: async (args) => ok(await wikiWrite(args as any)),
   };
 
   return { registry, cache, close: () => cache.close() };

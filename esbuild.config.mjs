@@ -45,9 +45,16 @@ const plannedEntries = [
  * and `tiktoken` ships a `.wasm` file it loads relative to its own package
  * directory at runtime for the same reason. Both need to stay resolvable
  * from `node_modules` at the bundle's runtime location.
+ *
+ * `yaml` and `@iarna/toml` are external for a different reason, found via a
+ * real stdio smoke test of the built server (not a guess): their CJS
+ * interop shims do a `require('process')` that esbuild's ESM-output
+ * `__require2` wrapper cannot satisfy ("Dynamic require of 'process' is not
+ * supported"), crashing the server at import time. Bundling works for a
+ * plain `require`, just not this specific CJS/ESM interop pattern.
  * @type {string[]}
  */
-const nativeExternals = ["better-sqlite3", "tiktoken"];
+const nativeExternals = ["better-sqlite3", "tiktoken", "yaml", "@iarna/toml"];
 
 /**
  * Bundled directly to `plugin/hooks/*.mjs` (NOT `plugin/dist/`) — these are

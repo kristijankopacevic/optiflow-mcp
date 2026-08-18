@@ -58,10 +58,11 @@ afterEach(() => {
 });
 
 describe("ALL_TOOL_DEFINITIONS", () => {
-  it("advertises exactly the 10 wired file-operations tools", () => {
+  it("advertises exactly the wired tools across every merged category so far", () => {
     const names = ALL_TOOL_DEFINITIONS.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        // file-operations (checkpoint 1)
         "smart_branch",
         "smart_diff",
         "smart_edit",
@@ -72,6 +73,24 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "smart_read",
         "smart_status",
         "smart_write",
+        // configuration
+        "smart_env",
+        "smart_package_json",
+        "smart_config_read",
+        "smart_tsconfig",
+        "smart_workflow",
+        // output-formatting
+        "smart_pretty",
+        // system-operations
+        "smart_process",
+        "smart_service",
+        "smart_cron",
+        "smart_user",
+        // intelligence
+        "knowledge_graph",
+        "sentiment_analysis",
+        "wiki_read",
+        "wiki_write",
       ].sort()
     );
   });
@@ -139,6 +158,68 @@ describe("optimizer tool dispatch (real end-to-end, reconciled paths)", () => {
     const dbPath = getOptimizerCacheDbPath();
     expect(dbPath.startsWith(path.resolve(optiflowHome))).toBe(true);
     expect(existsSync(dbPath)).toBe(true);
+  });
+});
+
+describe("configuration + output-formatting tools (real end-to-end)", () => {
+  it("smart_env parses real .env content and flags a weak secret", async () => {
+    const result = await runtime.registry.smart_env({
+      envContent: "NODE_ENV=production\nJWT_SECRET=password\n",
+      checkSecurity: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.variables.total).toBe(2);
+    // The real value must never be echoed back (redaction, see smart-env.ts).
+    expect(JSON.stringify(parsed)).not.toContain("password");
+    expect(parsed.security.hasSecrets).toBe(true);
+  });
+
+  it("smart_config_read parses a real JSON file via the schema's `path` field (not `filePath`)", async () => {
+    const configPath = path.join(workDir, "settings.json");
+    writeFileSync(configPath, JSON.stringify({ port: 8080, debug: true }), "utf-8");
+    const result = await runtime.registry.smart_config_read({ path: configPath });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.config).toEqual({ port: 8080, debug: true });
+    expect(parsed.metadata.format).toBe("json");
+  });
+
+  it("smart_pretty detects the language of a real code snippet", async () => {
+    const result = await runtime.registry.smart_pretty({
+      operation: "detect-language",
+      code: "def greet(name):\n    return f'hello {name}'\n",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("system-operations + intelligence tools (real end-to-end)", () => {
+  it("smart_process reports real status without crashing", async () => {
+    const result = await runtime.registry.smart_process({ operation: "status" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("knowledge_graph builds a real graph from a minimal entity set", async () => {
+    const result = await runtime.registry.knowledge_graph({
+      operation: "build-graph",
+      entities: [{ id: "a", type: "file", label: "a.ts" }],
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("wiki_read degrades gracefully (empty findings, not a crash) with no anchors matched", async () => {
+    const result = await runtime.registry.wiki_read({ anchors: [] });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(Array.isArray(parsed.findings)).toBe(true);
   });
 });
 
