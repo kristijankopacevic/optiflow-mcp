@@ -169,6 +169,10 @@ var DEFAULT_CONFIG = {
     enabled: false,
     allowDownload: false,
     variant: "int8"
+  },
+  smartCrusher: {
+    enabled: true,
+    minSavingsPercent: 20
   }
 };
 
@@ -938,10 +942,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path3) {
-  if (!path3)
+function getElementAtPath(obj, path5) {
+  if (!path5)
     return obj;
-  return path3.reduce((acc, key) => acc?.[key], obj);
+  return path5.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -1350,11 +1354,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path3, issues) {
+function prefixIssues(path5, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path3);
+    iss.path.unshift(path5);
     return iss;
   });
 }
@@ -1501,16 +1505,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path3 = []) => {
+  const processError = (error52, path5 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else {
-        const fullpath = [...path3, ...issue2.path];
+        const fullpath = [...path5, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -1537,17 +1541,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path3 = []) => {
+  const processError = (error52, path5 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path3, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path3, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
       } else {
-        const fullpath = [...path3, ...issue2.path];
+        const fullpath = [...path5, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -1579,8 +1583,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path3 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path3) {
+  const path5 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path5) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -14272,13 +14276,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path3 = ref.slice(1).split("/").filter(Boolean);
-  if (path3.length === 0) {
+  const path5 = ref.slice(1).split("/").filter(Boolean);
+  if (path5.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path3[0] === defsKey) {
-    const key = path3[1];
+  if (path5[0] === defsKey) {
+    const key = path5[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -14740,6 +14744,10 @@ var KompressSchema = external_exports.object({
   allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
   variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
 });
+var SmartCrusherSchema = external_exports.object({
+  enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
+  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
+});
 var OptiflowConfigSchema = external_exports.object({
   engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -14748,7 +14756,8 @@ var OptiflowConfigSchema = external_exports.object({
   handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
-  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress)
+  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
 });
 
 // src/core/paths.ts
@@ -15324,30 +15333,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path3) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path3);
-  return transformChildren(normalizeValue(replaced), replacer, path3);
+function transformReplaced(original, replaced, replacer, path5) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path5);
+  return transformChildren(normalizeValue(replaced), replacer, path5);
 }
-function transformChildren(value, replacer, path3) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path3);
-  if (isJsonArray(value)) return transformArray(value, replacer, path3);
+function transformChildren(value, replacer, path5) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path5);
+  if (isJsonArray(value)) return transformArray(value, replacer, path5);
   return value;
 }
-function transformObject(obj, replacer, path3) {
+function transformObject(obj, replacer, path5) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path3, key];
+    const childPath = [...path5, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path3) {
+function transformArray(arr, replacer, path5) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path3, i];
+    const childPath = [...path5, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -15585,6 +15594,92 @@ function maybeConvertToToon(input, config2) {
   }
 }
 
+// src/native/smart-crusher.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync3 } from "node:fs";
+import { createRequire } from "node:module";
+import path3 from "node:path";
+import { fileURLToPath } from "node:url";
+var nodeRequire = createRequire(import.meta.url);
+var WASM_MODULE_REL_SEGMENTS = ["native", "headroom-wasm", "pkg", "headroom_wasm.js"];
+var MAX_WALK_UP = 15;
+function findWasmModulePath() {
+  let dir = path3.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < MAX_WALK_UP; i++) {
+    const candidate = path3.join(dir, ...WASM_MODULE_REL_SEGMENTS);
+    if (existsSync3(candidate)) return candidate;
+    const parent = path3.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+var wasmLoadAttempted = false;
+var wasmModule = null;
+function loadWasmModule() {
+  if (wasmLoadAttempted) return wasmModule;
+  wasmLoadAttempted = true;
+  try {
+    const modPath = findWasmModulePath();
+    if (!modPath) return null;
+    wasmModule = nodeRequire(modPath);
+  } catch {
+    wasmModule = null;
+  }
+  return wasmModule;
+}
+function unavailableResult(content, strategy) {
+  return { compressed: content, original: content, wasModified: false, strategy };
+}
+function compress(content, query = "", bias = 0) {
+  const mod = loadWasmModule();
+  if (!mod) {
+    return unavailableResult(content, "unavailable:wasm-module-not-loaded");
+  }
+  try {
+    const raw = mod.smart_crush(content, query, bias);
+    return JSON.parse(raw);
+  } catch {
+    return unavailableResult(content, "unavailable:wasm-call-failed");
+  }
+}
+var CCR_MARKER_RE = /<<ccr:([0-9a-f]{12})[,\s]/g;
+function extractCcrHashes(compressed) {
+  const hashes = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const match of compressed.matchAll(CCR_MARKER_RE)) {
+    const hash2 = match[1];
+    if (!seen.has(hash2)) {
+      seen.add(hash2);
+      hashes.push(hash2);
+    }
+  }
+  return hashes;
+}
+function ccrMarkerHashFor(canonicalContent) {
+  return createHash("sha256").update(canonicalContent, "utf8").digest("hex").slice(0, 12);
+}
+
+// src/native/ccr-store.ts
+import { appendFileSync, existsSync as existsSync4, mkdirSync, readFileSync as readFileSync2 } from "node:fs";
+import path4 from "node:path";
+function ccrStorePath(home) {
+  return path4.join(home, "ccr-store.jsonl");
+}
+function putCcr(hash2, content, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    mkdirSync(home, { recursive: true });
+    const record2 = {
+      hash: hash2,
+      content,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    appendFileSync(ccrStorePath(home), JSON.stringify(record2) + "\n", "utf8");
+  } catch {
+  }
+}
+
 // src/chop/filters/generic.ts
 var LOG_HEAD_LINES = 20;
 var LOG_TAIL_LINES = 10;
@@ -15601,6 +15696,17 @@ function defaultToonConfig() {
     cachedDefaultToonConfig = SAFE_DISABLED_TOON_CONFIG;
   }
   return cachedDefaultToonConfig;
+}
+var SAFE_DISABLED_SMART_CRUSHER_CONFIG = { enabled: false, minSavingsPercent: 100 };
+var cachedDefaultSmartCrusherConfig = null;
+function defaultSmartCrusherConfig() {
+  if (cachedDefaultSmartCrusherConfig) return cachedDefaultSmartCrusherConfig;
+  try {
+    cachedDefaultSmartCrusherConfig = loadConfig().config.smartCrusher;
+  } catch {
+    cachedDefaultSmartCrusherConfig = SAFE_DISABLED_SMART_CRUSHER_CONFIG;
+  }
+  return cachedDefaultSmartCrusherConfig;
 }
 function truncateLogLines(text) {
   const lines = text.split("\n");
@@ -15623,7 +15729,41 @@ function truncateUniformArray(arr) {
     omitted
   };
 }
-function tryJsonFilter(text, toonConfig) {
+function trySmartCrusher(content, config2) {
+  if (!config2.enabled) return null;
+  let result;
+  try {
+    result = compress(content);
+  } catch {
+    return null;
+  }
+  if (!result.wasModified) return null;
+  const guard = evaluateGuard(content, result.compressed, Number.MAX_SAFE_INTEGER, {
+    minSavingsPercent: config2.minSavingsPercent,
+    minRows: 0
+  });
+  if (!guard.approved) return null;
+  return { text: result.compressed, strategy: result.strategy, guard };
+}
+function storeCcrMarkers(originalText, parsedTopLevelValue, compressed) {
+  const hashes = extractCcrHashes(compressed);
+  if (hashes.length === 0) return;
+  let exactCanonical = null;
+  let exactHash = null;
+  try {
+    exactCanonical = JSON.stringify(parsedTopLevelValue);
+    exactHash = ccrMarkerHashFor(exactCanonical);
+  } catch {
+  }
+  for (const hash2 of hashes) {
+    if (exactHash !== null && hash2 === exactHash && exactCanonical !== null) {
+      putCcr(hash2, exactCanonical);
+    } else {
+      putCcr(hash2, originalText);
+    }
+  }
+}
+function tryJsonFilter(text, toonConfig, smartCrusherConfig) {
   const trimmed = text.trim();
   if (trimmed.length === 0 || !(trimmed.startsWith("{") || trimmed.startsWith("["))) {
     return null;
@@ -15646,6 +15786,19 @@ function tryJsonFilter(text, toonConfig) {
         }
       };
     }
+    const smartCrusherAttempt2 = trySmartCrusher(trimmed, smartCrusherConfig);
+    if (smartCrusherAttempt2) {
+      storeCcrMarkers(trimmed, parsed, smartCrusherAttempt2.text);
+      return {
+        text: smartCrusherAttempt2.text,
+        formatHint: "uniform-json-array",
+        meta: {
+          itemCount: parsed.length,
+          toon: { applied: false, reason: toonAttempt.reason },
+          smartCrusher: { applied: true, strategy: smartCrusherAttempt2.strategy, ...smartCrusherAttempt2.guard }
+        }
+      };
+    }
     const { value, omitted } = truncateUniformArray(parsed);
     return {
       text: JSON.stringify(value, null, 2),
@@ -15653,7 +15806,19 @@ function tryJsonFilter(text, toonConfig) {
       meta: {
         itemCount: parsed.length,
         omittedItems: omitted,
-        toon: { applied: false, reason: toonAttempt.reason }
+        toon: { applied: false, reason: toonAttempt.reason },
+        smartCrusher: { applied: false }
+      }
+    };
+  }
+  const smartCrusherAttempt = trySmartCrusher(trimmed, smartCrusherConfig);
+  if (smartCrusherAttempt) {
+    storeCcrMarkers(trimmed, parsed, smartCrusherAttempt.text);
+    return {
+      text: smartCrusherAttempt.text,
+      formatHint: "json",
+      meta: {
+        smartCrusher: { applied: true, strategy: smartCrusherAttempt.strategy, ...smartCrusherAttempt.guard }
       }
     };
   }
@@ -15661,7 +15826,8 @@ function tryJsonFilter(text, toonConfig) {
 }
 function genericFilter(input, options = {}) {
   const toonConfig = options.toonConfig ?? defaultToonConfig();
-  const jsonResult = tryJsonFilter(input.stdout, toonConfig);
+  const smartCrusherConfig = options.smartCrusherConfig ?? defaultSmartCrusherConfig();
+  const jsonResult = tryJsonFilter(input.stdout, toonConfig, smartCrusherConfig);
   if (jsonResult) return jsonResult;
   const { text, truncated, omitted } = truncateLogLines(input.stdout);
   return {

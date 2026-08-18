@@ -155,6 +155,10 @@ var DEFAULT_CONFIG = {
     enabled: false,
     allowDownload: false,
     variant: "int8"
+  },
+  smartCrusher: {
+    enabled: true,
+    minSavingsPercent: 20
   }
 };
 
@@ -14726,6 +14730,10 @@ var KompressSchema = external_exports.object({
   allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
   variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
 });
+var SmartCrusherSchema = external_exports.object({
+  enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
+  minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
+});
 var OptiflowConfigSchema = external_exports.object({
   engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -14734,7 +14742,8 @@ var OptiflowConfigSchema = external_exports.object({
   handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
-  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress)
+  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
 });
 
 // src/handoff/checkpoint.ts

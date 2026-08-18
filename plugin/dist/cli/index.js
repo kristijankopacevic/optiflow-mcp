@@ -76,6 +76,10 @@ var init_defaults = __esm({
         enabled: false,
         allowDownload: false,
         variant: "int8"
+      },
+      smartCrusher: {
+        enabled: true,
+        minSavingsPercent: 20
       }
     };
   }
@@ -328,10 +332,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path15) {
-  if (!path15)
+function getElementAtPath(obj, path16) {
+  if (!path16)
     return obj;
-  return path15.reduce((acc, key) => acc?.[key], obj);
+  return path16.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -659,11 +663,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path15, issues) {
+function prefixIssues(path16, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path15);
+    iss.path.unshift(path16);
     return iss;
   });
 }
@@ -880,16 +884,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path15 = []) => {
+  const processError = (error52, path16 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path15, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path16, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path15, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path15, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
       } else {
-        const fullpath = [...path15, ...issue2.path];
+        const fullpath = [...path16, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -916,17 +920,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path15 = []) => {
+  const processError = (error52, path16 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path15, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path16, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path15, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path15, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
       } else {
-        const fullpath = [...path15, ...issue2.path];
+        const fullpath = [...path16, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -958,8 +962,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path15 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path15) {
+  const path16 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path16) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -14389,13 +14393,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path15 = ref.slice(1).split("/").filter(Boolean);
-  if (path15.length === 0) {
+  const path16 = ref.slice(1).split("/").filter(Boolean);
+  if (path16.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path15[0] === defsKey) {
-    const key = path15[1];
+  if (path16[0] === defsKey) {
+    const key = path16[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -15163,7 +15167,7 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var EngineTokenOptimizerSchema, EngineHeadroomSchema, EnginesSchema, ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, OptiflowConfigSchema;
+var EngineTokenOptimizerSchema, EngineHeadroomSchema, EnginesSchema, ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, SmartCrusherSchema, OptiflowConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
@@ -15222,6 +15226,10 @@ var init_schema = __esm({
       allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
       variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
     });
+    SmartCrusherSchema = external_exports.object({
+      enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
+      minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
+    });
     OptiflowConfigSchema = external_exports.object({
       engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
       chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -15230,7 +15238,8 @@ var init_schema = __esm({
       handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
       report: ReportSchema.default(DEFAULT_CONFIG.report),
       telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
-      kompress: KompressSchema.default(DEFAULT_CONFIG.kompress)
+      kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+      smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
     });
   }
 });
@@ -18467,9 +18476,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
    * @param {string} [path]
    * @return {(string|null|Command)}
    */
-  executableDir(path15) {
-    if (path15 === void 0) return this._executableDir;
-    this._executableDir = path15;
+  executableDir(path16) {
+    if (path16 === void 0) return this._executableDir;
+    this._executableDir = path16;
     return this;
   }
   /**
@@ -18728,11 +18737,7 @@ var program = new Command();
 init_load();
 
 // src/install/detect.ts
-init_paths();
-import { existsSync as existsSync3, readFileSync as readFileSync2, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { homedir as homedir2 } from "node:os";
-import path4 from "node:path";
 function runCommand(cmd, args, timeoutMs = 5e3) {
   try {
     const useShell = process.platform === "win32";
@@ -18763,11 +18768,6 @@ function detectNodeEnv() {
     npmVersion: npmProbe.ok ? npmProbe.stdout.trim() : null
   };
 }
-function detectHeadroomOnPath() {
-  const finder = process.platform === "win32" ? "where" : "which";
-  const probe = runCommand(finder, ["headroom"], 5e3);
-  return { present: probe.ok && probe.stdout.trim().length > 0 };
-}
 function detectGhAuth() {
   const finder = process.platform === "win32" ? "where" : "which";
   const presence = runCommand(finder, ["gh"], 5e3);
@@ -18780,115 +18780,6 @@ function detectGhAuth() {
   }
   return { present: true, authenticated: authProbe.ok };
 }
-function detectTokenOptimizerPin(config2, options = {}) {
-  const expectedVersion = config2.engines.tokenOptimizer.version;
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const vendorPackageJsonPath = path4.join(
-    projectRoot,
-    "vendor",
-    "token-optimizer-mcp",
-    "package.json"
-  );
-  if (!existsSync3(vendorPackageJsonPath)) {
-    return {
-      expectedVersion,
-      vendoredVersion: null,
-      vendorPackageJsonPath,
-      status: "unknown"
-    };
-  }
-  try {
-    const raw = readFileSync2(vendorPackageJsonPath, "utf8");
-    const parsed = JSON.parse(raw);
-    const vendoredVersion = typeof parsed?.version === "string" ? parsed.version : null;
-    return {
-      expectedVersion,
-      vendoredVersion,
-      vendorPackageJsonPath,
-      status: vendoredVersion === null ? "unknown" : vendoredVersion === expectedVersion ? "match" : "mismatch"
-    };
-  } catch {
-    return {
-      expectedVersion,
-      vendoredVersion: null,
-      vendorPackageJsonPath,
-      status: "unknown"
-    };
-  }
-}
-function collectHookSourceFiles(dir) {
-  const out = [];
-  if (!existsSync3(dir)) return out;
-  for (const entry of readdirSyncSafe(dir)) {
-    const full = path4.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...collectHookSourceFiles(full));
-    } else if (entry.isFile() && (entry.name.endsWith(".mjs") || entry.name.endsWith(".js"))) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-function readdirSyncSafe(dir) {
-  try {
-    return readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-function detectUpstreamInvariant(options = {}) {
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const vendorHooksDir = path4.join(projectRoot, "vendor", "token-optimizer-mcp", "plugin", "hooks");
-  if (!existsSync3(vendorHooksDir)) {
-    return { status: "unknown", offendingFiles: [], vendorHooksDir };
-  }
-  const offendingFiles = [];
-  for (const file2 of collectHookSourceFiles(vendorHooksDir)) {
-    try {
-      if (readFileSync2(file2, "utf8").includes("updatedInput")) {
-        offendingFiles.push(path4.relative(projectRoot, file2));
-      }
-    } catch {
-    }
-  }
-  return {
-    status: offendingFiles.length > 0 ? "violated" : "ok",
-    offendingFiles,
-    vendorHooksDir
-  };
-}
-var HEADROOM_ENV_KEYS = ["ANTHROPIC_BASE_URL", "ENABLE_TOOL_SEARCH"];
-var HEADROOM_HOOK_MARKERS = ["headroom-init-claude", "headroom-wrap-selfheal"];
-function inspectClaudeSettingsFile(filePath) {
-  if (!existsSync3(filePath)) return null;
-  try {
-    const raw = readFileSync2(filePath, "utf8");
-    const parsed = JSON.parse(raw);
-    const env = parsed && typeof parsed === "object" && parsed.env && typeof parsed.env === "object" ? parsed.env : {};
-    const envKeysFound = HEADROOM_ENV_KEYS.filter(
-      (key) => env[key] !== void 0 && env[key] !== null && env[key] !== ""
-    );
-    const wholeFile = JSON.stringify(parsed);
-    const hookMarkersFound = HEADROOM_HOOK_MARKERS.filter(
-      (marker) => wholeFile.includes(marker)
-    );
-    if (envKeysFound.length === 0 && hookMarkersFound.length === 0) return null;
-    return { filePath, envKeysFound, hookMarkersFound };
-  } catch {
-    return null;
-  }
-}
-function detectHeadroomWrap(options = {}) {
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const home = options.home ?? homedir2();
-  const candidatePaths = [
-    path4.join(home, ".claude", "settings.json"),
-    path4.join(projectRoot, ".claude", "settings.json"),
-    path4.join(projectRoot, ".claude", "settings.local.json")
-  ];
-  const signals = candidatePaths.map(inspectClaudeSettingsFile).filter((signal) => signal !== null);
-  return { wrapped: signals.length > 0, signals };
-}
 
 // src/install/doctor.ts
 function runDoctor(options = {}) {
@@ -18896,12 +18787,6 @@ function runDoctor(options = {}) {
   return {
     node: detectNodeEnv(),
     configLoad,
-    tokenOptimizerPin: detectTokenOptimizerPin(configLoad.config, {
-      cwd: options.cwd
-    }),
-    upstreamInvariant: detectUpstreamInvariant({ cwd: options.cwd }),
-    headroomOnPath: detectHeadroomOnPath(),
-    headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth()
   };
 }
@@ -18946,54 +18831,6 @@ function renderDoctorReport(report) {
     statusLine("chop.enabled (resolved)", String(report.configLoad.config.chop.enabled))
   );
   lines.push("");
-  lines.push("token-optimizer-mcp");
-  lines.push(statusLine("Configured pin", report.tokenOptimizerPin.expectedVersion));
-  const pinStatusLabel = report.tokenOptimizerPin.status === "match" ? `match (vendored: ${report.tokenOptimizerPin.vendoredVersion})` : report.tokenOptimizerPin.status === "mismatch" ? `MISMATCH (vendored: ${report.tokenOptimizerPin.vendoredVersion})` : "unknown (vendor/token-optimizer-mcp/package.json not found \u2014 submodule not initialized?)";
-  lines.push(statusLine("Vendored submodule pin", pinStatusLabel));
-  const invariantLabel = report.upstreamInvariant.status === "ok" ? "ok \u2014 never emits updatedInput (Module 1's load-bearing assumption holds)" : report.upstreamInvariant.status === "violated" ? `VIOLATED \u2014 found in: ${report.upstreamInvariant.offendingFiles.join(", ")} (see scripts/verify-upstream-invariants.mjs)` : "unknown (submodule not initialized)";
-  lines.push(statusLine("Upstream invariant (Risk R9)", invariantLabel));
-  lines.push("");
-  lines.push("headroom");
-  lines.push(
-    statusLine(
-      "On PATH",
-      report.headroomOnPath.present ? "yes" : "no (optional \u2014 features degrade gracefully)"
-    )
-  );
-  if (report.headroomWrap.wrapped) {
-    lines.push(
-      statusLine(
-        "Wrap conflict (Risk R1)",
-        "WARNING \u2014 Claude Code appears configured to route through a headroom proxy"
-      )
-    );
-    for (const signal of report.headroomWrap.signals) {
-      const parts = [];
-      if (signal.envKeysFound.length > 0) {
-        parts.push(`env keys: ${signal.envKeysFound.join(", ")}`);
-      }
-      if (signal.hookMarkersFound.length > 0) {
-        parts.push(`hook markers: ${signal.hookMarkersFound.join(", ")}`);
-      }
-      lines.push(`      - ${signal.filePath} (${parts.join("; ")})`);
-    }
-    lines.push(
-      "      This is a configuration-level signal, not a live-process check \u2014 a"
-    );
-    lines.push(
-      "      dead proxy can leave this behind. There is no `headroom unwrap claude`"
-    );
-    lines.push(
-      "      command; recovery is manually removing env.ANTHROPIC_BASE_URL /"
-    );
-    lines.push(
-      "      env.ENABLE_TOOL_SEARCH and any headroom-marked hook entries from the"
-    );
-    lines.push("      settings file(s) listed above.");
-  } else {
-    lines.push(statusLine("Wrap conflict (Risk R1)", "none detected"));
-  }
-  lines.push("");
   lines.push("GitHub CLI");
   lines.push(statusLine("gh present", report.gh.present ? "yes" : "no"));
   if (report.gh.present) {
@@ -19014,7 +18851,7 @@ function registerDoctorCommand(program2) {
 
 // src/cli/commands/toon.ts
 init_load();
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync2 } from "node:fs";
 
 // src/toon/detect.ts
 function isPlainObject2(value) {
@@ -19491,30 +19328,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path15) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path15);
-  return transformChildren(normalizeValue(replaced), replacer, path15);
+function transformReplaced(original, replaced, replacer, path16) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path16);
+  return transformChildren(normalizeValue(replaced), replacer, path16);
 }
-function transformChildren(value, replacer, path15) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path15);
-  if (isJsonArray(value)) return transformArray(value, replacer, path15);
+function transformChildren(value, replacer, path16) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path16);
+  if (isJsonArray(value)) return transformArray(value, replacer, path16);
   return value;
 }
-function transformObject(obj, replacer, path15) {
+function transformObject(obj, replacer, path16) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path15, key];
+    const childPath = [...path16, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path15) {
+function transformArray(arr, replacer, path16) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path15, i];
+    const childPath = [...path16, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -19784,7 +19621,7 @@ function registerToonCommand(program2) {
   program2.command("toon [file]").description(
     "Convert a JSON/CSV file (or stdin) to TOON when it saves tokens; YAML is detected but not yet converted. Guarded by toon.minSavingsPercent/toon.minRows in optiflow.config.json."
   ).option("--min-savings <percent>", "override toon.minSavingsPercent for this run", (v) => Number.parseFloat(v)).option("--min-rows <count>", "override toon.minRows for this run", (v) => Number.parseInt(v, 10)).action(async (file2, opts) => {
-    const input = file2 ? readFileSync3(file2, "utf8") : await readStdin();
+    const input = file2 ? readFileSync2(file2, "utf8") : await readStdin();
     const { config: config2 } = loadConfig();
     const toonConfig = {
       enabled: config2.toon.enabled,
@@ -19798,39 +19635,39 @@ function registerToonCommand(program2) {
 }
 
 // src/transcript/discover.ts
-import { existsSync as existsSync4, readdirSync as readdirSync2 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import path5 from "node:path";
+import { existsSync as existsSync3, readdirSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import path4 from "node:path";
 function getClaudeProjectsDir(options = {}) {
-  if (options.projectsDir) return path5.resolve(options.projectsDir);
-  return path5.join(homedir3(), ".claude", "projects");
+  if (options.projectsDir) return path4.resolve(options.projectsDir);
+  return path4.join(homedir2(), ".claude", "projects");
 }
 function slugifyPath(absolutePath) {
   return absolutePath.replace(/[\\/:]/g, "-");
 }
 function listJsonlFiles(dir) {
-  if (!existsSync4(dir)) return [];
+  if (!existsSync3(dir)) return [];
   try {
-    return readdirSync2(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path5.join(dir, entry.name)).sort();
+    return readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path4.join(dir, entry.name)).sort();
   } catch {
     return [];
   }
 }
 function discoverCurrentProjectFiles(cwd = process.cwd(), options = {}) {
   const projectsDir = getClaudeProjectsDir(options);
-  const slug = slugifyPath(path5.resolve(cwd));
-  return listJsonlFiles(path5.join(projectsDir, slug));
+  const slug = slugifyPath(path4.resolve(cwd));
+  return listJsonlFiles(path4.join(projectsDir, slug));
 }
 function discoverBySessionId(sessionId, options = {}) {
   const projectsDir = getClaudeProjectsDir(options);
-  if (!existsSync4(projectsDir) || sessionId.trim().length === 0) return [];
+  if (!existsSync3(projectsDir) || sessionId.trim().length === 0) return [];
   const target = `${sessionId}.jsonl`;
   const matches = [];
   try {
-    for (const entry of readdirSync2(projectsDir, { withFileTypes: true })) {
+    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const candidate = path5.join(projectsDir, entry.name, target);
-      if (existsSync4(candidate)) matches.push(candidate);
+      const candidate = path4.join(projectsDir, entry.name, target);
+      if (existsSync3(candidate)) matches.push(candidate);
     }
   } catch {
     return [];
@@ -19839,12 +19676,12 @@ function discoverBySessionId(sessionId, options = {}) {
 }
 function discoverAllProjectFiles(options = {}) {
   const projectsDir = getClaudeProjectsDir(options);
-  if (!existsSync4(projectsDir)) return [];
+  if (!existsSync3(projectsDir)) return [];
   const files = [];
   try {
-    for (const entry of readdirSync2(projectsDir, { withFileTypes: true })) {
+    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      files.push(...listJsonlFiles(path5.join(projectsDir, entry.name)));
+      files.push(...listJsonlFiles(path4.join(projectsDir, entry.name)));
     }
   } catch {
     return [];
@@ -19859,15 +19696,15 @@ import { createInterface } from "node:readline";
 // src/core/logger.ts
 init_paths();
 import { appendFileSync, mkdirSync } from "node:fs";
-import path6 from "node:path";
+import path5 from "node:path";
 function log(entry, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
-    const dir = path6.join(home, "logs");
+    const dir = path5.join(home, "logs");
     mkdirSync(dir, { recursive: true });
     const now = options.now ?? /* @__PURE__ */ new Date();
     const date5 = now.toISOString().slice(0, 10);
-    const file2 = path6.join(dir, `${date5}.ndjson`);
+    const file2 = path5.join(dir, `${date5}.ndjson`);
     const line = JSON.stringify({ timestamp: now.toISOString(), ...entry });
     appendFileSync(file2, line + "\n", "utf8");
   } catch {
@@ -20412,9 +20249,9 @@ function registerReportCommand(program2) {
 }
 
 // src/handoff/checkpoint.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync4, readdirSync as readdirSync3, unlinkSync, writeFileSync } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import path7 from "node:path";
+import { existsSync as existsSync4, mkdirSync as mkdirSync2, readFileSync as readFileSync3, readdirSync as readdirSync2, unlinkSync, writeFileSync } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import path6 from "node:path";
 
 // src/chop/win-spawn.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
@@ -20497,9 +20334,9 @@ function getGitInfo(cwd) {
   return { branch, head };
 }
 function resolveTokenOptimizerStateRef(sessionId, options = {}) {
-  const home = options.tokenOptimizerHome ?? homedir4();
-  const file2 = path7.join(home, ".token-optimizer", "sessions.json.gz");
-  return { file: file2, sessionId, exists: existsSync5(file2) };
+  const home = options.tokenOptimizerHome ?? homedir3();
+  const file2 = path6.join(home, ".token-optimizer", "sessions.json.gz");
+  return { file: file2, sessionId, exists: existsSync4(file2) };
 }
 function normalizeModel(model) {
   if (typeof model === "string") return model.trim() || null;
@@ -20533,27 +20370,27 @@ function checkpointId(checkpoint) {
 }
 function resolveCheckpointDir(options = {}) {
   const checkpointDir = options.checkpointDirOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.checkpointDir;
-  if (path7.isAbsolute(checkpointDir)) return checkpointDir;
+  if (path6.isAbsolute(checkpointDir)) return checkpointDir;
   const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  return path7.join(projectRoot, checkpointDir);
+  return path6.join(projectRoot, checkpointDir);
 }
 function writeCheckpoint(checkpoint, options = {}) {
   const dir = resolveCheckpointDir(options);
   mkdirSync2(dir, { recursive: true });
   const id = checkpointId(checkpoint);
-  const filePath = path7.join(dir, `${id}.json`);
+  const filePath = path6.join(dir, `${id}.json`);
   writeFileSync(filePath, JSON.stringify(checkpoint, null, 2), "utf8");
   return { filePath, id };
 }
 function listCheckpointFiles(dir) {
   try {
-    if (!existsSync5(dir)) return [];
+    if (!existsSync4(dir)) return [];
     const entries = [];
-    for (const name of readdirSync3(dir)) {
+    for (const name of readdirSync2(dir)) {
       if (!name.endsWith(".json")) continue;
-      const filePath = path7.join(dir, name);
+      const filePath = path6.join(dir, name);
       try {
-        const parsed = JSON.parse(readFileSync4(filePath, "utf8"));
+        const parsed = JSON.parse(readFileSync3(filePath, "utf8"));
         if (parsed && typeof parsed === "object" && typeof parsed.sessionId === "string" && typeof parsed.timestamp === "number") {
           entries.push({
             filePath,
@@ -20591,15 +20428,15 @@ function createCheckpoint(input, options = {}) {
   const write = writeCheckpoint(checkpoint, options);
   try {
     const keep = options.keepOverride ?? loadConfig({ cwd: options.cwd, home: options.home }).config.handoff.keep;
-    pruneCheckpoints(path7.dirname(write.filePath), { keep });
+    pruneCheckpoints(path6.dirname(write.filePath), { keep });
   } catch {
   }
   return { checkpoint, write };
 }
 
 // src/handoff/restore.ts
-import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
-import path8 from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
+import path7 from "node:path";
 
 // src/core/hook-io.ts
 async function readHookInput(stdin = process.stdin) {
@@ -20624,8 +20461,8 @@ function isCheckpointShape(value) {
 }
 function loadCheckpoint(filePath) {
   try {
-    if (!existsSync6(filePath)) return null;
-    const parsed = JSON.parse(readFileSync5(filePath, "utf8"));
+    if (!existsSync5(filePath)) return null;
+    const parsed = JSON.parse(readFileSync4(filePath, "utf8"));
     return isCheckpointShape(parsed) ? parsed : null;
   } catch {
     return null;
@@ -20638,11 +20475,11 @@ function findLatestCheckpoint(dir) {
   return entries[0].filePath;
 }
 function findCheckpointById(dir, id) {
-  const exact = path8.join(dir, `${id}.json`);
-  if (existsSync6(exact)) return exact;
+  const exact = path7.join(dir, `${id}.json`);
+  if (existsSync5(exact)) return exact;
   try {
     const prefix = `${id}-`;
-    const matches = listCheckpointFiles(dir).filter((entry) => path8.basename(entry.filePath).startsWith(prefix));
+    const matches = listCheckpointFiles(dir).filter((entry) => path7.basename(entry.filePath).startsWith(prefix));
     if (matches.length === 0) return null;
     matches.sort((a, b) => b.timestamp - a.timestamp);
     return matches[0].filePath;
@@ -20800,31 +20637,31 @@ function registerCheckpointCommand(program2) {
 }
 
 // src/cli/commands/install.ts
-import { existsSync as existsSync8 } from "node:fs";
+import { existsSync as existsSync7 } from "node:fs";
 import { fileURLToPath } from "node:url";
-import path10 from "node:path";
+import path9 from "node:path";
 
 // src/install/settings-writer.ts
 import {
   copyFileSync,
-  existsSync as existsSync7,
+  existsSync as existsSync6,
   mkdirSync as mkdirSync3,
-  readdirSync as readdirSync4,
-  readFileSync as readFileSync6,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync5,
   renameSync,
   unlinkSync as unlinkSync2,
   writeFileSync as writeFileSync2
 } from "node:fs";
-import { homedir as homedir5 } from "node:os";
-import path9 from "node:path";
+import { homedir as homedir4 } from "node:os";
+import path8 from "node:path";
 var BACKUP_MARKER = ".optiflow-backup-";
 var PRERESTORE_MARKER = ".optiflow-prerestore-";
-function resolveDefaultSettingsPath(home = homedir5()) {
-  return path9.join(home, ".claude", "settings.json");
+function resolveDefaultSettingsPath(home = homedir4()) {
+  return path8.join(home, ".claude", "settings.json");
 }
 function readSettingsFile(settingsPath) {
-  if (!existsSync7(settingsPath)) return {};
-  const raw = readFileSync6(settingsPath, "utf8");
+  if (!existsSync6(settingsPath)) return {};
+  const raw = readFileSync5(settingsPath, "utf8");
   if (raw.trim().length === 0) return {};
   let parsed;
   try {
@@ -20842,17 +20679,17 @@ function readSettingsFile(settingsPath) {
   return parsed;
 }
 function backupSettingsFile(settingsPath, nowMs, marker = BACKUP_MARKER) {
-  if (!existsSync7(settingsPath)) return null;
+  if (!existsSync6(settingsPath)) return null;
   const backupPath = `${settingsPath}${marker}${nowMs}`;
   copyFileSync(settingsPath, backupPath);
   return backupPath;
 }
 function atomicWriteFile(targetPath, contents) {
-  const dir = path9.dirname(targetPath);
+  const dir = path8.dirname(targetPath);
   mkdirSync3(dir, { recursive: true });
-  const tempPath = path9.join(
+  const tempPath = path8.join(
     dir,
-    `.${path9.basename(targetPath)}.optiflow-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.${path8.basename(targetPath)}.optiflow-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
   writeFileSync2(tempPath, contents, "utf8");
   try {
@@ -20887,12 +20724,12 @@ function removeSettingsKey(settingsPath, key, options = {}) {
   return { removed: true, backupPath };
 }
 function findLatestBackup(settingsPath) {
-  const dir = path9.dirname(settingsPath);
-  const base = path9.basename(settingsPath);
-  if (!existsSync7(dir)) return null;
+  const dir = path8.dirname(settingsPath);
+  const base = path8.basename(settingsPath);
+  if (!existsSync6(dir)) return null;
   let entries;
   try {
-    entries = readdirSync4(dir);
+    entries = readdirSync3(dir);
   } catch {
     return null;
   }
@@ -20905,7 +20742,7 @@ function findLatestBackup(settingsPath) {
     const timestampMs = Number.parseInt(suffix, 10);
     if (!Number.isFinite(timestampMs)) continue;
     if (!best || timestampMs > best.timestampMs) {
-      best = { backupPath: path9.join(dir, entry), timestampMs };
+      best = { backupPath: path8.join(dir, entry), timestampMs };
     }
   }
   return best;
@@ -20917,7 +20754,7 @@ function restoreSettingsBackup(settingsPath, options = {}) {
   }
   const nowMs = (options.now ?? /* @__PURE__ */ new Date()).getTime();
   const preRestoreBackup = backupSettingsFile(settingsPath, nowMs, PRERESTORE_MARKER);
-  const contents = readFileSync6(latest.backupPath, "utf8");
+  const contents = readFileSync5(latest.backupPath, "utf8");
   atomicWriteFile(settingsPath, contents);
   return {
     status: "restored",
@@ -20956,7 +20793,7 @@ function setOptiflowStatusLine(settingsPath, scriptPath, options = {}) {
   return { status: "written", settingsPath, backupPath };
 }
 function uninstallOptiflowStatusLine(settingsPath, options = {}) {
-  if (!existsSync7(settingsPath)) {
+  if (!existsSync6(settingsPath)) {
     return { status: "settings-file-missing", settingsPath };
   }
   const data = readSettingsFile(settingsPath);
@@ -20986,12 +20823,12 @@ function uninstallOptiflowStatusLine(settingsPath, options = {}) {
 
 // src/cli/commands/install.ts
 function defaultStatuslineScriptPath() {
-  const hereDir = path10.dirname(fileURLToPath(import.meta.url));
-  const bundledPluginRoot = path10.resolve(hereDir, "..", "..");
-  const bundledCandidate = path10.join(bundledPluginRoot, "scripts", "statusline.mjs");
-  if (existsSync8(bundledCandidate)) return bundledCandidate;
-  const devRepoRoot = path10.resolve(hereDir, "..", "..", "..");
-  return path10.join(devRepoRoot, "plugin", "scripts", "statusline.mjs");
+  const hereDir = path9.dirname(fileURLToPath(import.meta.url));
+  const bundledPluginRoot = path9.resolve(hereDir, "..", "..");
+  const bundledCandidate = path9.join(bundledPluginRoot, "scripts", "statusline.mjs");
+  if (existsSync7(bundledCandidate)) return bundledCandidate;
+  const devRepoRoot = path9.resolve(hereDir, "..", "..", "..");
+  return path9.join(devRepoRoot, "plugin", "scripts", "statusline.mjs");
 }
 function runInstallCli(options = {}) {
   const lines = [];
@@ -21002,46 +20839,6 @@ function runInstallCli(options = {}) {
   const doctorReport = runDoctor({ cwd: options.cwd, home: options.home });
   lines.push("Environment check (see `optiflow doctor` for the full report):");
   lines.push(`  Node version: ${doctorReport.node.nodeVersion}`);
-  lines.push(`  token-optimizer pin: ${doctorReport.tokenOptimizerPin.status}`);
-  lines.push(`  headroom on PATH: ${doctorReport.headroomOnPath.present ? "yes" : "no"}`);
-  lines.push("");
-  if (doctorReport.headroomWrap.wrapped && !options.allowHeadroomWrap) {
-    errLines.push(
-      "REFUSED: Claude Code appears configured to route through a headroom proxy (plan Risk R1)."
-    );
-    errLines.push(
-      "Installing optiflow's plugin/hooks alongside an active headroom-wrap configuration is unsupported and can conflict."
-    );
-    for (const signal of doctorReport.headroomWrap.signals) {
-      const parts = [];
-      if (signal.envKeysFound.length > 0) parts.push(`env keys: ${signal.envKeysFound.join(", ")}`);
-      if (signal.hookMarkersFound.length > 0) {
-        parts.push(`hook markers: ${signal.hookMarkersFound.join(", ")}`);
-      }
-      errLines.push(`  - ${signal.filePath} (${parts.join("; ")})`);
-    }
-    errLines.push(
-      "This is a configuration-level signal, not a live-process check \u2014 a dead proxy can leave it"
-    );
-    errLines.push(
-      "behind. There is no `headroom unwrap claude` command; recovery is manually removing"
-    );
-    errLines.push(
-      "env.ANTHROPIC_BASE_URL / env.ENABLE_TOOL_SEARCH and any headroom-marked hook entries from"
-    );
-    errLines.push("the settings file(s) listed above, then re-running `optiflow install`.");
-    errLines.push("To proceed anyway (not recommended), pass --allow-headroom-wrap.");
-    return {
-      stdout: `${lines.join("\n")}
-`,
-      stderr: `${errLines.join("\n")}
-`,
-      exitCode: 1
-    };
-  }
-  lines.push(
-    doctorReport.headroomWrap.wrapped ? "Headroom wrap conflict (Risk R1): detected, but proceeding anyway (--allow-headroom-wrap)." : "Headroom wrap conflict (Risk R1): none detected."
-  );
   lines.push("");
   const settingsPath = options.settingsPath ?? resolveDefaultSettingsPath(options.home);
   if (options.noStatusline) {
@@ -21096,13 +20893,12 @@ function runInstallCli(options = {}) {
 }
 function registerInstallCommand(program2) {
   program2.command("install").description(
-    "Run environment checks (refusing on a detected headroom-wrap conflict, plan Risk R1), then optionally activate optiflow's statusline in Claude Code's settings.json (opt-in via --statusline; the default touches nothing)."
-  ).option("--statusline", "activate optiflow's statusline in settings.json (backs up first)").option("--no-statusline", "explicitly skip statusline activation (same as the default, but silences the manual-setup note)").option("--force", "with --statusline, overwrite a different existing statusLine (still backs it up first)").option("--allow-headroom-wrap", "proceed even if a headroom-wrap conflict (Risk R1) is detected (not recommended)").option("--settings-path <path>", "override the Claude Code settings.json path to write into (default: ~/.claude/settings.json)").action((opts) => {
+    "Run environment checks, then optionally activate optiflow's statusline in Claude Code's settings.json (opt-in via --statusline; the default touches nothing)."
+  ).option("--statusline", "activate optiflow's statusline in settings.json (backs up first)").option("--no-statusline", "explicitly skip statusline activation (same as the default, but silences the manual-setup note)").option("--force", "with --statusline, overwrite a different existing statusLine (still backs it up first)").option("--settings-path <path>", "override the Claude Code settings.json path to write into (default: ~/.claude/settings.json)").action((opts) => {
     const result = runInstallCli({
       statusline: opts.statusline === true,
       noStatusline: opts.statusline === false,
       force: Boolean(opts.force),
-      allowHeadroomWrap: Boolean(opts.allowHeadroomWrap),
       settingsPath: opts.settingsPath
     });
     process.stdout.write(result.stdout);
@@ -21113,19 +20909,19 @@ function registerInstallCommand(program2) {
 
 // src/cli/commands/uninstall.ts
 init_paths();
-import { existsSync as existsSync9, rmSync } from "node:fs";
-import path11 from "node:path";
+import { existsSync as existsSync8, rmSync } from "node:fs";
+import path10 from "node:path";
 function purgeOptiflowData(options) {
   const removed = [];
   const projectLocalDir = getProjectLocalDir(findProjectRoot(options.cwd ?? process.cwd()));
-  if (existsSync9(projectLocalDir)) {
+  if (existsSync8(projectLocalDir)) {
     rmSync(projectLocalDir, { recursive: true, force: true });
     removed.push(projectLocalDir);
   }
   const home = getOptiflowHome();
   for (const relative of ["ledger.jsonl", "logs", "activity.json"]) {
-    const target = path11.join(home, relative);
-    if (existsSync9(target)) {
+    const target = path10.join(home, relative);
+    if (existsSync8(target)) {
       rmSync(target, { recursive: true, force: true });
       removed.push(target);
     }
@@ -21212,7 +21008,7 @@ function registerUninstallCommand(program2) {
 }
 
 // src/cli/commands/statusline.ts
-import { readFileSync as readFileSync8 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 
 // src/statusline/cli.ts
 import { pathToFileURL } from "node:url";
@@ -21320,14 +21116,14 @@ function render(input = {}, ctx = {}) {
 
 // src/statusline/io.ts
 init_paths();
-import { closeSync, existsSync as existsSync10, fstatSync, openSync, readFileSync as readFileSync7, readSync } from "node:fs";
-import path12 from "node:path";
+import { closeSync, existsSync as existsSync9, fstatSync, openSync, readFileSync as readFileSync6, readSync } from "node:fs";
+import path11 from "node:path";
 var LEDGER_TAIL_BYTES = 8192;
 var RECENT_SAVINGS_WINDOW_MS = 6 * 60 * 60 * 1e3;
 function readJsonObject2(filePath) {
   try {
-    if (!existsSync10(filePath)) return null;
-    const parsed = JSON.parse(readFileSync7(filePath, "utf8"));
+    if (!existsSync9(filePath)) return null;
+    const parsed = JSON.parse(readFileSync6(filePath, "utf8"));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
@@ -21357,8 +21153,8 @@ function readStatuslineConfig(options = {}) {
     const home = options.home ?? getOptiflowHome();
     const cwd = options.cwd ?? process.cwd();
     const projectRoot = findProjectRoot(cwd);
-    const userGlobal = readJsonObject2(path12.join(home, "config.json"));
-    const project = readJsonObject2(path12.join(projectRoot, "optiflow.config.json"));
+    const userGlobal = readJsonObject2(path11.join(home, "config.json"));
+    const project = readJsonObject2(path11.join(projectRoot, "optiflow.config.json"));
     return {
       ...coerceStatuslineSection(userGlobal?.statusline),
       ...coerceStatuslineSection(project?.statusline)
@@ -21370,9 +21166,9 @@ function readStatuslineConfig(options = {}) {
 function readActivityBeacon(options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
-    const file2 = path12.join(home, "activity.json");
-    if (!existsSync10(file2)) return null;
-    const parsed = JSON.parse(readFileSync7(file2, "utf8"));
+    const file2 = path11.join(home, "activity.json");
+    if (!existsSync9(file2)) return null;
+    const parsed = JSON.parse(readFileSync6(file2, "utf8"));
     if (!parsed || typeof parsed !== "object") return null;
     const tool = typeof parsed.tool === "string" ? parsed.tool : null;
     const timestamp = typeof parsed.timestamp === "number" ? parsed.timestamp : null;
@@ -21386,8 +21182,8 @@ function readRecentSavings(options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
     const now = options.now ?? Date.now();
-    const file2 = path12.join(home, "ledger.jsonl");
-    if (!existsSync10(file2)) return null;
+    const file2 = path11.join(home, "ledger.jsonl");
+    if (!existsSync9(file2)) return null;
     let raw;
     let position;
     const fd = openSync(file2, "r");
@@ -21464,7 +21260,7 @@ function registerStatuslineCommand(program2) {
     "Render the statusline context meter from a JSON payload (file or stdin) \u2014 useful for testing outside a live Claude Code session. See docs/statusline-manual-setup.md to activate it for real."
   ).action(async (file2) => {
     const output = await runStatusline(async () => {
-      const raw = file2 ? readFileSync8(file2, "utf8") : await readStdinText();
+      const raw = file2 ? readFileSync7(file2, "utf8") : await readStdinText();
       try {
         return JSON.parse(raw);
       } catch {
@@ -21478,10 +21274,10 @@ function registerStatuslineCommand(program2) {
 
 // src/core/ledger.ts
 init_paths();
-import { appendFileSync as appendFileSync2, existsSync as existsSync11, mkdirSync as mkdirSync4, readFileSync as readFileSync9 } from "node:fs";
-import path13 from "node:path";
+import { appendFileSync as appendFileSync2, existsSync as existsSync10, mkdirSync as mkdirSync4, readFileSync as readFileSync8 } from "node:fs";
+import path12 from "node:path";
 function ledgerPath(home) {
-  return path13.join(home, "ledger.jsonl");
+  return path12.join(home, "ledger.jsonl");
 }
 function appendLedger(record2, options = {}) {
   try {
@@ -21506,6 +21302,119 @@ var BUILTIN_TEST_RUNNERS = ["jest", "vitest", "pytest"];
 
 // src/chop/filters/generic.ts
 init_load();
+
+// src/native/smart-crusher.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync11 } from "node:fs";
+import { createRequire } from "node:module";
+import path13 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var nodeRequire = createRequire(import.meta.url);
+var WASM_MODULE_REL_SEGMENTS = ["native", "headroom-wasm", "pkg", "headroom_wasm.js"];
+var MAX_WALK_UP = 15;
+function findWasmModulePath() {
+  let dir = path13.dirname(fileURLToPath2(import.meta.url));
+  for (let i = 0; i < MAX_WALK_UP; i++) {
+    const candidate = path13.join(dir, ...WASM_MODULE_REL_SEGMENTS);
+    if (existsSync11(candidate)) return candidate;
+    const parent = path13.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+var wasmLoadAttempted = false;
+var wasmModule = null;
+function loadWasmModule() {
+  if (wasmLoadAttempted) return wasmModule;
+  wasmLoadAttempted = true;
+  try {
+    const modPath = findWasmModulePath();
+    if (!modPath) return null;
+    wasmModule = nodeRequire(modPath);
+  } catch {
+    wasmModule = null;
+  }
+  return wasmModule;
+}
+function unavailableResult(content, strategy) {
+  return { compressed: content, original: content, wasModified: false, strategy };
+}
+function compress(content, query = "", bias = 0) {
+  const mod = loadWasmModule();
+  if (!mod) {
+    return unavailableResult(content, "unavailable:wasm-module-not-loaded");
+  }
+  try {
+    const raw = mod.smart_crush(content, query, bias);
+    return JSON.parse(raw);
+  } catch {
+    return unavailableResult(content, "unavailable:wasm-call-failed");
+  }
+}
+var CCR_MARKER_RE = /<<ccr:([0-9a-f]{12})[,\s]/g;
+function extractCcrHashes(compressed) {
+  const hashes = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const match of compressed.matchAll(CCR_MARKER_RE)) {
+    const hash2 = match[1];
+    if (!seen.has(hash2)) {
+      seen.add(hash2);
+      hashes.push(hash2);
+    }
+  }
+  return hashes;
+}
+function ccrMarkerHashFor(canonicalContent) {
+  return createHash("sha256").update(canonicalContent, "utf8").digest("hex").slice(0, 12);
+}
+
+// src/native/ccr-store.ts
+init_paths();
+import { appendFileSync as appendFileSync3, existsSync as existsSync12, mkdirSync as mkdirSync5, readFileSync as readFileSync9 } from "node:fs";
+import path14 from "node:path";
+function ccrStorePath(home) {
+  return path14.join(home, "ccr-store.jsonl");
+}
+function putCcr(hash2, content, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    mkdirSync5(home, { recursive: true });
+    const record2 = {
+      hash: hash2,
+      content,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    appendFileSync3(ccrStorePath(home), JSON.stringify(record2) + "\n", "utf8");
+  } catch {
+  }
+}
+function getCcr(hash2, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    const file2 = ccrStorePath(home);
+    if (!existsSync12(file2)) return void 0;
+    const raw = readFileSync9(file2, "utf8");
+    let found;
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object" && typeof parsed.hash === "string" && typeof parsed.content === "string" && parsed.hash === hash2) {
+          found = parsed.content;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return found;
+  } catch {
+    return void 0;
+  }
+}
+
+// src/chop/filters/generic.ts
 var LOG_HEAD_LINES = 20;
 var LOG_TAIL_LINES = 10;
 var JSON_ARRAY_HEAD_ITEMS = 10;
@@ -21521,6 +21430,17 @@ function defaultToonConfig() {
     cachedDefaultToonConfig = SAFE_DISABLED_TOON_CONFIG;
   }
   return cachedDefaultToonConfig;
+}
+var SAFE_DISABLED_SMART_CRUSHER_CONFIG = { enabled: false, minSavingsPercent: 100 };
+var cachedDefaultSmartCrusherConfig = null;
+function defaultSmartCrusherConfig() {
+  if (cachedDefaultSmartCrusherConfig) return cachedDefaultSmartCrusherConfig;
+  try {
+    cachedDefaultSmartCrusherConfig = loadConfig().config.smartCrusher;
+  } catch {
+    cachedDefaultSmartCrusherConfig = SAFE_DISABLED_SMART_CRUSHER_CONFIG;
+  }
+  return cachedDefaultSmartCrusherConfig;
 }
 function truncateLogLines(text) {
   const lines = text.split("\n");
@@ -21543,7 +21463,41 @@ function truncateUniformArray(arr) {
     omitted
   };
 }
-function tryJsonFilter(text, toonConfig) {
+function trySmartCrusher(content, config2) {
+  if (!config2.enabled) return null;
+  let result;
+  try {
+    result = compress(content);
+  } catch {
+    return null;
+  }
+  if (!result.wasModified) return null;
+  const guard = evaluateGuard(content, result.compressed, Number.MAX_SAFE_INTEGER, {
+    minSavingsPercent: config2.minSavingsPercent,
+    minRows: 0
+  });
+  if (!guard.approved) return null;
+  return { text: result.compressed, strategy: result.strategy, guard };
+}
+function storeCcrMarkers(originalText, parsedTopLevelValue, compressed) {
+  const hashes = extractCcrHashes(compressed);
+  if (hashes.length === 0) return;
+  let exactCanonical = null;
+  let exactHash = null;
+  try {
+    exactCanonical = JSON.stringify(parsedTopLevelValue);
+    exactHash = ccrMarkerHashFor(exactCanonical);
+  } catch {
+  }
+  for (const hash2 of hashes) {
+    if (exactHash !== null && hash2 === exactHash && exactCanonical !== null) {
+      putCcr(hash2, exactCanonical);
+    } else {
+      putCcr(hash2, originalText);
+    }
+  }
+}
+function tryJsonFilter(text, toonConfig, smartCrusherConfig) {
   const trimmed = text.trim();
   if (trimmed.length === 0 || !(trimmed.startsWith("{") || trimmed.startsWith("["))) {
     return null;
@@ -21566,6 +21520,19 @@ function tryJsonFilter(text, toonConfig) {
         }
       };
     }
+    const smartCrusherAttempt2 = trySmartCrusher(trimmed, smartCrusherConfig);
+    if (smartCrusherAttempt2) {
+      storeCcrMarkers(trimmed, parsed, smartCrusherAttempt2.text);
+      return {
+        text: smartCrusherAttempt2.text,
+        formatHint: "uniform-json-array",
+        meta: {
+          itemCount: parsed.length,
+          toon: { applied: false, reason: toonAttempt.reason },
+          smartCrusher: { applied: true, strategy: smartCrusherAttempt2.strategy, ...smartCrusherAttempt2.guard }
+        }
+      };
+    }
     const { value, omitted } = truncateUniformArray(parsed);
     return {
       text: JSON.stringify(value, null, 2),
@@ -21573,7 +21540,19 @@ function tryJsonFilter(text, toonConfig) {
       meta: {
         itemCount: parsed.length,
         omittedItems: omitted,
-        toon: { applied: false, reason: toonAttempt.reason }
+        toon: { applied: false, reason: toonAttempt.reason },
+        smartCrusher: { applied: false }
+      }
+    };
+  }
+  const smartCrusherAttempt = trySmartCrusher(trimmed, smartCrusherConfig);
+  if (smartCrusherAttempt) {
+    storeCcrMarkers(trimmed, parsed, smartCrusherAttempt.text);
+    return {
+      text: smartCrusherAttempt.text,
+      formatHint: "json",
+      meta: {
+        smartCrusher: { applied: true, strategy: smartCrusherAttempt.strategy, ...smartCrusherAttempt.guard }
       }
     };
   }
@@ -21581,7 +21560,8 @@ function tryJsonFilter(text, toonConfig) {
 }
 function genericFilter(input, options = {}) {
   const toonConfig = options.toonConfig ?? defaultToonConfig();
-  const jsonResult = tryJsonFilter(input.stdout, toonConfig);
+  const smartCrusherConfig = options.smartCrusherConfig ?? defaultSmartCrusherConfig();
+  const jsonResult = tryJsonFilter(input.stdout, toonConfig, smartCrusherConfig);
   if (jsonResult) return jsonResult;
   const { text, truncated, omitted } = truncateLogLines(input.stdout);
   return {
@@ -22069,12 +22049,12 @@ function registerChopCommand(program2) {
 
 // src/cli/commands/init.ts
 init_defaults();
-import { existsSync as existsSync12, writeFileSync as writeFileSync3 } from "node:fs";
-import path14 from "node:path";
+import { existsSync as existsSync13, writeFileSync as writeFileSync3 } from "node:fs";
+import path15 from "node:path";
 function runInitCli(options = {}) {
   const cwd = options.cwd ?? process.cwd();
-  const configPath = path14.join(cwd, "optiflow.config.json");
-  if (existsSync12(configPath) && !options.force) {
+  const configPath = path15.join(cwd, "optiflow.config.json");
+  if (existsSync13(configPath) && !options.force) {
     return {
       wrote: false,
       path: configPath,
@@ -22098,6 +22078,42 @@ function registerInitCommand(program2) {
   });
 }
 
+// src/cli/commands/ccr-retrieve.ts
+var HASH_RE = /^[0-9a-f]{12}$/;
+function runCcrRetrieveCli(hash2, options = {}) {
+  if (!HASH_RE.test(hash2)) {
+    return {
+      stdout: "",
+      stderr: `[optiflow ccr-retrieve] "${hash2}" doesn't look like a CCR marker hash (expected 12 lowercase hex characters, e.g. the HASH in a <<ccr:HASH ...>> marker).
+`,
+      found: false
+    };
+  }
+  const content = getCcr(hash2, { home: options.home });
+  if (content === void 0) {
+    return {
+      stdout: "",
+      stderr: `[optiflow ccr-retrieve] no stored content found for hash "${hash2}". It may never have been stored (SmartCrusher wasn't wired into the path that produced it), or the CCR store file was cleared.
+`,
+      found: false
+    };
+  }
+  return { stdout: content, stderr: "", found: true };
+}
+function registerCcrRetrieveCommand(program2) {
+  program2.command("ccr-retrieve <hash>").description(
+    "Retrieve the original content a SmartCrusher <<ccr:HASH ...>> marker refers to, by its 12-character hex hash."
+  ).action((hash2) => {
+    const result = runCcrRetrieveCli(hash2);
+    if (result.found) {
+      process.stdout.write(result.stdout);
+    } else {
+      process.stderr.write(result.stderr);
+      process.exitCode = 1;
+    }
+  });
+}
+
 // src/cli/index.ts
 function buildProgram() {
   const program2 = new Command();
@@ -22113,6 +22129,7 @@ function buildProgram() {
   registerStatuslineCommand(program2);
   registerChopCommand(program2);
   registerInitCommand(program2);
+  registerCcrRetrieveCommand(program2);
   return program2;
 }
 buildProgram().parseAsync(process.argv).catch((err) => {
