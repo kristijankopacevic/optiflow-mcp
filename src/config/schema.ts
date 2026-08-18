@@ -66,6 +66,16 @@ export const TelemetrySchema = z.object({
   enabled: z.boolean().default(DEFAULT_CONFIG.telemetry.enabled),
 });
 
+// Phase 4 addition (v2 plan, "Kompress ONNX port"), same additive-config
+// precedent as every other section here. `enabled`/`allowDownload` both
+// default to `false` — see `src/config/defaults.ts`'s doc comment on
+// `kompress` for why (opt-in, never-implicit-network heavy feature).
+export const KompressSchema = z.object({
+  enabled: z.boolean().default(DEFAULT_CONFIG.kompress.enabled),
+  allowDownload: z.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
+  variant: z.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant),
+});
+
 export const OptiflowConfigSchema = z.object({
   engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -74,6 +84,7 @@ export const OptiflowConfigSchema = z.object({
   handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
+  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
 });
 
 export type OptiflowConfig = z.infer<typeof OptiflowConfigSchema>;

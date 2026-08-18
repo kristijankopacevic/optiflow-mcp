@@ -83,6 +83,33 @@ export interface DefaultConfigShape {
   telemetry: {
     enabled: boolean;
   };
+  /**
+   * Phase 4 addition (v2 plan, "Kompress ONNX port"), following the same
+   * additive-config precedent as `chop.minOutputBytes`/`toon.minRows`/
+   * `handoff.keep`. Opt-in and graceful-degrading by design (matches this
+   * codebase's existing pattern for optional heavy dependencies): the
+   * ~274MB ONNX model is never bundled and never downloaded implicitly —
+   * both `enabled` and `allowDownload` default to `false`, so a project
+   * that never mentions `kompress` in its config gets zero network access
+   * and zero behavior change from this feature existing.
+   */
+  kompress: {
+    enabled: boolean;
+    /**
+     * Must be explicitly `true` for `src/native/kompress-model.ts`'s
+     * `ensureModelDownloaded` to fetch the model on a cache miss. A cache
+     * miss with this `false` (the default) degrades gracefully instead of
+     * downloading — see `src/native/kompress.ts`'s `compressWithKompress`.
+     */
+    allowDownload: boolean;
+    /**
+     * Which published ONNX artifact to use: `"int8"` (weight-only int8,
+     * ~274MB — the default; see `kompress-model.ts`'s module doc comment
+     * for the accuracy/size tradeoff this is based on) or `"fp32"` (~601MB
+     * lossless reference).
+     */
+    variant: "int8" | "fp32";
+  };
 }
 
 export const DEFAULT_CONFIG: DefaultConfigShape = {
@@ -137,5 +164,10 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
   },
   telemetry: {
     enabled: false,
+  },
+  kompress: {
+    enabled: false,
+    allowDownload: false,
+    variant: "int8",
   },
 };
