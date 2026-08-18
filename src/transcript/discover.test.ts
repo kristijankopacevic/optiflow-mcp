@@ -38,8 +38,16 @@ describe("getClaudeProjectsDir", () => {
 
 describe("discoverCurrentProjectFiles", () => {
   it("finds .jsonl files directly under the slug directory for the given cwd", () => {
+    // discoverCurrentProjectFiles slugifies path.resolve(cwd), not cwd
+    // itself (see discover.ts) — on POSIX, path.resolve() on a Windows-style
+    // literal like "C:\Users\..." does NOT leave it unchanged (backslashes
+    // aren't separators there), so the expected slug must go through the
+    // identical path.resolve() step the real function uses, or this test
+    // only passes by coincidence on Windows and fails in Linux CI (as it did
+    // the first time this was published: expected 2 files, got 0, because
+    // the test's own slug and the function's internal slug diverged).
     const cwd = "C:\\Users\\Kristijan\\Documents\\GitHub\\optiflow-mcp";
-    const slug = slugifyPath(cwd);
+    const slug = slugifyPath(path.resolve(cwd));
     const slugDir = path.join(projectsDir, slug);
     mkdirSync(slugDir, { recursive: true });
     writeFileSync(path.join(slugDir, "session-a.jsonl"), "{}\n", "utf8");
