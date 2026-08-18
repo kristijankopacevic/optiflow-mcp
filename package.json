@@ -13,8 +13,7 @@
     "build": "node esbuild.config.mjs",
     "build:wasm": "wasm-pack build --target nodejs native/headroom-wasm && node -e \"require('fs').rmSync('native/headroom-wasm/pkg/.gitignore',{force:true})\"",
     "test": "vitest run",
-    "lint": "tsc --noEmit",
-    "verify-upstream": "node scripts/verify-upstream-invariants.mjs"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@babel/parser": "^7.29.8",

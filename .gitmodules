@@ -1,8 +1,0 @@
-[submodule "vendor/token-optimizer-mcp"]
-	path = vendor/token-optimizer-mcp
-	url = https://github.com/kristijankopacevic/token-optimizer-mcp.git
-	branch = master
-[submodule "vendor/headroom"]
-	path = vendor/headroom
-	url = https://github.com/kristijankopacevic/headroom.git
-	branch = main

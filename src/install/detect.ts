@@ -1,20 +1,21 @@
 // Environment probes for `optiflow doctor`.
 //
-// Deliberately does NOT shell out to
-// `npx -y @ooples/token-optimizer-mcp@<version> --version` to detect the
-// package: ADR 0001 (docs/ADR/0001-provenance-only-submodules.md) already
-// proved that neither `--version` nor `--help` is handled by that package —
-// it ignores the flag and starts its stdio MCP server instead, so probing it
-// that way would hang waiting on stdin. The pin-vs-vendored check below
-// instead just compares the configured version string against
-// vendor/token-optimizer-mcp/package.json's real `version` field.
+// v2 cleanup: this file used to also probe token-optimizer-mcp's vendored
+// submodule (pin-vs-vendored version comparison), scan it for an
+// `updatedInput` regression (plan Risk R9), check for a separate `headroom`
+// binary on PATH, and refuse to install on a detected headroom-wrap
+// conflict (plan Risk R1). All four are gone (not "kept but broken") as of
+// v2's real merge (docs/ADR/0002-real-merge-not-orchestration.md):
+// token-optimizer-mcp's source is copied into src/optimizer/ (no version
+// pin, no vendored submodule to drift), the R9 invariant is now a real unit
+// test (src/chop/bash-hook-field-disjointness.test.ts) run against this
+// repo's own two hooks instead of scanning a vendored one, and headroom's
+// compression runs in-process via WASM/TS ports — there is no separate
+// `headroom` binary or proxy this plugin invokes anymore, so a user's own,
+// independently-wrapped headroom proxy (if any) has nothing of ours to
+// conflict with.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { homedir } from "node:os";
-import path from "node:path";
-import type { OptiflowConfig } from "../config/schema.js";
-import { findProjectRoot } from "../core/paths.js";
 
 export interface CommandProbeResult {
   ok: boolean;
@@ -74,17 +75,6 @@ export function detectNodeEnv(): NodeEnvInfo {
   };
 }
 
-export interface HeadroomPathInfo {
-  present: boolean;
-}
-
-/** Whether `headroom` is resolvable on PATH (cross-platform which/where). */
-export function detectHeadroomOnPath(): HeadroomPathInfo {
-  const finder = process.platform === "win32" ? "where" : "which";
-  const probe = runCommand(finder, ["headroom"], 5000);
-  return { present: probe.ok && probe.stdout.trim().length > 0 };
-}
-
 export interface GhAuthInfo {
   present: boolean;
   /** "unknown" when the probe timed out rather than definitively failing. */
@@ -103,232 +93,4 @@ export function detectGhAuth(): GhAuthInfo {
     return { present: true, authenticated: "unknown" };
   }
   return { present: true, authenticated: authProbe.ok };
-}
-
-export type TokenOptimizerPinStatus = "match" | "mismatch" | "unknown";
-
-export interface TokenOptimizerPinInfo {
-  expectedVersion: string;
-  vendoredVersion: string | null;
-  vendorPackageJsonPath: string;
-  status: TokenOptimizerPinStatus;
-}
-
-/**
- * Compares `config.engines.tokenOptimizer.version` against the version
- * actually recorded in the vendored submodule's package.json. "unknown"
- * (not "mismatch") when the submodule isn't present/initialized — this is
- * expected for anyone who installed the plugin without cloning optiflow's
- * own repo with submodules, and isn't itself an error.
- */
-export function detectTokenOptimizerPin(
-  config: OptiflowConfig,
-  options: { cwd?: string } = {}
-): TokenOptimizerPinInfo {
-  const expectedVersion = config.engines.tokenOptimizer.version;
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const vendorPackageJsonPath = path.join(
-    projectRoot,
-    "vendor",
-    "token-optimizer-mcp",
-    "package.json"
-  );
-
-  if (!existsSync(vendorPackageJsonPath)) {
-    return {
-      expectedVersion,
-      vendoredVersion: null,
-      vendorPackageJsonPath,
-      status: "unknown",
-    };
-  }
-
-  try {
-    const raw = readFileSync(vendorPackageJsonPath, "utf8");
-    const parsed = JSON.parse(raw);
-    const vendoredVersion =
-      typeof parsed?.version === "string" ? parsed.version : null;
-    return {
-      expectedVersion,
-      vendoredVersion,
-      vendorPackageJsonPath,
-      status:
-        vendoredVersion === null
-          ? "unknown"
-          : vendoredVersion === expectedVersion
-            ? "match"
-            : "mismatch",
-    };
-  } catch {
-    return {
-      expectedVersion,
-      vendoredVersion: null,
-      vendorPackageJsonPath,
-      status: "unknown",
-    };
-  }
-}
-
-export type UpstreamInvariantStatus = "ok" | "violated" | "unknown";
-
-export interface UpstreamInvariantInfo {
-  status: UpstreamInvariantStatus;
-  /** Files under vendor/token-optimizer-mcp/plugin/hooks/ found to contain "updatedInput", if any. */
-  offendingFiles: string[];
-  vendorHooksDir: string;
-}
-
-function collectHookSourceFiles(dir: string): string[] {
-  const out: string[] = [];
-  if (!existsSync(dir)) return out;
-  for (const entry of readdirSyncSafe(dir)) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...collectHookSourceFiles(full));
-    } else if (entry.isFile() && (entry.name.endsWith(".mjs") || entry.name.endsWith(".js"))) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-function readdirSyncSafe(dir: string): import("node:fs").Dirent[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-
-/**
- * The same check `scripts/verify-upstream-invariants.mjs` runs standalone in
- * CI (see that file for the full rationale), surfaced in `optiflow doctor`
- * too, per the plan's "must run in CI and in optiflow doctor." Deliberately
- * duplicated rather than shared: the standalone script must stay
- * dependency-free and buildable-free (runnable via plain `node
- * scripts/...mjs` with no `npm run build` first), matching the same
- * standalone-vs-bundled tradeoff `src/statusline/io.ts` already made for its
- * own config reader.
- */
-export function detectUpstreamInvariant(options: { cwd?: string } = {}): UpstreamInvariantInfo {
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const vendorHooksDir = path.join(projectRoot, "vendor", "token-optimizer-mcp", "plugin", "hooks");
-
-  if (!existsSync(vendorHooksDir)) {
-    return { status: "unknown", offendingFiles: [], vendorHooksDir };
-  }
-
-  const offendingFiles: string[] = [];
-  for (const file of collectHookSourceFiles(vendorHooksDir)) {
-    try {
-      if (readFileSync(file, "utf8").includes("updatedInput")) {
-        offendingFiles.push(path.relative(projectRoot, file));
-      }
-    } catch {
-      // Unreadable file: not this check's job to report I/O errors, skip it.
-    }
-  }
-
-  return {
-    status: offendingFiles.length > 0 ? "violated" : "ok",
-    offendingFiles,
-    vendorHooksDir,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// headroom-wrap conflict detection (plan Risk R1).
-// ---------------------------------------------------------------------------
-//
-// Researched from vendor/headroom directly (headroom/cli/wrap.py,
-// wiki/persistent-installs.md, wiki/cli.md) rather than guessed:
-//
-//   - `headroom wrap claude` and `headroom install apply --target claude`
-//     both durably write `env.ANTHROPIC_BASE_URL` (and `env.ENABLE_TOOL_SEARCH`)
-//     into Claude Code's settings.json so that daemon-spawned conversations
-//     inherit the proxy (see vendor/headroom CHANGELOG: "write
-//     env.ANTHROPIC_BASE_URL to settings.json so daemon-spawned conversations
-//     inherit proxy").
-//   - headroom also installs hooks marked with the literal strings
-//     `headroom-init-claude` and `headroom-wrap-selfheal`
-//     (vendor/headroom/headroom/cli/wrap.py: `_HEADROOM_HOOK_MARKERS`,
-//     `_WRAP_SELFHEAL_HOOK_MARKER`) so it can find/remove them again.
-//
-// LIMITATION (documented, not glossed over): this is a configuration-level
-// signal, not a live-process check. `env.ANTHROPIC_BASE_URL` can be left
-// behind by a crashed/dead proxy (vendor/headroom's own CHANGELOG has two
-// separate fixes titled "detect and clear stale ANTHROPIC_BASE_URL" and
-// "self-heal a stale ANTHROPIC_BASE_URL left by a dead proxy"), so a positive
-// result here means "Claude Code is currently configured to route through a
-// headroom proxy," not "a headroom proxy is currently running." optiflow
-// doctor reports it as exactly that — a configuration warning — and does not
-// attempt to probe whether the proxy is actually alive (no reliable
-// cross-platform signal for that was found in vendor/headroom's docs).
-// There is also no `headroom unwrap claude` command (only `headroom unwrap
-// openclaw` exists per vendor/headroom/wiki/cli.md) — recovery is manual
-// removal of the env keys/hook entries below.
-
-const HEADROOM_ENV_KEYS = ["ANTHROPIC_BASE_URL", "ENABLE_TOOL_SEARCH"] as const;
-const HEADROOM_HOOK_MARKERS = ["headroom-init-claude", "headroom-wrap-selfheal"] as const;
-
-export interface HeadroomWrapSignal {
-  filePath: string;
-  envKeysFound: string[];
-  hookMarkersFound: string[];
-}
-
-export interface HeadroomWrapInfo {
-  wrapped: boolean;
-  signals: HeadroomWrapSignal[];
-}
-
-function inspectClaudeSettingsFile(filePath: string): HeadroomWrapSignal | null {
-  if (!existsSync(filePath)) return null;
-  try {
-    const raw = readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw);
-    const env =
-      parsed && typeof parsed === "object" && parsed.env && typeof parsed.env === "object"
-        ? (parsed.env as Record<string, unknown>)
-        : {};
-    const envKeysFound = HEADROOM_ENV_KEYS.filter(
-      (key) => env[key] !== undefined && env[key] !== null && env[key] !== ""
-    );
-
-    // Cheap and robust: search the whole serialized settings file for the
-    // marker strings rather than hand-modeling Claude Code's hooks schema.
-    const wholeFile = JSON.stringify(parsed);
-    const hookMarkersFound = HEADROOM_HOOK_MARKERS.filter((marker) =>
-      wholeFile.includes(marker)
-    );
-
-    if (envKeysFound.length === 0 && hookMarkersFound.length === 0) return null;
-    return { filePath, envKeysFound, hookMarkersFound };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Checks user-global and project-level Claude Code settings files for signs
- * that `headroom wrap`/`headroom install apply` has durably configured
- * Claude Code to route through a headroom proxy. Best-effort — see the
- * limitation note above the interfaces in this section.
- */
-export function detectHeadroomWrap(
-  options: { cwd?: string; home?: string } = {}
-): HeadroomWrapInfo {
-  const projectRoot = findProjectRoot(options.cwd ?? process.cwd());
-  const home = options.home ?? homedir();
-  const candidatePaths = [
-    path.join(home, ".claude", "settings.json"),
-    path.join(projectRoot, ".claude", "settings.json"),
-    path.join(projectRoot, ".claude", "settings.local.json"),
-  ];
-
-  const signals = candidatePaths
-    .map(inspectClaudeSettingsFile)
-    .filter((signal): signal is HeadroomWrapSignal => signal !== null);
-
-  return { wrapped: signals.length > 0, signals };
 }

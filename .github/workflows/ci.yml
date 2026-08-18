@@ -10,11 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Both upstream projects are vendored as provenance-only git
-          # submodules (see docs/architecture.md) — needed for
-          # scripts/verify-upstream-invariants.mjs below.
-          submodules: recursive
 
       - uses: actions/setup-node@v4
         with:
@@ -41,7 +36,3 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      # Module 1's chop hook shares the Bash PreToolUse event with
-      # vendor/token-optimizer-mcp's own hook; this fails the build the
-      # moment that upstream invariant stops holding (plan Risk R9).
-      - run: npm run verify-upstream

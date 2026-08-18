@@ -123,38 +123,3 @@ describe("runInstallCli — --no-statusline", () => {
   });
 });
 
-describe("runInstallCli — headroom-wrap refusal (Risk R1)", () => {
-  it("refuses when detect.ts's headroom-wrap signal fires, without writing anything", () => {
-    writeExistingSettings({ env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:1234" } });
-
-    const result = runInstallCli({
-      cwd,
-      home,
-      settingsPath: settingsPath(),
-      statusline: true,
-      scriptPath: "/abs/plugin/scripts/statusline.mjs",
-    });
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/REFUSED/);
-    expect(result.stderr).toMatch(/Risk R1/);
-    // Nothing was written — statusLine was never even attempted.
-    expect(readSettingsFile(settingsPath()).statusLine).toBeUndefined();
-  });
-
-  it("proceeds when --allow-headroom-wrap is passed", () => {
-    writeExistingSettings({ env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:1234" } });
-
-    const result = runInstallCli({
-      cwd,
-      home,
-      settingsPath: settingsPath(),
-      statusline: true,
-      allowHeadroomWrap: true,
-      scriptPath: "/abs/plugin/scripts/statusline.mjs",
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(readSettingsFile(settingsPath()).statusLine).toBeDefined();
-  });
-});

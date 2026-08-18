@@ -1,31 +1,20 @@
 // Composes install/detect.ts probes into a human-readable environment
-// report. This module only *reports* — refusing to proceed on a
-// headroom-wrap conflict (plan Risk R1) is `install.ts`'s job in a later
-// phase, not doctor's.
+// report.
+//
+// v2 cleanup: this used to also report a token-optimizer version-pin-vs-
+// vendored-submodule check, an "upstream invariant" scan (plan Risk R9),
+// headroom-on-PATH presence, and a headroom-wrap conflict warning (plan
+// Risk R1). All four are gone as of v2's real merge — see detect.ts's own
+// header for exactly why each one no longer applies. `optiflow doctor` is
+// intentionally shorter now, not less thorough: there is genuinely less to
+// check once there's no separate vendored process or binary in the picture.
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
-import {
-  detectGhAuth,
-  detectHeadroomOnPath,
-  detectHeadroomWrap,
-  detectNodeEnv,
-  detectTokenOptimizerPin,
-  detectUpstreamInvariant,
-  type GhAuthInfo,
-  type HeadroomPathInfo,
-  type HeadroomWrapInfo,
-  type NodeEnvInfo,
-  type TokenOptimizerPinInfo,
-  type UpstreamInvariantInfo,
-} from "./detect.js";
+import { detectGhAuth, detectNodeEnv, type GhAuthInfo, type NodeEnvInfo } from "./detect.js";
 
 export interface DoctorReport {
   node: NodeEnvInfo;
   configLoad: LoadedConfig;
-  tokenOptimizerPin: TokenOptimizerPinInfo;
-  upstreamInvariant: UpstreamInvariantInfo;
-  headroomOnPath: HeadroomPathInfo;
-  headroomWrap: HeadroomWrapInfo;
   gh: GhAuthInfo;
 }
 
@@ -39,12 +28,6 @@ export function runDoctor(options: RunDoctorOptions = {}): DoctorReport {
   return {
     node: detectNodeEnv(),
     configLoad,
-    tokenOptimizerPin: detectTokenOptimizerPin(configLoad.config, {
-      cwd: options.cwd,
-    }),
-    upstreamInvariant: detectUpstreamInvariant({ cwd: options.cwd }),
-    headroomOnPath: detectHeadroomOnPath(),
-    headroomWrap: detectHeadroomWrap({ cwd: options.cwd, home: options.home }),
     gh: detectGhAuth(),
   };
 }
@@ -96,66 +79,6 @@ export function renderDoctorReport(report: DoctorReport): string {
   lines.push(
     statusLine("chop.enabled (resolved)", String(report.configLoad.config.chop.enabled))
   );
-  lines.push("");
-
-  lines.push("token-optimizer-mcp");
-  lines.push(statusLine("Configured pin", report.tokenOptimizerPin.expectedVersion));
-  const pinStatusLabel =
-    report.tokenOptimizerPin.status === "match"
-      ? `match (vendored: ${report.tokenOptimizerPin.vendoredVersion})`
-      : report.tokenOptimizerPin.status === "mismatch"
-        ? `MISMATCH (vendored: ${report.tokenOptimizerPin.vendoredVersion})`
-        : "unknown (vendor/token-optimizer-mcp/package.json not found — submodule not initialized?)";
-  lines.push(statusLine("Vendored submodule pin", pinStatusLabel));
-  const invariantLabel =
-    report.upstreamInvariant.status === "ok"
-      ? "ok — never emits updatedInput (Module 1's load-bearing assumption holds)"
-      : report.upstreamInvariant.status === "violated"
-        ? `VIOLATED — found in: ${report.upstreamInvariant.offendingFiles.join(", ")} (see scripts/verify-upstream-invariants.mjs)`
-        : "unknown (submodule not initialized)";
-  lines.push(statusLine("Upstream invariant (Risk R9)", invariantLabel));
-  lines.push("");
-
-  lines.push("headroom");
-  lines.push(
-    statusLine(
-      "On PATH",
-      report.headroomOnPath.present ? "yes" : "no (optional — features degrade gracefully)"
-    )
-  );
-  if (report.headroomWrap.wrapped) {
-    lines.push(
-      statusLine(
-        "Wrap conflict (Risk R1)",
-        "WARNING — Claude Code appears configured to route through a headroom proxy"
-      )
-    );
-    for (const signal of report.headroomWrap.signals) {
-      const parts: string[] = [];
-      if (signal.envKeysFound.length > 0) {
-        parts.push(`env keys: ${signal.envKeysFound.join(", ")}`);
-      }
-      if (signal.hookMarkersFound.length > 0) {
-        parts.push(`hook markers: ${signal.hookMarkersFound.join(", ")}`);
-      }
-      lines.push(`      - ${signal.filePath} (${parts.join("; ")})`);
-    }
-    lines.push(
-      "      This is a configuration-level signal, not a live-process check — a"
-    );
-    lines.push(
-      "      dead proxy can leave this behind. There is no `headroom unwrap claude`"
-    );
-    lines.push(
-      "      command; recovery is manually removing env.ANTHROPIC_BASE_URL /"
-    );
-    lines.push(
-      "      env.ENABLE_TOOL_SEARCH and any headroom-marked hook entries from the"
-    );
-    lines.push("      settings file(s) listed above.");
-  } else {
-    lines.push(statusLine("Wrap conflict (Risk R1)", "none detected"));
-  }
   lines.push("");
 
   lines.push("GitHub CLI");
