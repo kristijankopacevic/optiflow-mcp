@@ -124,6 +124,18 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "smart_imports",
         "smart_exports",
         "smart_symbols",
+        // advanced-caching (all 10 real tools wired, zero deferrals -- see
+        // src/optimizer/tools/advanced-caching/index.ts's header)
+        "smart_cache",
+        "predictive_cache",
+        "cache_warmup",
+        "cache_analytics",
+        "cache_benchmark",
+        "cache_compression",
+        "cache_invalidation",
+        "cache_optimizer",
+        "cache_partition",
+        "cache_replication",
       ].sort()
     );
   });
@@ -950,6 +962,199 @@ export interface Foo { a: number; }
     expect(iface.kind).toBe("interface");
     expect(iface.exported).toBe(true);
   });
+});
+
+describe("advanced-caching tools (real end-to-end)", () => {
+  // NOTE ON TIMER SAFETY: `cache_replication` and `cache_invalidation`'s
+  // shared instances start real background timers from their OWN
+  // constructors (see tools/advanced-caching/index.ts's header for the
+  // real defect this checkpoint found and fixed: those timers are now
+  // `.unref()`'d so they never block this file's own process exit). This
+  // block additionally avoids `cache_warmup`'s `operation: 'schedule'` and
+  // `cache_replication`'s `operation: 'sync'`/`'configure'` (auto-sync-
+  // triggering) on purpose -- not because they'd hang after the fix, but to
+  // keep this suite free of any reliance on background timing at all.
+
+  it("smart_cache set/get round-trips a real value through a real cache-hit, and a never-set key misses gracefully (not a crash)", async () => {
+    const key = `advanced-caching-test-${Date.now()}`;
+
+    // Cache miss: nothing has been set for this key yet.
+    const missResult = await runtime.registry.smart_cache({
+      operation: "get",
+      key,
+    });
+    expect(missResult.isError).toBeFalsy();
+    const missParsed = JSON.parse(missResult.content[0].text);
+    expect(missParsed.success).toBe(true);
+    expect(missParsed.data.value).toBeUndefined();
+
+    // Real write (default writeMode is 'write-through', so this goes
+    // straight to the shared CacheEngine with no background timer involved).
+    const setResult = await runtime.registry.smart_cache({
+      operation: "set",
+      key,
+      value: "hello from advanced-caching",
+    });
+    expect(setResult.isError).toBeFalsy();
+    const setParsed = JSON.parse(setResult.content[0].text);
+    expect(setParsed.success).toBe(true);
+    expect(setParsed.data.metadata.tier).toBe("L1");
+
+    // Cache hit: the exact value just written comes back from L1.
+    const hitResult = await runtime.registry.smart_cache({
+      operation: "get",
+      key,
+    });
+    expect(hitResult.isError).toBeFalsy();
+    const hitParsed = JSON.parse(hitResult.content[0].text);
+    expect(hitParsed.success).toBe(true);
+    expect(hitParsed.data.value).toBe("hello from advanced-caching");
+    expect(hitParsed.data.metadata.hits).toBeGreaterThanOrEqual(1);
+  });
+
+  it("cache_compression compresses then decompresses real repetitive text back to byte-identical content", async () => {
+    // Long and highly repetitive so gzip's own header/frame overhead can't
+    // dominate the result -- a short string can legitimately come back
+    // LARGER after compression, which would be a real (if surprising)
+    // result, not a bug; this input avoids that ambiguity.
+    const original = "hello world ".repeat(500);
+
+    const compressResult = await runtime.registry.cache_compression({
+      operation: "compress",
+      data: original,
+      algorithm: "gzip",
+    });
+    expect(compressResult.isError).toBeFalsy();
+    const compressParsed = JSON.parse(compressResult.content[0].text);
+    expect(compressParsed.success).toBe(true);
+    // JSON round-trips a Buffer as { type: "Buffer", data: number[] }.
+    const compressedBuffer = Buffer.from(compressParsed.data.compressed.data);
+    // Real compression on real repetitive text should shrink it.
+    expect(compressedBuffer.length).toBeLessThan(Buffer.byteLength(original));
+
+    const decompressResult = await runtime.registry.cache_compression({
+      operation: "decompress",
+      data: compressedBuffer,
+    });
+    expect(decompressResult.isError).toBeFalsy();
+    const decompressParsed = JSON.parse(decompressResult.content[0].text);
+    expect(decompressParsed.success).toBe(true);
+    // Same Buffer-through-JSON reconstruction as `compressedBuffer` above.
+    const decompressedBuffer = Buffer.from(decompressParsed.data.decompressed.data);
+    expect(decompressedBuffer.toString("utf-8")).toBe(original);
+  });
+
+  it("predictive_cache records a real access then retrieves it via get-patterns", async () => {
+    const key = "hot-file.ts";
+
+    const recordResult = await runtime.registry.predictive_cache({
+      operation: "record-access",
+      key,
+    });
+    expect(recordResult.isError).toBeFalsy();
+    expect(JSON.parse(recordResult.content[0].text).success).toBe(true);
+
+    const patternsResult = await runtime.registry.predictive_cache({
+      operation: "get-patterns",
+      key,
+    });
+    expect(patternsResult.isError).toBeFalsy();
+    const parsed = JSON.parse(patternsResult.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.patterns.length).toBeGreaterThan(0);
+    expect(parsed.data.patterns[0].key).toBe(key);
+  });
+
+  it("cache_analytics dashboard degrades gracefully (real synthetic-free structure, not a crash) with zero prior activity", async () => {
+    const result = await runtime.registry.cache_analytics({
+      operation: "dashboard",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.dashboard.performance).toBeTruthy();
+    expect(parsed.data.dashboard.health).toBeTruthy();
+  });
+
+  it("cache_invalidation invalidates a key that was never cached without crashing (graceful miss)", async () => {
+    const result = await runtime.registry.cache_invalidation({
+      operation: "invalidate",
+      key: `never-cached-${Date.now()}`,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.invalidatedKeys)).toBe(true);
+  });
+
+  it("cache_optimizer analyze() returns real synthetic metrics (documented fallback, not a crash) with no access history yet", async () => {
+    const result = await runtime.registry.cache_optimizer({
+      operation: "analyze",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.metrics).toBeTruthy();
+    expect(typeof parsed.data.metrics.hitRate).toBe("number");
+  });
+
+  it("cache_partition creates a real partition then lists it back", async () => {
+    const partitionId = `partition-${Date.now()}`;
+
+    const createResult = await runtime.registry.cache_partition({
+      operation: "create-partition",
+      partitionId,
+      strategy: "hash",
+    });
+    expect(createResult.isError).toBeFalsy();
+    expect(JSON.parse(createResult.content[0].text).success).toBe(true);
+
+    const listResult = await runtime.registry.cache_partition({
+      operation: "list-partitions",
+    });
+    expect(listResult.isError).toBeFalsy();
+    const parsed = JSON.parse(listResult.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(
+      parsed.data.partitions.some((p: any) => p.id === partitionId)
+    ).toBe(true);
+  });
+
+  it("cache_replication reports real node status without ever starting a live sync (no network, single simulated primary node)", async () => {
+    const result = await runtime.registry.cache_replication({
+      operation: "status",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.nodes)).toBe(true);
+    expect(parsed.data.nodes.length).toBeGreaterThanOrEqual(1);
+    expect(parsed.data.nodes[0].health).toBe("healthy");
+  });
+
+  it("cache_warmup immediate dry-run simulates warming real keys without requiring a live data fetcher", async () => {
+    const result = await runtime.registry.cache_warmup({
+      operation: "immediate",
+      keys: ["a", "b", "c"],
+      dryRun: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.simulation).toBeTruthy();
+  });
+
+  it("cache_benchmark runs a real (short, single-worker) latency test against the shared cache", async () => {
+    const result = await runtime.registry.cache_benchmark({
+      operation: "latency-test",
+      config: { name: "test", strategy: "LRU", ttl: 60 },
+      workload: { type: "read-heavy", duration: 1, concurrency: 1, keyCount: 20 },
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(typeof parsed.latencyDistribution.mean).toBe("number");
+  }, 10000);
 });
 
 describe("createOptimizerServer()", () => {

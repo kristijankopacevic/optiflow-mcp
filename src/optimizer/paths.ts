@@ -68,3 +68,21 @@ export function getOptimizerProjectsJsonlPath(): string {
 export function getOptimizerBackupsDir(): string {
   return path.join(getOptimizerHome(), "backups");
 }
+
+/**
+ * Replaces `advanced-caching/cache-benchmark.ts`'s own hardcoded
+ * `join(homedir(), '.hypercontext', 'reports')` default output directory for
+ * its `report` operation (a genuinely new persistence need this category
+ * introduces -- no earlier checkpoint's tool wrote a report file to a
+ * default, caller-independent location). Unlike every other helper in this
+ * file, vendor's own default path here was never `mkdirSync`-created before
+ * the `writeFileSync` call that uses it -- a real, pre-existing vendor gap
+ * that only surfaces on a clean machine with no prior `.hypercontext`
+ * directory. Callers using this default path (as opposed to an
+ * explicit `outputPath` option) must create this directory first; this
+ * function only resolves the path, matching every other helper's "no I/O"
+ * convention here.
+ */
+export function getOptimizerReportsDir(): string {
+  return path.join(getOptimizerHome(), "reports");
+}

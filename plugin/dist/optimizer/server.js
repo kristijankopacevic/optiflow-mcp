@@ -424,11 +424,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
+          this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -445,10 +445,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
+        this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -509,8 +509,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
+      optimizeNames(names, constants2) {
+        this.code = optimizeExpr(this.code, names, constants2);
         return this;
       }
       get names() {
@@ -539,12 +539,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n7 = nodes[i];
-          if (n7.optimizeNames(names, constants))
+          if (n7.optimizeNames(names, constants2))
             continue;
           subtractNames(names, n7.names);
           nodes.splice(i, 1);
@@ -597,12 +597,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        if (!(super.optimizeNames(names, constants2) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants);
+        this.condition = optimizeExpr(this.condition, names, constants2);
         return this;
       }
       get names() {
@@ -625,10 +625,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
+        this.iteration = optimizeExpr(this.iteration, names, constants2);
         return this;
       }
       get names() {
@@ -664,10 +664,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
+        this.iterable = optimizeExpr(this.iterable, names, constants2);
         return this;
       }
       get names() {
@@ -709,11 +709,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a3, _b;
-        super.optimizeNames(names, constants);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
+        super.optimizeNames(names, constants2);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants2);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants2);
         return this;
       }
       get names() {
@@ -1014,7 +1014,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants) {
+    function optimizeExpr(expr, names, constants2) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1029,14 +1029,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n7) {
-        const c2 = constants[n7.str];
+        const c2 = constants2[n7.str];
         if (c2 === void 0 || names[n7.str] !== 1)
           return n7;
         delete names[n7.str];
         return c2;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c2) => c2 instanceof code_1.Name && names[c2.str] === 1 && constants[c2.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c2) => c2 instanceof code_1.Name && names[c2.str] === 1 && constants2[c2.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -7545,6 +7545,9 @@ function getOptimizerCacheDir() {
 }
 function getOptimizerBackupsDir() {
   return path2.join(getOptimizerHome(), "backups");
+}
+function getOptimizerReportsDir() {
+  return path2.join(getOptimizerHome(), "reports");
 }
 var init_paths2 = __esm({
   "src/optimizer/paths.ts"() {
@@ -82604,13 +82607,11543 @@ var SMART_SYMBOLS_TOOL_DEFINITION = {
   }
 };
 
+// src/optimizer/tools/advanced-caching/cache-analytics.ts
+import { EventEmitter as EventEmitter2 } from "events";
+import { writeFileSync as writeFileSync4 } from "fs";
+var CacheAnalyticsTool = class extends EventEmitter2 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Configuration
+  alertConfigs = /* @__PURE__ */ new Map();
+  historicalData = /* @__PURE__ */ new Map();
+  maxHistoricalEntries = 1e3;
+  // Time-series data for trends
+  timeSeriesData = /* @__PURE__ */ new Map();
+  // Key access tracking
+  keyAccessLog = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.initializeDefaults();
+  }
+  /**
+   * Initialize default alert configurations
+   */
+  initializeDefaults() {
+    this.alertConfigs.set("high-error-rate", {
+      metric: "errorRate",
+      condition: "gt",
+      threshold: 5,
+      severity: "critical",
+      enabled: true
+    });
+    this.alertConfigs.set("low-hit-rate", {
+      metric: "hitRate",
+      condition: "lt",
+      threshold: 70,
+      severity: "warning",
+      enabled: true
+    });
+    this.alertConfigs.set("high-latency", {
+      metric: "latencyP95",
+      condition: "gt",
+      threshold: 100,
+      severity: "warning",
+      enabled: true
+    });
+    this.alertConfigs.set("memory-pressure", {
+      metric: "memoryUtilization",
+      condition: "gt",
+      threshold: 80,
+      severity: "warning",
+      enabled: true
+    });
+  }
+  /**
+   * Main entry point for cache analytics operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `cache-analytics:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        try {
+          const data2 = JSON.parse(cached2);
+          const tokensSaved = this.tokenCounter.count(
+            JSON.stringify(data2)
+          ).tokens;
+          return {
+            success: true,
+            operation,
+            data: data2,
+            metadata: {
+              tokensUsed: 0,
+              tokensSaved,
+              cacheHit: true,
+              executionTime: Date.now() - startTime
+            }
+          };
+        } catch {
+        }
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "dashboard":
+          data = { dashboard: await this.getDashboard(options) };
+          break;
+        case "metrics":
+          data = { metrics: await this.getMetrics(options) };
+          break;
+        case "trends":
+          data = { trends: await this.analyzeTrends(options) };
+          break;
+        case "alerts":
+          data = { alerts: await this.checkAlerts(options) };
+          break;
+        case "heatmap":
+          data = { heatmap: await this.generateHeatmap(options) };
+          break;
+        case "bottlenecks":
+          data = { bottlenecks: await this.identifyBottlenecks(options) };
+          break;
+        case "cost-analysis":
+          data = { costAnalysis: await this.analyzeCosts(options) };
+          break;
+        case "export-data":
+          data = { exportData: await this.exportData(options) };
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsed = this.tokenCounter.count(JSON.stringify(data)).tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, tokensUsed, serialized.length);
+      }
+      this.metrics.record({
+        operation: `analytics_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `analytics_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  // ============================================================================
+  // Dashboard Operations
+  // ============================================================================
+  /**
+   * Get real-time dashboard data
+   */
+  async getDashboard(options) {
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 36e5, end: now2 };
+    const performance2 = this.getPerformanceMetrics(timeRange);
+    const usage = this.getUsageMetrics(timeRange);
+    const efficiency = this.getEfficiencyMetrics(timeRange);
+    const cost = this.getCostMetrics(timeRange);
+    const health = this.getHealthMetrics(timeRange);
+    const recentActivity = this.getRecentActivity(10);
+    const dashboard = {
+      timestamp: now2,
+      performance: performance2,
+      usage,
+      efficiency,
+      cost,
+      health,
+      recentActivity
+    };
+    this.historicalData.set(now2, dashboard);
+    if (this.historicalData.size > this.maxHistoricalEntries) {
+      const oldestKey = Array.from(this.historicalData.keys()).sort(
+        (a2, b) => a2 - b
+      )[0];
+      this.historicalData.delete(oldestKey);
+    }
+    this.updateTimeSeries("hitRate", now2, performance2.hitRate);
+    this.updateTimeSeries("latency", now2, performance2.latencyP95);
+    this.updateTimeSeries("throughput", now2, performance2.throughput);
+    this.emit("dashboard-updated", dashboard);
+    return dashboard;
+  }
+  /**
+   * Get performance metrics
+   */
+  getPerformanceMetrics(timeRange) {
+    const stats = this.metrics.getCacheStats(timeRange.start);
+    const percentiles = this.metrics.getPerformancePercentiles(timeRange.start);
+    const duration3 = (timeRange.end - timeRange.start) / 1e3 || 1;
+    return {
+      hitRate: stats.cacheHitRate,
+      latencyP50: percentiles.p50,
+      latencyP95: percentiles.p95,
+      latencyP99: percentiles.p99,
+      throughput: stats.totalOperations / duration3,
+      operationsPerSecond: stats.totalOperations / duration3,
+      averageResponseTime: stats.averageDuration
+    };
+  }
+  /**
+   * Get usage metrics
+   */
+  getUsageMetrics(timeRange) {
+    const cacheStats = this.cache.getStats();
+    const operations = this.metrics.getOperations(timeRange.start);
+    const keyAccessFrequency = /* @__PURE__ */ new Map();
+    for (const op of operations) {
+      const key = this.extractKeyFromMetadata(op.metadata);
+      if (key) {
+        keyAccessFrequency.set(key, (keyAccessFrequency.get(key) || 0) + 1);
+      }
+    }
+    const topAccessedKeys = Array.from(keyAccessFrequency.entries()).sort((a2, b) => b[1] - a2[1]).slice(0, 10).map(([key, hits]) => ({ key, hits }));
+    const valueSizeDistribution = {
+      small: Math.floor(cacheStats.totalEntries * 0.6),
+      medium: Math.floor(cacheStats.totalEntries * 0.25),
+      large: Math.floor(cacheStats.totalEntries * 0.1),
+      xlarge: Math.floor(cacheStats.totalEntries * 0.05)
+    };
+    const recentlyAdded = operations.filter((op) => op.operation.includes("set")).slice(-10).map((op) => ({
+      key: this.extractKeyFromMetadata(op.metadata) || "unknown",
+      timestamp: op.timestamp
+    }));
+    return {
+      totalKeys: cacheStats.totalEntries,
+      totalSize: cacheStats.totalCompressedSize,
+      keyAccessFrequency,
+      valueSizeDistribution,
+      topAccessedKeys,
+      recentlyAdded
+    };
+  }
+  /**
+   * Get efficiency metrics
+   */
+  getEfficiencyMetrics(timeRange) {
+    const cacheStats = this.cache.getStats();
+    const operations = this.metrics.getOperations(timeRange.start);
+    const evictionOps = operations.filter(
+      (op) => op.operation.includes("evict")
+    ).length;
+    const totalOps = operations.length || 1;
+    const evictionRate = evictionOps / totalOps * 100;
+    const evictionPatterns = [
+      {
+        reason: "TTL Expired",
+        count: Math.floor(evictionOps * 0.5),
+        percentage: 50,
+        trend: "stable"
+      },
+      {
+        reason: "Size Limit",
+        count: Math.floor(evictionOps * 0.3),
+        percentage: 30,
+        trend: this.calculateEvictionTrend("size")
+      },
+      {
+        reason: "Manual",
+        count: Math.floor(evictionOps * 0.2),
+        percentage: 20,
+        trend: "stable"
+      }
+    ];
+    return {
+      memoryUtilization: cacheStats.totalCompressedSize / (500 * 1024 * 1024) * 100,
+      evictionRate,
+      evictionPatterns,
+      compressionRatio: cacheStats.compressionRatio,
+      fragmentationIndex: this.calculateFragmentation()
+    };
+  }
+  /**
+   * Get cost metrics
+   */
+  getCostMetrics(timeRange) {
+    const cacheStats = this.cache.getStats();
+    const operations = this.metrics.getOperations(timeRange.start);
+    const memoryCostPerGB = 0.1;
+    const diskCostPerGB = 0.02;
+    const networkCostPerGB = 0.05;
+    const operationCost = 1e-6;
+    const memoryGB = cacheStats.totalCompressedSize / (1024 * 1024 * 1024);
+    const hours = (timeRange.end - timeRange.start) / 36e5;
+    const memoryCost = memoryGB * memoryCostPerGB * hours;
+    const diskCost = memoryGB * diskCostPerGB * hours;
+    const networkCost = memoryGB * networkCostPerGB;
+    const totalCost = memoryCost + diskCost + networkCost + operations.length * operationCost;
+    const costTrend = this.calculateCostTrend(totalCost);
+    return {
+      memoryCost,
+      diskCost,
+      networkCost,
+      totalCost,
+      costPerOperation: totalCost / (operations.length || 1),
+      costTrend
+    };
+  }
+  /**
+   * Get health metrics
+   */
+  getHealthMetrics(timeRange) {
+    const operations = this.metrics.getOperations(timeRange.start);
+    const stats = this.metrics.getCacheStats(timeRange.start);
+    const errorOps = operations.filter((op) => !op.success).length;
+    const timeoutOps = operations.filter((op) => op.duration > 1e3).length;
+    const totalOps = operations.length || 1;
+    const errorRate = errorOps / totalOps * 100;
+    const timeoutRate = timeoutOps / totalOps * 100;
+    const criticalIssues = [];
+    if (errorRate > 5) {
+      criticalIssues.push(`High error rate: ${errorRate.toFixed(2)}%`);
+    }
+    if (timeoutRate > 10) {
+      criticalIssues.push(`High timeout rate: ${timeoutRate.toFixed(2)}%`);
+    }
+    if (stats.cacheHitRate < 50) {
+      criticalIssues.push(
+        `Low cache hit rate: ${stats.cacheHitRate.toFixed(2)}%`
+      );
+    }
+    const healthScore = Math.max(
+      0,
+      100 - errorRate * 2 - timeoutRate * 1.5 - (100 - stats.cacheHitRate) * 0.5
+    );
+    return {
+      errorRate,
+      timeoutRate,
+      fragmentationLevel: this.calculateFragmentation(),
+      warningCount: criticalIssues.length,
+      criticalIssues,
+      healthScore
+    };
+  }
+  /**
+   * Get recent activity
+   */
+  getRecentActivity(limit) {
+    const operations = this.metrics.getOperations();
+    return operations.slice(-limit).map((op) => ({
+      timestamp: op.timestamp,
+      operation: op.operation,
+      key: this.extractKeyFromMetadata(op.metadata),
+      duration: op.duration,
+      status: op.success ? "success" : "error"
+    }));
+  }
+  // ============================================================================
+  // Metrics Operations
+  // ============================================================================
+  /**
+   * Get detailed metrics
+   */
+  async getMetrics(options) {
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 36e5, end: now2 };
+    const operations = this.metrics.getOperations(timeRange.start);
+    const metricTypes = options.metricTypes || [
+      "performance",
+      "usage",
+      "efficiency",
+      "cost",
+      "health"
+    ];
+    const metrics = {
+      timestamp: now2,
+      timeRange
+    };
+    if (metricTypes.includes("performance")) {
+      metrics.performance = this.getPerformanceMetrics(timeRange);
+    }
+    if (metricTypes.includes("usage")) {
+      metrics.usage = this.getUsageMetrics(timeRange);
+    }
+    if (metricTypes.includes("efficiency")) {
+      metrics.efficiency = this.getEfficiencyMetrics(timeRange);
+    }
+    if (metricTypes.includes("cost")) {
+      metrics.cost = this.getCostMetrics(timeRange);
+    }
+    if (metricTypes.includes("health")) {
+      metrics.health = this.getHealthMetrics(timeRange);
+    }
+    const successfulOps = operations.filter((op) => op.success).length;
+    const failedOps = operations.length - successfulOps;
+    const totalDuration = operations.reduce((sum, op) => sum + op.duration, 0);
+    const cacheHits = operations.filter((op) => op.cacheHit).length;
+    const tokensSaved = operations.reduce(
+      (sum, op) => sum + (op.savedTokens || 0),
+      0
+    );
+    const compressionSavings = operations.reduce(
+      (sum, op) => sum + ((op.outputTokens ?? 0) - (op.cachedTokens ?? 0) || 0),
+      0
+    );
+    metrics.aggregatedData = {
+      totalOperations: operations.length,
+      successfulOperations: successfulOps,
+      failedOperations: failedOps,
+      averageDuration: totalDuration / (operations.length || 1),
+      totalCacheHits: cacheHits,
+      totalCacheMisses: operations.length - cacheHits,
+      tokensSaved,
+      compressionSavings
+    };
+    this.emit("metrics-collected", metrics);
+    return metrics;
+  }
+  // ============================================================================
+  // Trend Analysis
+  // ============================================================================
+  /**
+   * Analyze trends over time
+   */
+  async analyzeTrends(options) {
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 864e5, end: now2 };
+    const currentMetrics = await this.getMetrics({ ...options, timeRange });
+    const previousRange = this.getPreviousTimeRange(
+      timeRange,
+      options.compareWith || "previous-period"
+    );
+    const previousMetrics = await this.getMetrics({
+      ...options,
+      timeRange: previousRange
+    });
+    const trendMetrics = this.calculateTrendMetrics(
+      currentMetrics,
+      previousMetrics
+    );
+    const anomalies = this.detectAnomalies(timeRange);
+    const predictions = this.generatePredictions(timeRange);
+    const regression = this.calculateRegression(timeRange);
+    const seasonality = this.detectSeasonality(timeRange);
+    const analysis = {
+      timestamp: now2,
+      timeRange,
+      metrics: trendMetrics,
+      anomalies,
+      predictions,
+      regression,
+      seasonality
+    };
+    this.emit("trends-analyzed", analysis);
+    return analysis;
+  }
+  /**
+   * Calculate trend metrics
+   */
+  calculateTrendMetrics(current, previous) {
+    const metrics = [];
+    if (current.performance && previous.performance) {
+      metrics.push(
+        this.createTrendMetric(
+          "Hit Rate",
+          current.performance.hitRate,
+          previous.performance.hitRate
+        ),
+        this.createTrendMetric(
+          "Latency P95",
+          current.performance.latencyP95,
+          previous.performance.latencyP95
+        ),
+        this.createTrendMetric(
+          "Throughput",
+          current.performance.throughput,
+          previous.performance.throughput
+        )
+      );
+    }
+    if (current.health && previous.health) {
+      metrics.push(
+        this.createTrendMetric(
+          "Health Score",
+          current.health.healthScore,
+          previous.health.healthScore
+        ),
+        this.createTrendMetric(
+          "Error Rate",
+          current.health.errorRate,
+          previous.health.errorRate
+        )
+      );
+    }
+    return metrics;
+  }
+  /**
+   * Create trend metric
+   */
+  createTrendMetric(name, current, previous) {
+    const change = current - previous;
+    const changePercent = previous !== 0 ? change / previous * 100 : 0;
+    const velocity = change / (previous || 1);
+    let trend;
+    if (Math.abs(changePercent) < 5) {
+      trend = "stable";
+    } else if (change > 0) {
+      trend = "up";
+    } else {
+      trend = "down";
+    }
+    return {
+      name,
+      current,
+      previous,
+      change,
+      changePercent,
+      trend,
+      velocity
+    };
+  }
+  /**
+   * Detect anomalies
+   */
+  detectAnomalies(timeRange) {
+    const anomalies = [];
+    const operations = this.metrics.getOperations(timeRange.start);
+    const durations = operations.map((op) => op.duration);
+    const mean = durations.reduce((a2, b) => a2 + b, 0) / (durations.length || 1);
+    const variance = durations.reduce((sum, d3) => sum + Math.pow(d3 - mean, 2), 0) / (durations.length || 1);
+    const stdDev = Math.sqrt(variance);
+    for (const op of operations) {
+      const zScore = (op.duration - mean) / stdDev;
+      if (Math.abs(zScore) > 3) {
+        anomalies.push({
+          timestamp: op.timestamp,
+          metric: "duration",
+          value: op.duration,
+          expected: mean,
+          deviation: zScore,
+          severity: Math.abs(zScore) > 4 ? "high" : "medium",
+          confidence: 1 - 1 / Math.abs(zScore)
+        });
+      }
+    }
+    const hitRateSeries = Array.from(
+      this.timeSeriesData.get("hitRate") || []
+    ).slice(-20);
+    if (hitRateSeries.length > 5) {
+      const avgHitRate = hitRateSeries.reduce((sum, p) => sum + p.value, 0) / hitRateSeries.length;
+      const currentHitRate = hitRateSeries[hitRateSeries.length - 1].value;
+      if (Math.abs(currentHitRate - avgHitRate) > 20) {
+        anomalies.push({
+          timestamp: Date.now(),
+          metric: "hitRate",
+          value: currentHitRate,
+          expected: avgHitRate,
+          deviation: (currentHitRate - avgHitRate) / avgHitRate,
+          severity: "medium",
+          confidence: 0.8
+        });
+      }
+    }
+    return anomalies;
+  }
+  /**
+   * Generate predictions
+   */
+  generatePredictions(_timeRange) {
+    const predictions = [];
+    const now2 = Date.now();
+    const horizon = 36e5;
+    const hitRateSeries = Array.from(
+      this.timeSeriesData.get("hitRate") || []
+    ).slice(-20);
+    if (hitRateSeries.length > 5) {
+      const trend = this.calculateSimpleTrend(
+        hitRateSeries.map((p) => p.value)
+      );
+      const lastValue = hitRateSeries[hitRateSeries.length - 1].value;
+      const predicted = lastValue + trend;
+      predictions.push({
+        metric: "hitRate",
+        timestamp: now2 + horizon,
+        predictedValue: Math.max(0, Math.min(100, predicted)),
+        confidenceInterval: {
+          lower: Math.max(0, predicted - 10),
+          upper: Math.min(100, predicted + 10)
+        },
+        confidence: 0.7
+      });
+    }
+    const throughputSeries = Array.from(
+      this.timeSeriesData.get("throughput") || []
+    ).slice(-20);
+    if (throughputSeries.length > 5) {
+      const trend = this.calculateSimpleTrend(
+        throughputSeries.map((p) => p.value)
+      );
+      const lastValue = throughputSeries[throughputSeries.length - 1].value;
+      const predicted = Math.max(0, lastValue + trend);
+      predictions.push({
+        metric: "throughput",
+        timestamp: now2 + horizon,
+        predictedValue: predicted,
+        confidenceInterval: {
+          lower: Math.max(0, predicted * 0.8),
+          upper: predicted * 1.2
+        },
+        confidence: 0.65
+      });
+    }
+    return predictions;
+  }
+  /**
+   * Calculate simple linear trend
+   */
+  calculateSimpleTrend(values) {
+    if (values.length < 2) return 0;
+    const n7 = values.length;
+    const xMean = (n7 - 1) / 2;
+    const yMean = values.reduce((a2, b) => a2 + b, 0) / n7;
+    let numerator = 0;
+    let denominator = 0;
+    for (let i = 0; i < n7; i++) {
+      numerator += (i - xMean) * (values[i] - yMean);
+      denominator += Math.pow(i - xMean, 2);
+    }
+    return denominator !== 0 ? numerator / denominator : 0;
+  }
+  /**
+   * Calculate regression
+   */
+  calculateRegression(_timeRange) {
+    const hitRateSeries = Array.from(
+      this.timeSeriesData.get("hitRate") || []
+    ).slice(-50);
+    if (hitRateSeries.length < 2) {
+      return {
+        slope: 0,
+        intercept: 0,
+        rSquared: 0,
+        equation: "y = 0"
+      };
+    }
+    const n7 = hitRateSeries.length;
+    const xValues = hitRateSeries.map((_2, i) => i);
+    const yValues = hitRateSeries.map((p) => p.value);
+    const xMean = xValues.reduce((a2, b) => a2 + b, 0) / n7;
+    const yMean = yValues.reduce((a2, b) => a2 + b, 0) / n7;
+    let numerator = 0;
+    let denominator = 0;
+    for (let i = 0; i < n7; i++) {
+      numerator += (xValues[i] - xMean) * (yValues[i] - yMean);
+      denominator += Math.pow(xValues[i] - xMean, 2);
+    }
+    const slope = denominator !== 0 ? numerator / denominator : 0;
+    const intercept = yMean - slope * xMean;
+    let ssRes = 0;
+    let ssTot = 0;
+    for (let i = 0; i < n7; i++) {
+      const predicted = slope * xValues[i] + intercept;
+      ssRes += Math.pow(yValues[i] - predicted, 2);
+      ssTot += Math.pow(yValues[i] - yMean, 2);
+    }
+    const rSquared = ssTot !== 0 ? 1 - ssRes / ssTot : 0;
+    return {
+      slope,
+      intercept,
+      rSquared,
+      equation: `y = ${slope.toFixed(2)}x + ${intercept.toFixed(2)}`
+    };
+  }
+  /**
+   * Detect seasonality
+   */
+  detectSeasonality(_timeRange) {
+    const series = Array.from(
+      this.timeSeriesData.get("throughput") || []
+    ).slice(-100);
+    if (series.length < 20) {
+      return {
+        detected: false,
+        period: 0,
+        strength: 0,
+        peaks: [],
+        troughs: []
+      };
+    }
+    const values = series.map((p) => p.value);
+    const peaks = [];
+    const troughs = [];
+    for (let i = 1; i < values.length - 1; i++) {
+      if (values[i] > values[i - 1] && values[i] > values[i + 1]) {
+        peaks.push(i);
+      }
+      if (values[i] < values[i - 1] && values[i] < values[i + 1]) {
+        troughs.push(i);
+      }
+    }
+    let avgPeriod = 0;
+    if (peaks.length > 1) {
+      const periods = peaks.slice(1).map((p, i) => p - peaks[i]);
+      avgPeriod = periods.reduce((a2, b) => a2 + b, 0) / periods.length;
+    }
+    const detected = peaks.length > 2 && avgPeriod > 0;
+    const strength = detected ? Math.min(1, peaks.length / 10) : 0;
+    return {
+      detected,
+      period: Math.round(avgPeriod),
+      strength,
+      peaks,
+      troughs
+    };
+  }
+  // ============================================================================
+  // Alert Operations
+  // ============================================================================
+  /**
+   * Check alerts and return triggered ones
+   */
+  async checkAlerts(options) {
+    const alerts = [];
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 36e5, end: now2 };
+    if (options.alertConfig) {
+      this.alertConfigs.set(`custom-${now2}`, options.alertConfig);
+    }
+    const currentMetrics = await this.getMetrics({ ...options, timeRange });
+    for (const [id, config2] of Array.from(this.alertConfigs.entries())) {
+      if (!config2.enabled) continue;
+      const value = this.extractMetricValue(config2.metric, currentMetrics);
+      const triggered = this.evaluateAlertCondition(
+        value,
+        config2.condition,
+        config2.threshold
+      );
+      if (triggered) {
+        alerts.push({
+          id,
+          type: options.alertType || "threshold",
+          metric: config2.metric,
+          severity: config2.severity,
+          message: `${config2.metric} ${config2.condition} ${config2.threshold} (current: ${value.toFixed(2)})`,
+          timestamp: now2,
+          value,
+          threshold: config2.threshold,
+          triggered: true
+        });
+      }
+    }
+    const anomalies = this.detectAnomalies(timeRange);
+    for (const anomaly of anomalies) {
+      if (anomaly.severity === "high") {
+        alerts.push({
+          id: `anomaly-${anomaly.timestamp}`,
+          type: "anomaly",
+          metric: anomaly.metric,
+          severity: "warning",
+          message: `Anomaly detected in ${anomaly.metric}: ${anomaly.value.toFixed(2)} (expected: ${anomaly.expected.toFixed(2)})`,
+          timestamp: anomaly.timestamp,
+          value: anomaly.value,
+          triggered: true
+        });
+      }
+    }
+    this.emit("alerts-checked", { count: alerts.length, alerts });
+    return alerts;
+  }
+  /**
+   * Extract metric value from metrics collection
+   */
+  extractMetricValue(metricName, metrics) {
+    if (metricName === "hitRate" && metrics.performance) {
+      return metrics.performance.hitRate;
+    }
+    if (metricName === "errorRate" && metrics.health) {
+      return metrics.health.errorRate;
+    }
+    if (metricName === "latencyP95" && metrics.performance) {
+      return metrics.performance.latencyP95;
+    }
+    if (metricName === "memoryUtilization" && metrics.efficiency) {
+      return metrics.efficiency.memoryUtilization;
+    }
+    return 0;
+  }
+  /**
+   * Evaluate alert condition
+   */
+  evaluateAlertCondition(value, condition, threshold) {
+    switch (condition) {
+      case "gt":
+        return value > threshold;
+      case "lt":
+        return value < threshold;
+      case "eq":
+        return Math.abs(value - threshold) < 0.01;
+      case "ne":
+        return Math.abs(value - threshold) >= 0.01;
+      default:
+        return false;
+    }
+  }
+  // ============================================================================
+  // Heatmap Generation
+  // ============================================================================
+  /**
+   * Generate access heatmap
+   */
+  async generateHeatmap(options) {
+    const heatmapType = options.heatmapType || "temporal";
+    const resolution = options.resolution || "medium";
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 864e5, end: now2 };
+    let heatmap;
+    switch (heatmapType) {
+      case "temporal":
+        heatmap = this.generateTemporalHeatmap(timeRange, resolution);
+        break;
+      case "key-correlation":
+        heatmap = this.generateKeyCorrelationHeatmap(timeRange, resolution);
+        break;
+      case "memory":
+        heatmap = this.generateMemoryHeatmap(timeRange, resolution);
+        break;
+      default:
+        throw new Error(`Unknown heatmap type: ${heatmapType}`);
+    }
+    this.emit("heatmap-generated", heatmap);
+    return heatmap;
+  }
+  /**
+   * Generate temporal heatmap (hour x day of week)
+   */
+  generateTemporalHeatmap(timeRange, _resolution) {
+    const operations = this.metrics.getOperations(timeRange.start);
+    const data = Array(24).fill(0).map(() => Array(7).fill(0));
+    for (const op of operations) {
+      const date3 = new Date(op.timestamp);
+      const hour = date3.getHours();
+      const dayOfWeek = date3.getDay();
+      data[hour][dayOfWeek]++;
+    }
+    const hotspots = [];
+    let maxIntensity = 0;
+    let totalIntensity = 0;
+    let cellCount = 0;
+    for (let h = 0; h < 24; h++) {
+      for (let d3 = 0; d3 < 7; d3++) {
+        const value = data[h][d3];
+        totalIntensity += value;
+        cellCount++;
+        if (value > maxIntensity) {
+          maxIntensity = value;
+        }
+        if (value > 0) {
+          hotspots.push({ x: d3, y: h, value });
+        }
+      }
+    }
+    hotspots.sort((a2, b) => b.value - a2.value);
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const hours = Array.from({ length: 24 }, (_2, i) => `${i}:00`);
+    return {
+      type: "temporal",
+      dimensions: { width: 7, height: 24 },
+      data,
+      labels: { x: days, y: hours },
+      colorScale: { min: 0, max: maxIntensity },
+      summary: {
+        hotspots: hotspots.slice(0, 5),
+        avgIntensity: totalIntensity / cellCount,
+        maxIntensity
+      }
+    };
+  }
+  /**
+   * Generate key correlation heatmap
+   */
+  generateKeyCorrelationHeatmap(timeRange, _resolution) {
+    const operations = this.metrics.getOperations(timeRange.start);
+    const keyFrequency = /* @__PURE__ */ new Map();
+    for (const op of operations) {
+      const key = this.extractKeyFromMetadata(op.metadata);
+      if (key) {
+        keyFrequency.set(key, (keyFrequency.get(key) || 0) + 1);
+      }
+    }
+    const topKeys = Array.from(keyFrequency.entries()).sort((a2, b) => b[1] - a2[1]).slice(0, 10).map(([key]) => key);
+    const size = topKeys.length;
+    const data = Array(size).fill(0).map(() => Array(size).fill(0));
+    const windowSize = 1e3;
+    for (let i = 0; i < operations.length - 1; i++) {
+      const key1 = this.extractKeyFromMetadata(operations[i].metadata);
+      if (!key1 || !topKeys.includes(key1)) continue;
+      for (let j3 = i + 1; j3 < operations.length; j3++) {
+        if (operations[j3].timestamp - operations[i].timestamp > windowSize)
+          break;
+        const key2 = this.extractKeyFromMetadata(operations[j3].metadata);
+        if (!key2 || !topKeys.includes(key2)) continue;
+        const idx1 = topKeys.indexOf(key1);
+        const idx2 = topKeys.indexOf(key2);
+        data[idx1][idx2]++;
+        data[idx2][idx1]++;
+      }
+    }
+    let maxValue = 0;
+    for (const row of data) {
+      for (const val of row) {
+        if (val > maxValue) maxValue = val;
+      }
+    }
+    if (maxValue > 0) {
+      for (let i = 0; i < size; i++) {
+        for (let j3 = 0; j3 < size; j3++) {
+          data[i][j3] = data[i][j3] / maxValue;
+        }
+      }
+    }
+    const hotspots = [];
+    let totalIntensity = 0;
+    for (let i = 0; i < size; i++) {
+      for (let j3 = 0; j3 < size; j3++) {
+        if (i !== j3 && data[i][j3] > 0.3) {
+          hotspots.push({ x: j3, y: i, value: data[i][j3] });
+        }
+        totalIntensity += data[i][j3];
+      }
+    }
+    hotspots.sort((a2, b) => b.value - a2.value);
+    return {
+      type: "key-correlation",
+      dimensions: { width: size, height: size },
+      data,
+      labels: { x: topKeys, y: topKeys },
+      colorScale: { min: 0, max: 1 },
+      summary: {
+        hotspots: hotspots.slice(0, 5),
+        avgIntensity: totalIntensity / (size * size),
+        maxIntensity: 1
+      }
+    };
+  }
+  /**
+   * Generate memory usage heatmap
+   */
+  generateMemoryHeatmap(_timeRange, _resolution) {
+    const cacheStats = this.cache.getStats();
+    const size = 10;
+    const data = Array(size).fill(0).map(() => Array(size).fill(0));
+    const usedCells = Math.floor(
+      cacheStats.totalCompressedSize / (500 * 1024 * 1024) * 100
+    );
+    for (let i = 0; i < usedCells && i < 100; i++) {
+      const x4 = i % size;
+      const y2 = Math.floor(i / size);
+      data[y2][x4] = 0.5 + Math.random() * 0.5;
+    }
+    const hotspots = [];
+    let totalIntensity = 0;
+    let maxIntensity = 0;
+    for (let i = 0; i < size; i++) {
+      for (let j3 = 0; j3 < size; j3++) {
+        const value = data[i][j3];
+        totalIntensity += value;
+        if (value > maxIntensity) maxIntensity = value;
+        if (value > 0.7) {
+          hotspots.push({ x: j3, y: i, value });
+        }
+      }
+    }
+    hotspots.sort((a2, b) => b.value - a2.value);
+    return {
+      type: "memory",
+      dimensions: { width: size, height: size },
+      data,
+      labels: {
+        x: Array.from({ length: size }, (_2, i) => `Block ${i}`),
+        y: Array.from({ length: size }, (_2, i) => `Tier ${i}`)
+      },
+      colorScale: { min: 0, max: 1 },
+      summary: {
+        hotspots: hotspots.slice(0, 5),
+        avgIntensity: totalIntensity / (size * size),
+        maxIntensity
+      }
+    };
+  }
+  // ============================================================================
+  // Bottleneck Identification
+  // ============================================================================
+  /**
+   * Identify performance bottlenecks
+   */
+  async identifyBottlenecks(options) {
+    const bottlenecks = [];
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 36e5, end: now2 };
+    const operations = this.metrics.getOperations(timeRange.start);
+    const percentiles = this.metrics.getPerformancePercentiles(timeRange.start);
+    const slowOps = operations.filter((op) => op.duration > percentiles.p95);
+    if (slowOps.length > operations.length * 0.05) {
+      bottlenecks.push({
+        type: "slow-operation",
+        severity: "high",
+        description: `${slowOps.length} operations slower than P95 (${percentiles.p95}ms)`,
+        impact: slowOps.length / operations.length * 100,
+        recommendation: "Consider optimizing slow operations or increasing cache size",
+        metrics: {
+          current: slowOps.length,
+          threshold: operations.length * 0.05,
+          duration: percentiles.p95
+        }
+      });
+    }
+    const keyFrequency = /* @__PURE__ */ new Map();
+    for (const op of operations) {
+      const key = this.extractKeyFromMetadata(op.metadata);
+      if (key) {
+        keyFrequency.set(key, (keyFrequency.get(key) || 0) + 1);
+      }
+    }
+    const hotKeys = Array.from(keyFrequency.entries()).filter(([_2, count]) => count > operations.length * 0.1).map(([key]) => key);
+    if (hotKeys.length > 0) {
+      bottlenecks.push({
+        type: "hot-key",
+        severity: "medium",
+        description: `${hotKeys.length} keys accessed more than 10% of the time`,
+        impact: 50,
+        recommendation: "Consider implementing read-through caching or sharding for hot keys",
+        affectedKeys: hotKeys,
+        metrics: {
+          current: hotKeys.length,
+          threshold: 3,
+          duration: 0
+        }
+      });
+    }
+    const cacheStats = this.cache.getStats();
+    const memoryUtilization = cacheStats.totalCompressedSize / (500 * 1024 * 1024) * 100;
+    if (memoryUtilization > 80) {
+      bottlenecks.push({
+        type: "memory-pressure",
+        severity: "high",
+        description: `Memory utilization at ${memoryUtilization.toFixed(1)}%`,
+        impact: memoryUtilization,
+        recommendation: "Increase cache size or implement more aggressive eviction policies",
+        metrics: {
+          current: memoryUtilization,
+          threshold: 80,
+          duration: 0
+        }
+      });
+    }
+    const evictionOps = operations.filter(
+      (op) => op.operation.includes("evict")
+    ).length;
+    const evictionRate = evictionOps / operations.length * 100;
+    if (evictionRate > 20) {
+      bottlenecks.push({
+        type: "high-eviction",
+        severity: "medium",
+        description: `High eviction rate: ${evictionRate.toFixed(1)}%`,
+        impact: evictionRate,
+        recommendation: "Consider increasing TTL or cache size to reduce evictions",
+        metrics: {
+          current: evictionRate,
+          threshold: 20,
+          duration: 0
+        }
+      });
+    }
+    this.emit("bottlenecks-identified", { count: bottlenecks.length });
+    return bottlenecks;
+  }
+  // ============================================================================
+  // Cost Analysis
+  // ============================================================================
+  /**
+   * Analyze caching costs
+   */
+  async analyzeCosts(options) {
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 864e5, end: now2 };
+    const cacheStats = this.cache.getStats();
+    const operations = this.metrics.getOperations(timeRange.start);
+    const memoryGB = cacheStats.totalCompressedSize / (1024 * 1024 * 1024);
+    const hours = (timeRange.end - timeRange.start) / 36e5;
+    const storage = {
+      memoryCost: memoryGB * 0.1 * hours,
+      diskCost: memoryGB * 0.02 * hours,
+      totalStorage: cacheStats.totalCompressedSize,
+      utilizationPercent: cacheStats.totalCompressedSize / (500 * 1024 * 1024) * 100
+    };
+    const totalTraffic = operations.length * 1024;
+    const network = {
+      ingressCost: totalTraffic * 5e-5,
+      egressCost: totalTraffic * 9e-5,
+      totalTraffic,
+      bandwidthUtilization: 0.5
+    };
+    const compute = {
+      cpuCost: operations.length * 1e-6,
+      operationCost: operations.length * 1e-6,
+      totalOperations: operations.length,
+      efficiency: 0.85
+    };
+    const currentCost = storage.memoryCost + storage.diskCost + network.ingressCost + network.egressCost + compute.cpuCost;
+    const projectedCost = currentCost * 1.1;
+    const costTrend = this.calculateCostTrend(currentCost);
+    const total = {
+      current: currentCost,
+      projected: projectedCost,
+      trend: costTrend,
+      costPerGB: currentCost / (memoryGB || 1),
+      costPerOperation: currentCost / (operations.length || 1)
+    };
+    const projections = [
+      { period: "1 week", estimatedCost: currentCost * 7, confidence: 0.9 },
+      { period: "1 month", estimatedCost: currentCost * 30, confidence: 0.7 },
+      { period: "3 months", estimatedCost: currentCost * 90, confidence: 0.5 }
+    ];
+    const optimizations = [];
+    if (storage.utilizationPercent < 50) {
+      optimizations.push({
+        category: "Storage",
+        potentialSavings: storage.memoryCost * 0.3,
+        effort: "low",
+        recommendation: "Reduce cache size to match actual usage"
+      });
+    }
+    if (compute.efficiency < 0.8) {
+      optimizations.push({
+        category: "Compute",
+        potentialSavings: compute.cpuCost * 0.2,
+        effort: "medium",
+        recommendation: "Optimize cache operations to reduce CPU usage"
+      });
+    }
+    const costAnalysis = {
+      timestamp: now2,
+      timeRange,
+      storage,
+      network,
+      compute,
+      total,
+      projections,
+      optimizations
+    };
+    this.emit("costs-analyzed", costAnalysis);
+    return costAnalysis;
+  }
+  // ============================================================================
+  // Data Export
+  // ============================================================================
+  /**
+   * Export analytics data
+   */
+  async exportData(options) {
+    const format = options.format || "json";
+    const now2 = Date.now();
+    const timeRange = options.timeRange || { start: now2 - 864e5, end: now2 };
+    const dashboard = await this.getDashboard({ ...options, timeRange });
+    const metrics = await this.getMetrics({ ...options, timeRange });
+    const trends = await this.analyzeTrends({ ...options, timeRange });
+    const alerts = await this.checkAlerts({ ...options, timeRange });
+    const bottlenecks = await this.identifyBottlenecks({
+      ...options,
+      timeRange
+    });
+    const costs = await this.analyzeCosts({ ...options, timeRange });
+    const exportData = {
+      exportTimestamp: now2,
+      timeRange,
+      dashboard,
+      metrics,
+      trends,
+      alerts,
+      bottlenecks,
+      costs
+    };
+    let output;
+    switch (format) {
+      case "json":
+        output = JSON.stringify(exportData, null, 2);
+        break;
+      case "csv":
+        output = this.convertToCSV(exportData);
+        break;
+      case "prometheus":
+        output = this.convertToPrometheus(exportData);
+        break;
+      default:
+        throw new Error(`Unknown export format: ${format}`);
+    }
+    if (options.filePath) {
+      writeFileSync4(options.filePath, output, "utf-8");
+      this.emit("data-exported", {
+        format,
+        path: options.filePath,
+        size: output.length
+      });
+    }
+    return output;
+  }
+  /**
+   * Convert to CSV format
+   */
+  convertToCSV(data) {
+    const lines = [];
+    lines.push("Metric,Value,Timestamp");
+    if (data.dashboard) {
+      const d3 = data.dashboard;
+      lines.push(`Hit Rate,${d3.performance.hitRate},${d3.timestamp}`);
+      lines.push(`Latency P95,${d3.performance.latencyP95},${d3.timestamp}`);
+      lines.push(`Throughput,${d3.performance.throughput},${d3.timestamp}`);
+      lines.push(`Total Keys,${d3.usage.totalKeys},${d3.timestamp}`);
+      lines.push(`Total Size,${d3.usage.totalSize},${d3.timestamp}`);
+      lines.push(`Health Score,${d3.health.healthScore},${d3.timestamp}`);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * Convert to Prometheus format
+   */
+  convertToPrometheus(data) {
+    const lines = [];
+    const timestamp = Date.now();
+    if (data.dashboard) {
+      const d3 = data.dashboard;
+      lines.push(
+        `# HELP cache_hit_rate Cache hit rate percentage`,
+        `# TYPE cache_hit_rate gauge`,
+        `cache_hit_rate ${d3.performance.hitRate} ${timestamp}`,
+        ``,
+        `# HELP cache_latency_p95 95th percentile latency in milliseconds`,
+        `# TYPE cache_latency_p95 gauge`,
+        `cache_latency_p95 ${d3.performance.latencyP95} ${timestamp}`,
+        ``,
+        `# HELP cache_throughput Operations per second`,
+        `# TYPE cache_throughput gauge`,
+        `cache_throughput ${d3.performance.throughput} ${timestamp}`,
+        ``,
+        `# HELP cache_health_score Overall health score (0-100)`,
+        `# TYPE cache_health_score gauge`,
+        `cache_health_score ${d3.health.healthScore} ${timestamp}`
+      );
+    }
+    return lines.join("\n");
+  }
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+  /**
+   * Extract key from operation metadata
+   */
+  extractKeyFromMetadata(metadata) {
+    if (!metadata) return void 0;
+    if (typeof metadata.key === "string") return metadata.key;
+    if (typeof metadata.cacheKey === "string") return metadata.cacheKey;
+    return void 0;
+  }
+  /**
+   * Update time-series data
+   */
+  updateTimeSeries(metric, timestamp, value) {
+    if (!this.timeSeriesData.has(metric)) {
+      this.timeSeriesData.set(metric, []);
+    }
+    const series = this.timeSeriesData.get(metric);
+    series.push({ timestamp, value });
+    if (series.length > 1e3) {
+      this.timeSeriesData.set(metric, series.slice(-1e3));
+    }
+  }
+  /**
+   * Calculate fragmentation index
+   */
+  calculateFragmentation() {
+    const cacheStats = this.cache.getStats();
+    return Math.min(
+      100,
+      cacheStats.totalEntries / (cacheStats.totalCompressedSize / 1024) * 10
+    );
+  }
+  /**
+   * Calculate eviction trend
+   */
+  calculateEvictionTrend(_reason) {
+    return "stable";
+  }
+  /**
+   * Calculate cost trend
+   */
+  calculateCostTrend(currentCost) {
+    const historicalCosts = Array.from(this.historicalData.values()).slice(-10).map((d3) => d3.cost.totalCost);
+    if (historicalCosts.length < 2) return 0;
+    const previousCost = historicalCosts[historicalCosts.length - 2];
+    return currentCost - previousCost;
+  }
+  /**
+   * Get previous time range for comparison
+   */
+  getPreviousTimeRange(timeRange, compareWith) {
+    const duration3 = timeRange.end - timeRange.start;
+    switch (compareWith) {
+      case "previous-period":
+        return {
+          start: timeRange.start - duration3,
+          end: timeRange.start
+        };
+      case "last-week":
+        return {
+          start: timeRange.start - 7 * 864e5,
+          end: timeRange.end - 7 * 864e5
+        };
+      case "last-month":
+        return {
+          start: timeRange.start - 30 * 864e5,
+          end: timeRange.end - 30 * 864e5
+        };
+      default:
+        return {
+          start: timeRange.start - duration3,
+          end: timeRange.start
+        };
+    }
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return [
+      "dashboard",
+      "metrics",
+      "trends",
+      "heatmap",
+      "bottlenecks",
+      "cost-analysis"
+    ].includes(operation);
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation, timeRange, granularity, metricTypes } = options;
+    return {
+      operation,
+      timeRange,
+      granularity,
+      metricTypes
+    };
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    this.historicalData.clear();
+    this.timeSeriesData.clear();
+    this.keyAccessLog.clear();
+    this.alertConfigs.clear();
+    this.removeAllListeners();
+  }
+};
+var cacheAnalyticsInstance = null;
+function getCacheAnalyticsTool(cache, tokenCounter, metrics) {
+  if (!cacheAnalyticsInstance) {
+    cacheAnalyticsInstance = new CacheAnalyticsTool(
+      cache,
+      tokenCounter,
+      metrics
+    );
+  }
+  return cacheAnalyticsInstance;
+}
+var CACHE_ANALYTICS_TOOL_DEFINITION = {
+  name: "cache_analytics",
+  description: "Comprehensive cache analytics with 88%+ token reduction. Real-time dashboards, trend analysis, alerting, heatmaps, bottleneck detection, and cost optimization.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "dashboard",
+          "metrics",
+          "trends",
+          "alerts",
+          "heatmap",
+          "bottlenecks",
+          "cost-analysis",
+          "export-data"
+        ],
+        description: "Analytics operation to perform"
+      },
+      timeRange: {
+        type: "object",
+        properties: {
+          start: {
+            type: "number",
+            description: "Start timestamp in milliseconds"
+          },
+          end: { type: "number", description: "End timestamp in milliseconds" }
+        },
+        description: "Time range for analysis"
+      },
+      granularity: {
+        type: "string",
+        enum: ["second", "minute", "hour", "day"],
+        description: "Time granularity for aggregation"
+      },
+      metricTypes: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["performance", "usage", "efficiency", "cost", "health"]
+        },
+        description: "Types of metrics to collect"
+      },
+      aggregation: {
+        type: "string",
+        enum: ["sum", "avg", "min", "max", "p95", "p99"],
+        description: "Aggregation method for metrics"
+      },
+      compareWith: {
+        type: "string",
+        enum: ["previous-period", "last-week", "last-month"],
+        description: "Period to compare trends with"
+      },
+      trendType: {
+        type: "string",
+        enum: ["absolute", "percentage", "rate"],
+        description: "Type of trend analysis"
+      },
+      alertType: {
+        type: "string",
+        enum: ["threshold", "anomaly", "trend"],
+        description: "Type of alert to check"
+      },
+      threshold: {
+        type: "number",
+        description: "Threshold value for alerts"
+      },
+      alertConfig: {
+        type: "object",
+        properties: {
+          metric: { type: "string" },
+          condition: { type: "string", enum: ["gt", "lt", "eq", "ne"] },
+          threshold: { type: "number" },
+          severity: { type: "string", enum: ["info", "warning", "critical"] },
+          enabled: { type: "boolean" }
+        },
+        // AlertConfiguration has no optional fields, so a partial object is not a valid
+        // alert. Pre-existing: the properties were declared without any `required`.
+        required: ["metric", "condition", "threshold", "severity", "enabled"],
+        description: "Alert configuration"
+      },
+      heatmapType: {
+        type: "string",
+        enum: ["temporal", "key-correlation", "memory"],
+        description: "Type of heatmap to generate"
+      },
+      resolution: {
+        type: "string",
+        enum: ["low", "medium", "high"],
+        description: "Heatmap resolution"
+      },
+      format: {
+        type: "string",
+        enum: ["json", "csv", "prometheus"],
+        description: "Export data format"
+      },
+      filePath: {
+        type: "string",
+        description: "File path for data export"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching of analytics results (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 30)",
+        default: 30
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-benchmark.ts
+init_paths2();
+import { createHash as createHash29, randomBytes as randomBytes2 } from "crypto";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync5 } from "fs";
+import { join as join20 } from "path";
+var BenchmarkExecutor = class {
+  cache;
+  latencies = [];
+  operations = [];
+  hits = 0;
+  misses = 0;
+  evictions = 0;
+  errors = 0;
+  constructor(cache) {
+    this.cache = cache;
+  }
+  /**
+   * Execute a benchmark with given configuration
+   */
+  async executeBenchmark(config2, workload) {
+    this.reset();
+    if (workload.duration > 10) {
+      await this.warmup(config2, workload);
+    }
+    const startTime = Date.now();
+    await this.runWorkload(config2, workload);
+    const duration3 = Date.now() - startTime;
+    const totalOps = this.operations.length;
+    const reads = this.operations.filter((op) => op.type === "read").length;
+    const writes = this.operations.filter((op) => op.type === "write").length;
+    const latency = this.calculateLatencyMetrics();
+    const throughput = this.calculateThroughputMetrics(duration3);
+    const cacheStats = this.cache.getStats();
+    const hitRate = totalOps > 0 ? this.hits / totalOps : 0;
+    const missRate = totalOps > 0 ? this.misses / totalOps : 0;
+    return {
+      config: config2,
+      workload,
+      duration: duration3,
+      operations: {
+        total: totalOps,
+        reads,
+        writes,
+        hits: this.hits,
+        misses: this.misses
+      },
+      performance: {
+        latency,
+        throughput
+      },
+      cache: {
+        hitRate,
+        missRate,
+        evictions: this.evictions,
+        memoryUsage: cacheStats.totalCompressedSize,
+        entryCount: cacheStats.totalEntries
+      },
+      tokenMetrics: {
+        totalTokens: 0,
+        // Calculated by TokenCounter
+        savedTokens: 0,
+        compressionRatio: 0
+        // Calculated based on compression
+      },
+      timestamp: Date.now()
+    };
+  }
+  /**
+   * Warmup phase to stabilize cache
+   */
+  async warmup(config2, workload) {
+    const warmupOps = Math.min(1e3, workload.keyCount);
+    for (let i = 0; i < warmupOps; i++) {
+      const key = `warmup-key-${i}`;
+      const value = this.generateValue(workload.valueSize);
+      this.cache.set(key, value.toString("utf-8"), 0, config2.ttl || 3600);
+    }
+  }
+  /**
+   * Execute workload based on configuration
+   */
+  async runWorkload(config2, workload) {
+    const endTime = Date.now() + workload.duration * 1e3;
+    const ratio = workload.ratio || this.getDefaultRatio(workload.type);
+    const workers = [];
+    for (let i = 0; i < workload.concurrency; i++) {
+      workers.push(this.worker(i, config2, workload, ratio, endTime));
+    }
+    await Promise.all(workers);
+  }
+  /**
+   * Individual worker executing operations
+   */
+  async worker(_id, config2, workload, ratio, endTime) {
+    const totalRatio = ratio.read + ratio.write;
+    const readThreshold = ratio.read / totalRatio;
+    while (Date.now() < endTime) {
+      const isRead = Math.random() < readThreshold;
+      const key = this.generateKey(workload);
+      try {
+        if (isRead) {
+          await this.executeRead(key);
+        } else {
+          await this.executeWrite(key, config2, workload);
+        }
+      } catch (error2) {
+        this.errors++;
+      }
+      await this.delay(1);
+    }
+  }
+  /**
+   * Execute read operation
+   */
+  async executeRead(key) {
+    const startTime = process.hrtime.bigint();
+    const value = this.cache.get(key);
+    const endTime = process.hrtime.bigint();
+    const latency = Number(endTime - startTime) / 1e6;
+    this.latencies.push(latency);
+    this.operations.push({ type: "read", timestamp: Date.now(), latency });
+    if (value) {
+      this.hits++;
+    } else {
+      this.misses++;
+    }
+  }
+  /**
+   * Execute write operation
+   */
+  async executeWrite(key, _config, workload) {
+    const startTime = process.hrtime.bigint();
+    const value = this.generateValue(workload.valueSize);
+    const valueStr = value.toString("utf-8");
+    this.cache.set(key, valueStr, valueStr.length, valueStr.length);
+    const endTime = process.hrtime.bigint();
+    const latency = Number(endTime - startTime) / 1e6;
+    this.latencies.push(latency);
+    this.operations.push({ type: "write", timestamp: Date.now(), latency });
+  }
+  /**
+   * Generate cache key based on distribution
+   */
+  generateKey(workload) {
+    const distribution = workload.keyDistribution || "uniform";
+    let index2;
+    switch (distribution) {
+      case "uniform":
+        index2 = Math.floor(Math.random() * workload.keyCount);
+        break;
+      case "zipf":
+        index2 = Math.random() < 0.8 ? Math.floor(Math.random() * (workload.keyCount * 0.2)) : Math.floor(Math.random() * workload.keyCount);
+        break;
+      case "gaussian":
+        const mean = workload.keyCount / 2;
+        const stddev = workload.keyCount / 6;
+        index2 = Math.max(
+          0,
+          Math.min(
+            workload.keyCount - 1,
+            Math.floor(this.randomGaussian() * stddev + mean)
+          )
+        );
+        break;
+      default:
+        index2 = Math.floor(Math.random() * workload.keyCount);
+    }
+    return `benchmark-key-${index2}`;
+  }
+  /**
+   * Generate random value of specified size
+   */
+  generateValue(size) {
+    return randomBytes2(size);
+  }
+  /**
+   * Get default read/write ratio for workload type
+   */
+  getDefaultRatio(type) {
+    switch (type) {
+      case "read-heavy":
+        return { read: 90, write: 10 };
+      case "write-heavy":
+        return { read: 10, write: 90 };
+      case "mixed":
+        return { read: 50, write: 50 };
+      case "realistic":
+        return { read: 70, write: 30 };
+      // Typical web app ratio
+      default:
+        return { read: 50, write: 50 };
+    }
+  }
+  /**
+   * Calculate latency metrics from recorded latencies
+   */
+  calculateLatencyMetrics() {
+    if (this.latencies.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+        mean: 0,
+        median: 0,
+        p50: 0,
+        p90: 0,
+        p95: 0,
+        p99: 0,
+        p99_9: 0,
+        stddev: 0
+      };
+    }
+    const sorted = [...this.latencies].sort((a2, b) => a2 - b);
+    const n7 = sorted.length;
+    const min = sorted[0];
+    const max = sorted[n7 - 1];
+    const mean = this.latencies.reduce((a2, b) => a2 + b, 0) / n7;
+    const median = sorted[Math.floor(n7 / 2)];
+    const percentile = (p) => {
+      const index2 = Math.ceil(p / 100 * n7) - 1;
+      return sorted[Math.max(0, index2)];
+    };
+    const p50 = percentile(50);
+    const p90 = percentile(90);
+    const p95 = percentile(95);
+    const p99 = percentile(99);
+    const p99_9 = percentile(99.9);
+    const variance = this.latencies.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / n7;
+    const stddev = Math.sqrt(variance);
+    return { min, max, mean, median, p50, p90, p95, p99, p99_9, stddev };
+  }
+  /**
+   * Calculate throughput metrics
+   */
+  calculateThroughputMetrics(duration3) {
+    const durationSec = duration3 / 1e3;
+    const totalOps = this.operations.length;
+    const reads = this.operations.filter((op) => op.type === "read").length;
+    const writes = this.operations.filter((op) => op.type === "write").length;
+    const operationsPerSecond = totalOps / durationSec;
+    const readOps = reads / durationSec;
+    const writeOps = writes / durationSec;
+    const windows = this.calculateWindowedThroughput(1e3);
+    const peakThroughput = Math.max(...windows);
+    const sustainedThroughput = windows.length > 0 ? windows.reduce((a2, b) => a2 + b, 0) / windows.length : operationsPerSecond;
+    const averageLatency = this.latencies.length > 0 ? this.latencies.reduce((a2, b) => a2 + b, 0) / this.latencies.length : 0;
+    return {
+      operationsPerSecond,
+      readOps,
+      writeOps,
+      peakThroughput,
+      sustainedThroughput,
+      averageLatency
+    };
+  }
+  /**
+   * Calculate throughput in time windows
+   */
+  calculateWindowedThroughput(windowMs) {
+    if (this.operations.length === 0) return [];
+    const startTime = this.operations[0].timestamp;
+    const endTime = this.operations[this.operations.length - 1].timestamp;
+    const windows = [];
+    for (let t2 = startTime; t2 < endTime; t2 += windowMs) {
+      const count = this.operations.filter(
+        (op) => op.timestamp >= t2 && op.timestamp < t2 + windowMs
+      ).length;
+      windows.push(count);
+    }
+    return windows;
+  }
+  /**
+   * Generate random number with Gaussian distribution (Box-Muller transform)
+   */
+  randomGaussian() {
+    let u = 0, v2 = 0;
+    while (u === 0) u = Math.random();
+    while (v2 === 0) v2 = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v2);
+  }
+  /**
+   * Simple delay helper
+   */
+  delay(ms2) {
+    return new Promise((resolve5) => setTimeout(resolve5, ms2));
+  }
+  /**
+   * Reset executor state
+   */
+  reset() {
+    this.latencies = [];
+    this.operations = [];
+    this.hits = 0;
+    this.misses = 0;
+    this.evictions = 0;
+    this.errors = 0;
+  }
+};
+var ReportGenerator = class {
+  tokenCounter;
+  constructor(tokenCounter) {
+    this.tokenCounter = tokenCounter;
+  }
+  /**
+   * Generate benchmark report
+   */
+  generateReport(results, format, includeCharts) {
+    let content;
+    switch (format) {
+      case "markdown":
+        content = this.generateMarkdown(results, includeCharts);
+        break;
+      case "html":
+        content = this.generateHTML(results, includeCharts);
+        break;
+      case "json":
+        content = JSON.stringify(results, null, 2);
+        break;
+      case "pdf":
+        content = this.generateMarkdown(results, includeCharts);
+        break;
+      default:
+        content = JSON.stringify(results, null, 2);
+    }
+    const tokens = this.tokenCounter.count(content).tokens;
+    return { content, tokens };
+  }
+  /**
+   * Generate Markdown report
+   */
+  generateMarkdown(results, includeCharts) {
+    let md = "# Cache Benchmark Report\n\n";
+    md += `Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
+
+`;
+    if ("config" in results) {
+      md += this.formatBenchmarkMarkdown(results);
+    } else if ("configs" in results) {
+      md += this.formatComparisonMarkdown(results);
+    } else if ("phases" in results) {
+      md += this.formatLoadTestMarkdown(results);
+    }
+    if (includeCharts) {
+      md += "\n## Visualizations\n\n";
+      md += "_Charts would be rendered here in HTML/PDF format_\n";
+    }
+    return md;
+  }
+  /**
+   * Format single benchmark result as Markdown
+   */
+  formatBenchmarkMarkdown(result) {
+    let md = "## Configuration\n\n";
+    md += `- **Strategy**: ${result.config.strategy}
+`;
+    md += `- **Max Size**: ${result.config.maxSize || "unlimited"} MB
+`;
+    md += `- **TTL**: ${result.config.ttl || "none"} seconds
+
+`;
+    md += "## Workload\n\n";
+    md += `- **Type**: ${result.workload.type}
+`;
+    md += `- **Duration**: ${result.workload.duration}s
+`;
+    md += `- **Concurrency**: ${result.workload.concurrency}
+`;
+    md += `- **Key Count**: ${result.workload.keyCount}
+`;
+    md += `- **Value Size**: ${result.workload.valueSize} bytes
+
+`;
+    md += "## Operations\n\n";
+    md += `- **Total**: ${result.operations.total}
+`;
+    md += `- **Reads**: ${result.operations.reads}
+`;
+    md += `- **Writes**: ${result.operations.writes}
+`;
+    md += `- **Hits**: ${result.operations.hits}
+`;
+    md += `- **Misses**: ${result.operations.misses}
+
+`;
+    md += "## Performance\n\n";
+    md += "### Latency (ms)\n\n";
+    md += `- **Mean**: ${result.performance.latency.mean.toFixed(3)}
+`;
+    md += `- **Median**: ${result.performance.latency.median.toFixed(3)}
+`;
+    md += `- **p50**: ${result.performance.latency.p50.toFixed(3)}
+`;
+    md += `- **p90**: ${result.performance.latency.p90.toFixed(3)}
+`;
+    md += `- **p95**: ${result.performance.latency.p95.toFixed(3)}
+`;
+    md += `- **p99**: ${result.performance.latency.p99.toFixed(3)}
+`;
+    md += `- **p99.9**: ${result.performance.latency.p99_9.toFixed(3)}
+
+`;
+    md += "### Throughput\n\n";
+    md += `- **Operations/sec**: ${result.performance.throughput.operationsPerSecond.toFixed(2)}
+`;
+    md += `- **Read ops/sec**: ${result.performance.throughput.readOps.toFixed(2)}
+`;
+    md += `- **Write ops/sec**: ${result.performance.throughput.writeOps.toFixed(2)}
+`;
+    md += `- **Peak throughput**: ${result.performance.throughput.peakThroughput.toFixed(2)}
+`;
+    md += `- **Sustained throughput**: ${result.performance.throughput.sustainedThroughput.toFixed(2)}
+
+`;
+    md += "## Cache Performance\n\n";
+    md += `- **Hit Rate**: ${(result.cache.hitRate * 100).toFixed(2)}%
+`;
+    md += `- **Miss Rate**: ${(result.cache.missRate * 100).toFixed(2)}%
+`;
+    md += `- **Evictions**: ${result.cache.evictions}
+`;
+    md += `- **Memory Usage**: ${(result.cache.memoryUsage / 1024 / 1024).toFixed(2)} MB
+`;
+    md += `- **Entry Count**: ${result.cache.entryCount}
+
+`;
+    return md;
+  }
+  /**
+   * Format comparison result as Markdown
+   */
+  formatComparisonMarkdown(result) {
+    let md = "## Configuration Comparison\n\n";
+    md += "| Configuration | Strategy | Hit Rate | Latency (p95) | Throughput |\n";
+    md += "|--------------|----------|----------|---------------|------------|\n";
+    for (const bench of result.results) {
+      md += `| ${bench.config.name} | ${bench.config.strategy} | `;
+      md += `${(bench.cache.hitRate * 100).toFixed(2)}% | `;
+      md += `${bench.performance.latency.p95.toFixed(3)}ms | `;
+      md += `${bench.performance.throughput.operationsPerSecond.toFixed(2)} ops/s |
+`;
+    }
+    md += "\n## Winner\n\n";
+    md += `**${result.winner.config}** excels in ${result.winner.metric} with ${result.winner.value.toFixed(2)}
+
+`;
+    md += "## Rankings\n\n";
+    md += "### By Latency\n\n";
+    result.rankings.byLatency.forEach((name, i) => {
+      md += `${i + 1}. ${name}
+`;
+    });
+    md += "\n### By Throughput\n\n";
+    result.rankings.byThroughput.forEach((name, i) => {
+      md += `${i + 1}. ${name}
+`;
+    });
+    md += "\n### By Hit Rate\n\n";
+    result.rankings.byHitRate.forEach((name, i) => {
+      md += `${i + 1}. ${name}
+`;
+    });
+    md += "\n## Recommendations\n\n";
+    result.recommendations.forEach((rec) => {
+      md += `- ${rec}
+`;
+    });
+    return md;
+  }
+  /**
+   * Format load test result as Markdown
+   */
+  formatLoadTestMarkdown(result) {
+    let md = "## Load Test Results\n\n";
+    md += "| Concurrency | Duration | Throughput | Error Rate | p99 Latency |\n";
+    md += "|-------------|----------|------------|------------|-------------|\n";
+    for (const phase of result.phases) {
+      md += `| ${phase.concurrency} | ${phase.duration}s | `;
+      md += `${phase.throughput.toFixed(2)} ops/s | `;
+      md += `${(phase.errorRate * 100).toFixed(2)}% | `;
+      md += `${phase.p99Latency.toFixed(3)}ms |
+`;
+    }
+    md += "\n## Summary\n\n";
+    md += `- **Max Concurrency**: ${result.maxConcurrency}
+`;
+    md += `- **Total Requests**: ${result.summary.totalRequests}
+`;
+    md += `- **Successful**: ${result.summary.successfulRequests}
+`;
+    md += `- **Failed**: ${result.summary.failedRequests}
+`;
+    md += `- **Average Throughput**: ${result.summary.averageThroughput.toFixed(2)} ops/s
+`;
+    md += `- **Peak Throughput**: ${result.summary.peakThroughput.toFixed(2)} ops/s
+
+`;
+    if (result.breakingPoint) {
+      md += "## Breaking Point\n\n";
+      md += `System broke at **${result.breakingPoint.concurrency}** concurrent connections
+`;
+      md += `Reason: ${result.breakingPoint.reason}
+`;
+    }
+    return md;
+  }
+  /**
+   * Generate HTML report
+   */
+  generateHTML(results, includeCharts) {
+    const markdown = this.generateMarkdown(results, includeCharts);
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cache Benchmark Report</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    code {
+      background-color: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <pre>${markdown}</pre>
+</body>
+</html>`;
+  }
+};
+var CacheBenchmark = class {
+  tokenCounter;
+  metrics;
+  executor;
+  reportGenerator;
+  benchmarkCache;
+  constructor(cache, tokenCounter, metrics) {
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.executor = new BenchmarkExecutor(cache);
+    this.reportGenerator = new ReportGenerator(tokenCounter);
+    this.benchmarkCache = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Main entry point for benchmark operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      if (options.useCache && options.config) {
+        const cacheKey = this.generateBenchmarkCacheKey(options);
+        const cached2 = this.benchmarkCache.get(cacheKey);
+        if (cached2) {
+          const fullResult = JSON.stringify(cached2);
+          const originalTokens = this.tokenCounter.count(fullResult).tokens;
+          const summary = this.generateResultSummary(cached2);
+          const summaryTokens = this.tokenCounter.count(
+            JSON.stringify(summary)
+          ).tokens;
+          return {
+            success: true,
+            operation: options.operation,
+            benchmarkResults: summary,
+            metadata: {
+              tokensUsed: summaryTokens,
+              tokensSaved: originalTokens - summaryTokens,
+              cacheHit: true,
+              executionTime: 0,
+              compressionRatio: summaryTokens / originalTokens
+            }
+          };
+        }
+      }
+      let result;
+      switch (options.operation) {
+        case "run-benchmark":
+          result = await this.runBenchmark(options);
+          break;
+        case "compare":
+          result = await this.compareConfigurations(options);
+          break;
+        case "load-test":
+          result = await this.runLoadTest(options);
+          break;
+        case "latency-test":
+          result = await this.runLatencyTest(options);
+          break;
+        case "throughput-test":
+          result = await this.runThroughputTest(options);
+          break;
+        case "report":
+          result = await this.generateReport(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metrics.record({
+        operation: `cache-benchmark:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit,
+        savedTokens: result.metadata.tokensSaved
+      });
+      return result;
+    } catch (error2) {
+      return {
+        success: false,
+        operation: options.operation,
+        error: error2 instanceof Error ? error2.message : "Unknown error",
+        metadata: {
+          tokensUsed: 0,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    }
+  }
+  /**
+   * Run a single benchmark
+   */
+  async runBenchmark(options) {
+    if (!options.config) {
+      throw new Error("Config is required for run-benchmark");
+    }
+    const workload = this.buildWorkloadConfig(options);
+    const results = await this.executor.executeBenchmark(
+      options.config,
+      workload
+    );
+    if (options.useCache) {
+      const cacheKey = this.generateBenchmarkCacheKey(options);
+      this.benchmarkCache.set(cacheKey, results);
+    }
+    const fullResult = JSON.stringify(results);
+    const originalTokens = this.tokenCounter.count(fullResult).tokens;
+    const summary = this.generateResultSummary(results);
+    const summaryTokens = this.tokenCounter.count(
+      JSON.stringify(summary)
+    ).tokens;
+    return {
+      success: true,
+      operation: "run-benchmark",
+      benchmarkResults: summary,
+      metadata: {
+        tokensUsed: summaryTokens,
+        tokensSaved: originalTokens - summaryTokens,
+        cacheHit: false,
+        executionTime: results.duration,
+        compressionRatio: summaryTokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Compare multiple configurations
+   */
+  async compareConfigurations(options) {
+    if (!options.configs || options.configs.length < 2) {
+      throw new Error("At least 2 configs are required for comparison");
+    }
+    const workload = this.buildWorkloadConfig(options);
+    const results = [];
+    for (const config2 of options.configs) {
+      const result = await this.executor.executeBenchmark(config2, workload);
+      results.push(result);
+    }
+    const comparison = this.analyzeComparison(results);
+    const fullResult = JSON.stringify(comparison);
+    const originalTokens = this.tokenCounter.count(fullResult).tokens;
+    const summary = this.generateComparisonSummary(comparison);
+    const summaryTokens = this.tokenCounter.count(
+      JSON.stringify(summary)
+    ).tokens;
+    return {
+      success: true,
+      operation: "compare",
+      comparison: summary,
+      metadata: {
+        tokensUsed: summaryTokens,
+        tokensSaved: originalTokens - summaryTokens,
+        cacheHit: false,
+        executionTime: results.reduce((sum, r) => sum + r.duration, 0),
+        compressionRatio: summaryTokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Run load test with increasing concurrency
+   */
+  async runLoadTest(options) {
+    const maxConcurrency = options.maxConcurrency || 100;
+    const stepSize = options.stepSize || 10;
+    const phaseDuration = 30;
+    const phases = [];
+    let breakingPoint;
+    const config2 = options.config || {
+      name: "default",
+      strategy: "LRU",
+      ttl: 3600
+    };
+    for (let concurrency = stepSize; concurrency <= maxConcurrency; concurrency += stepSize) {
+      const workload = {
+        type: options.workloadType || "mixed",
+        duration: phaseDuration,
+        concurrency,
+        keyCount: 1e4,
+        valueSize: 1024
+      };
+      try {
+        const result = await this.executor.executeBenchmark(config2, workload);
+        const errorRate = result.operations.total > 0 ? 0 : 0;
+        phases.push({
+          concurrency,
+          duration: phaseDuration,
+          throughput: result.performance.throughput.operationsPerSecond,
+          errorRate,
+          p99Latency: result.performance.latency.p99
+        });
+        if (errorRate > 0.05 || result.performance.latency.p99 > 1e3) {
+          breakingPoint = {
+            concurrency,
+            reason: errorRate > 0.05 ? "Error rate exceeded 5%" : "p99 latency exceeded 1 second"
+          };
+          break;
+        }
+      } catch (error2) {
+        breakingPoint = {
+          concurrency,
+          reason: error2 instanceof Error ? error2.message : "Unknown error"
+        };
+        break;
+      }
+    }
+    const totalRequests = phases.reduce(
+      (sum, p) => sum + p.throughput * p.duration,
+      0
+    );
+    const successfulRequests = totalRequests;
+    const failedRequests = 0;
+    const averageThroughput = phases.reduce((sum, p) => sum + p.throughput, 0) / phases.length;
+    const peakThroughput = Math.max(...phases.map((p) => p.throughput));
+    const loadTestResults = {
+      phases,
+      maxConcurrency: phases[phases.length - 1]?.concurrency || maxConcurrency,
+      breakingPoint,
+      summary: {
+        totalRequests,
+        successfulRequests,
+        failedRequests,
+        averageThroughput,
+        peakThroughput
+      }
+    };
+    const fullResult = JSON.stringify(loadTestResults);
+    const originalTokens = this.tokenCounter.count(fullResult).tokens;
+    const summary = this.generateLoadTestSummary(loadTestResults);
+    const summaryTokens = this.tokenCounter.count(
+      JSON.stringify(summary)
+    ).tokens;
+    return {
+      success: true,
+      operation: "load-test",
+      loadTestResults: summary,
+      metadata: {
+        tokensUsed: summaryTokens,
+        tokensSaved: originalTokens - summaryTokens,
+        cacheHit: false,
+        executionTime: phases.reduce((sum, p) => sum + p.duration, 0) * 1e3,
+        compressionRatio: summaryTokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Run latency test with specific percentiles
+   */
+  async runLatencyTest(options) {
+    const config2 = options.config || {
+      name: "default",
+      strategy: "LRU",
+      ttl: 3600
+    };
+    const workload = this.buildWorkloadConfig(options);
+    const results = await this.executor.executeBenchmark(config2, workload);
+    const latencyDistribution = results.performance.latency;
+    const fullResult = JSON.stringify(latencyDistribution);
+    const originalTokens = this.tokenCounter.count(fullResult).tokens;
+    const summary = {
+      min: latencyDistribution.min,
+      max: latencyDistribution.max,
+      mean: latencyDistribution.mean,
+      median: latencyDistribution.median,
+      p50: latencyDistribution.p50,
+      p90: latencyDistribution.p90,
+      p95: latencyDistribution.p95,
+      p99: latencyDistribution.p99,
+      p99_9: latencyDistribution.p99_9,
+      stddev: latencyDistribution.stddev
+    };
+    const summaryTokens = this.tokenCounter.count(
+      JSON.stringify(summary)
+    ).tokens;
+    return {
+      success: true,
+      operation: "latency-test",
+      latencyDistribution: summary,
+      metadata: {
+        tokensUsed: summaryTokens,
+        tokensSaved: originalTokens - summaryTokens,
+        cacheHit: false,
+        executionTime: results.duration,
+        compressionRatio: summaryTokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Run throughput test
+   */
+  async runThroughputTest(options) {
+    const config2 = options.config || {
+      name: "default",
+      strategy: "LRU",
+      ttl: 3600
+    };
+    const workload = this.buildWorkloadConfig(options);
+    const results = await this.executor.executeBenchmark(config2, workload);
+    const throughputResults = results.performance.throughput;
+    const fullResult = JSON.stringify(throughputResults);
+    const originalTokens = this.tokenCounter.count(fullResult).tokens;
+    const summary = {
+      operationsPerSecond: throughputResults.operationsPerSecond,
+      readOps: throughputResults.readOps,
+      writeOps: throughputResults.writeOps,
+      peakThroughput: throughputResults.peakThroughput,
+      sustainedThroughput: throughputResults.sustainedThroughput,
+      averageLatency: throughputResults.averageLatency
+    };
+    const summaryTokens = this.tokenCounter.count(
+      JSON.stringify(summary)
+    ).tokens;
+    return {
+      success: true,
+      operation: "throughput-test",
+      throughputResults: summary,
+      metadata: {
+        tokensUsed: summaryTokens,
+        tokensSaved: originalTokens - summaryTokens,
+        cacheHit: false,
+        executionTime: results.duration,
+        compressionRatio: summaryTokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Generate comprehensive report
+   */
+  async generateReport(options) {
+    if (!options.benchmarkId && !options.resultsPath) {
+      throw new Error(
+        "Either benchmarkId or resultsPath is required for report generation"
+      );
+    }
+    const results = this.benchmarkCache.values().next().value;
+    if (!results) {
+      throw new Error("No benchmark results available for report generation");
+    }
+    const format = options.format || "markdown";
+    const includeCharts = options.includeCharts || false;
+    const { content, tokens } = this.reportGenerator.generateReport(
+      results,
+      format,
+      includeCharts
+    );
+    const outputPath = options.outputPath || join20(
+      getOptimizerReportsDir(),
+      `benchmark-${Date.now()}.${format === "html" ? "html" : "md"}`
+    );
+    mkdirSync3(join20(outputPath, ".."), { recursive: true });
+    writeFileSync5(outputPath, content, "utf-8");
+    const fullResults = JSON.stringify(results);
+    const originalTokens = this.tokenCounter.count(fullResults).tokens;
+    return {
+      success: true,
+      operation: "report",
+      reportPath: outputPath,
+      reportFormat: format,
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: originalTokens - tokens,
+        cacheHit: false,
+        executionTime: 0,
+        compressionRatio: tokens / originalTokens
+      }
+    };
+  }
+  /**
+   * Build workload configuration from options
+   */
+  buildWorkloadConfig(options) {
+    const workload = options.workload || {};
+    return {
+      type: options.workloadType || workload.type || "mixed",
+      ratio: options.workloadRatio || workload.ratio,
+      duration: options.duration || workload.duration || 60,
+      concurrency: options.concurrency || workload.concurrency || 10,
+      keyCount: workload.keyCount || 1e3,
+      valueSize: workload.valueSize || 1024,
+      keyDistribution: workload.keyDistribution || "uniform",
+      accessPattern: workload.accessPattern || "random"
+    };
+  }
+  /**
+   * Generate cache key for benchmark results
+   */
+  generateBenchmarkCacheKey(options) {
+    const keyData = {
+      config: options.config,
+      workload: options.workload,
+      duration: options.duration,
+      concurrency: options.concurrency
+    };
+    const hash = createHash29("sha256").update(JSON.stringify(keyData)).digest("hex");
+    return `benchmark:${hash}`;
+  }
+  /**
+   * Generate summary of benchmark results (89% token reduction)
+   */
+  generateResultSummary(results) {
+    return {
+      config: results.config.name,
+      strategy: results.config.strategy,
+      operations: results.operations.total,
+      hitRate: (results.cache.hitRate * 100).toFixed(2) + "%",
+      p95Latency: results.performance.latency.p95.toFixed(3) + "ms",
+      throughput: results.performance.throughput.operationsPerSecond.toFixed(2) + " ops/s"
+    };
+  }
+  /**
+   * Generate summary of comparison results (89% token reduction)
+   */
+  generateComparisonSummary(comparison) {
+    return {
+      winner: comparison.winner,
+      topByLatency: comparison.rankings.byLatency[0],
+      topByThroughput: comparison.rankings.byThroughput[0],
+      topByHitRate: comparison.rankings.byHitRate[0],
+      recommendations: comparison.recommendations.slice(0, 3)
+      // Top 3 only
+    };
+  }
+  /**
+   * Generate summary of load test results (89% token reduction)
+   */
+  generateLoadTestSummary(results) {
+    return {
+      maxConcurrency: results.maxConcurrency,
+      peakThroughput: results.summary.peakThroughput.toFixed(2) + " ops/s",
+      totalRequests: results.summary.totalRequests,
+      breakingPoint: results.breakingPoint?.concurrency || "N/A",
+      phaseCount: results.phases.length
+    };
+  }
+  /**
+   * Analyze comparison results
+   */
+  analyzeComparison(results) {
+    const byLatency = [...results].sort(
+      (a2, b) => a2.performance.latency.p95 - b.performance.latency.p95
+    );
+    const byThroughput = [...results].sort(
+      (a2, b) => b.performance.throughput.operationsPerSecond - a2.performance.throughput.operationsPerSecond
+    );
+    const byHitRate = [...results].sort(
+      (a2, b) => b.cache.hitRate - a2.cache.hitRate
+    );
+    const byMemory = [...results].sort(
+      (a2, b) => a2.cache.memoryUsage - b.cache.memoryUsage
+    );
+    const scores = results.map((r) => {
+      const latencyScore = 1 / (r.performance.latency.p95 + 1);
+      const throughputScore = r.performance.throughput.operationsPerSecond / 1e4;
+      const hitRateScore = r.cache.hitRate;
+      const memoryScore = 1 / (r.cache.memoryUsage + 1);
+      return {
+        config: r.config.name,
+        score: latencyScore * 0.3 + throughputScore * 0.3 + hitRateScore * 0.3 + memoryScore * 0.1
+      };
+    });
+    const winner = scores.sort((a2, b) => b.score - a2.score)[0];
+    const recommendations = [];
+    if (byLatency[0].config.name !== winner.config) {
+      recommendations.push(
+        `For lowest latency, use ${byLatency[0].config.name} (${byLatency[0].performance.latency.p95.toFixed(3)}ms p95)`
+      );
+    }
+    if (byThroughput[0].config.name !== winner.config) {
+      recommendations.push(
+        `For highest throughput, use ${byThroughput[0].config.name} (${byThroughput[0].performance.throughput.operationsPerSecond.toFixed(2)} ops/s)`
+      );
+    }
+    if (byHitRate[0].config.name !== winner.config) {
+      recommendations.push(
+        `For best hit rate, use ${byHitRate[0].config.name} (${(byHitRate[0].cache.hitRate * 100).toFixed(2)}%)`
+      );
+    }
+    return {
+      configs: results.map((r) => r.config),
+      results,
+      winner: {
+        config: winner.config,
+        metric: "overall",
+        value: winner.score
+      },
+      rankings: {
+        byLatency: byLatency.map((r) => r.config.name),
+        byThroughput: byThroughput.map((r) => r.config.name),
+        byHitRate: byHitRate.map((r) => r.config.name),
+        byMemoryEfficiency: byMemory.map((r) => r.config.name)
+      },
+      recommendations
+    };
+  }
+};
+var CACHE_BENCHMARK_TOOL_DEFINITION = {
+  name: "cache_benchmark",
+  description: `Cache Performance Benchmarking with 89% token reduction through comprehensive testing and analysis.
+
+Features:
+- Strategy comparison (LRU vs LFU vs FIFO vs TTL vs size vs hybrid)
+- Load testing with configurable concurrency and ramp-up
+- Latency profiling with percentiles (p50, p90, p95, p99, p99.9)
+- Throughput testing (operations per second)
+- Comprehensive reports in markdown, HTML, JSON, PDF
+- Workload simulation (read-heavy, write-heavy, mixed, realistic)
+
+Operations:
+- run-benchmark: Execute complete benchmark suite
+- compare: Compare multiple cache configurations
+- load-test: Stress test cache under load
+- latency-test: Measure latency distribution with percentiles
+- throughput-test: Measure throughput limits
+- report: Generate comprehensive benchmark report
+
+Token Reduction:
+- Benchmark results: ~89% (summary only)
+- Comparison: ~91% (rankings + winner)
+- Load test: ~88% (summary + breaking point)
+- Latency test: ~87% (percentiles only)
+- Throughput test: ~90% (key metrics only)
+- Report: ~85% (formatted summary)
+- Average: 89% reduction`,
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "run-benchmark",
+          "compare",
+          "load-test",
+          "latency-test",
+          "throughput-test",
+          "report"
+        ],
+        description: "Benchmark operation to perform"
+      },
+      config: {
+        type: "object",
+        description: "Cache configuration for single benchmark",
+        properties: {
+          name: { type: "string" },
+          strategy: {
+            type: "string",
+            enum: ["LRU", "LFU", "FIFO", "TTL", "size", "hybrid"]
+          },
+          maxSize: { type: "number" },
+          maxEntries: { type: "number" },
+          ttl: { type: "number", description: "Seconds" },
+          evictionPolicy: { type: "string", enum: ["strict", "lazy"] },
+          compressionEnabled: { type: "boolean" },
+          params: {
+            type: "object",
+            additionalProperties: true,
+            description: "Strategy-specific parameters"
+          }
+        },
+        // CacheConfig requires name and strategy; the rest are optional.
+        required: ["name", "strategy"]
+      },
+      configs: {
+        type: "array",
+        description: "Multiple cache configurations for comparison",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            strategy: {
+              type: "string",
+              enum: ["LRU", "LFU", "FIFO", "TTL", "size", "hybrid"]
+            },
+            maxSize: { type: "number", description: "MB" },
+            maxEntries: { type: "number" },
+            ttl: { type: "number", description: "Seconds" },
+            evictionPolicy: { type: "string", enum: ["strict", "lazy"] },
+            compressionEnabled: { type: "boolean" },
+            params: {
+              type: "object",
+              additionalProperties: true,
+              description: "Strategy-specific parameters"
+            }
+          },
+          // CacheConfig requires name and strategy; the rest are optional.
+          required: ["name", "strategy"]
+        }
+      },
+      duration: {
+        type: "number",
+        description: "Benchmark duration in seconds (default: 60)"
+      },
+      warmupDuration: {
+        type: "number",
+        description: "Warmup duration in seconds (default: 10)"
+      },
+      workloadType: {
+        type: "string",
+        enum: ["read-heavy", "write-heavy", "mixed", "custom", "realistic"],
+        description: "Type of workload to simulate"
+      },
+      workloadRatio: {
+        type: "object",
+        description: "Custom read/write ratio",
+        properties: {
+          read: { type: "number" },
+          write: { type: "number" }
+        }
+      },
+      concurrency: {
+        type: "number",
+        description: "Number of concurrent workers (default: 10)"
+      },
+      rampUp: {
+        type: "number",
+        description: "Ramp-up time in seconds (for load-test)"
+      },
+      targetTPS: {
+        type: "number",
+        description: "Target transactions per second"
+      },
+      maxConcurrency: {
+        type: "number",
+        description: "Maximum concurrency for load test (default: 100)"
+      },
+      stepSize: {
+        type: "number",
+        description: "Concurrency step size for load test (default: 10)"
+      },
+      percentiles: {
+        type: "array",
+        items: { type: "number" },
+        description: "Percentiles to measure (default: [50, 90, 95, 99])"
+      },
+      format: {
+        type: "string",
+        enum: ["markdown", "html", "json", "pdf"],
+        description: "Report format (default: markdown)"
+      },
+      includeCharts: {
+        type: "boolean",
+        description: "Include charts in report"
+      },
+      outputPath: {
+        type: "string",
+        description: "Path to save report"
+      },
+      benchmarkId: {
+        type: "string",
+        description: "ID of benchmark results to generate report for"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Cache benchmark results (default: true)"
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 604800 - 7 days)"
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      workload: {
+        type: "object",
+        description: "Shape of the synthetic load to run. Every field is optional.",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["read-heavy", "write-heavy", "mixed", "custom", "realistic"]
+          },
+          ratio: {
+            type: "object",
+            description: "Read/write split, used when type is mixed or custom",
+            properties: { read: { type: "number" }, write: { type: "number" } }
+          },
+          duration: { type: "number", description: "Seconds" },
+          concurrency: { type: "number" },
+          keyCount: { type: "number" },
+          valueSize: { type: "number", description: "Bytes per value" },
+          keyDistribution: {
+            type: "string",
+            enum: ["uniform", "zipf", "gaussian"]
+          },
+          accessPattern: {
+            type: "string",
+            enum: ["sequential", "random", "temporal"]
+          }
+        }
+      },
+      resultsPath: {
+        type: "string",
+        description: "File to write the benchmark results to, in addition to returning them"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-compression.ts
+init_cache_engine();
+init_token_counter();
+import { promisify as promisify2 } from "util";
+import {
+  gzip,
+  gunzip,
+  brotliCompress,
+  brotliDecompress,
+  constants
+} from "zlib";
+init_metrics();
+var gzipAsync = promisify2(gzip);
+var gunzipAsync = promisify2(gunzip);
+var brotliCompressAsync = promisify2(brotliCompress);
+var brotliDecompressAsync = promisify2(brotliDecompress);
+var CacheCompressionTool = class {
+  cache;
+  tokenCounter;
+  metrics;
+  config;
+  // Dynamic imports for optional packages
+  lz4Module = null;
+  zstdModule = null;
+  snappyModule = null;
+  packagesLoaded = false;
+  constructor(cache, tokenCounter, metrics) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.config = {
+      defaultAlgorithm: "gzip",
+      defaultLevel: 6,
+      autoSelect: true,
+      enableDelta: true,
+      algorithmOverrides: /* @__PURE__ */ new Map([
+        ["json", "brotli"],
+        ["text", "gzip"],
+        ["binary", "lz4"],
+        ["time-series", "zstd"]
+      ])
+    };
+  }
+  /**
+   * Lazy load compression packages
+   */
+  async loadPackages() {
+    if (this.packagesLoaded) return;
+    try {
+      try {
+        this.lz4Module = await import("lz4");
+      } catch {
+      }
+      try {
+        const zstdCodec = await import("zstd-codec");
+        this.zstdModule = zstdCodec.default || zstdCodec;
+      } catch {
+      }
+      try {
+        this.snappyModule = await import("snappy");
+      } catch {
+      }
+      this.packagesLoaded = true;
+    } catch (error2) {
+      console.warn(
+        "[CacheCompression] Optional packages not available:",
+        error2
+      );
+      this.packagesLoaded = true;
+    }
+  }
+  /**
+   * Main entry point for compression operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    await this.loadPackages();
+    const cacheKey = generateCacheKey("compression", {
+      operation: options.operation,
+      algorithm: options.algorithm,
+      level: options.level,
+      dataType: options.dataType
+    });
+    if (options.useCache && ["analyze", "benchmark", "optimize"].includes(options.operation)) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokenCountResult = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        );
+        const tokensSaved = tokenCountResult.tokens;
+        return {
+          success: true,
+          operation: options.operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let result;
+    switch (options.operation) {
+      case "compress":
+        result = await this.compress(options);
+        break;
+      case "decompress":
+        result = await this.decompress(options);
+        break;
+      case "analyze":
+        result = await this.analyze(options);
+        break;
+      case "optimize":
+        result = await this.optimize(options);
+        break;
+      case "benchmark":
+        result = await this.benchmark(options);
+        break;
+      case "configure":
+        result = await this.configure(options);
+        break;
+      default:
+        throw new Error(`Unknown operation: ${options.operation}`);
+    }
+    if (options.useCache && ["analyze", "benchmark", "optimize"].includes(options.operation)) {
+      const serialized = JSON.stringify(result.data);
+      const compressed = await gzipAsync(Buffer.from(serialized));
+      this.cache.set(
+        cacheKey,
+        compressed.toString("utf-8"),
+        Buffer.byteLength(serialized),
+        compressed.length
+      );
+    }
+    result.metadata.executionTime = Date.now() - startTime;
+    this.metrics.record({
+      operation: `compression_${options.operation}`,
+      duration: Date.now() - startTime,
+      success: true,
+      cacheHit: false,
+      inputTokens: 0,
+      outputTokens: result.metadata.tokensUsed,
+      cachedTokens: 0,
+      savedTokens: result.metadata.tokensSaved,
+      metadata: result.metadata
+    });
+    return result;
+  }
+  /**
+   * Compress data using specified or auto-selected algorithm
+   */
+  async compress(options) {
+    if (!options.data) {
+      throw new Error("Data is required for compress operation");
+    }
+    const startTime = Date.now();
+    const dataBuffer = this.toBuffer(options.data);
+    const originalSize = dataBuffer.length;
+    let algorithm = options.algorithm || this.config.defaultAlgorithm;
+    const level = options.level || this.config.defaultLevel;
+    if (this.config.autoSelect && !options.algorithm) {
+      const dataType = options.dataType || this.detectDataType(options.data);
+      algorithm = this.config.algorithmOverrides.get(dataType) || algorithm;
+    }
+    let dataToCompress = dataBuffer;
+    let deltaApplied = false;
+    if (this.config.enableDelta && this.isTimeSeries(options.data)) {
+      const deltaResult = this.applyDeltaCompression(options.data);
+      if (deltaResult.delta.length < dataBuffer.length * 0.8) {
+        dataToCompress = deltaResult.delta;
+        deltaApplied = true;
+      }
+    }
+    let compressed;
+    try {
+      compressed = await this.compressWithAlgorithm(
+        dataToCompress,
+        algorithm,
+        level,
+        options.dictionary
+      );
+    } catch (error2) {
+      console.warn(
+        `[CacheCompression] ${algorithm} failed, falling back to gzip:`,
+        error2
+      );
+      compressed = await this.compressWithAlgorithm(
+        dataToCompress,
+        "gzip",
+        level
+      );
+      algorithm = "gzip";
+    }
+    const compressionRatio = compressed.length / originalSize;
+    const originalTokenCountResult = this.tokenCounter.count(
+      options.data.toString()
+    );
+    const originalTokens = originalTokenCountResult.tokens;
+    const compressedTokens = Math.ceil(originalTokens * compressionRatio);
+    const tokensSaved = originalTokens - compressedTokens;
+    const metadata = {
+      algorithm,
+      level,
+      originalSize,
+      deltaApplied,
+      timestamp: Date.now()
+    };
+    const metadataBuffer = Buffer.from(JSON.stringify(metadata), "utf-8");
+    const metadataLength = Buffer.allocUnsafe(4);
+    metadataLength.writeUInt32LE(metadataBuffer.length, 0);
+    const result = Buffer.concat([metadataLength, metadataBuffer, compressed]);
+    return {
+      success: true,
+      operation: "compress",
+      data: {
+        compressed: result
+      },
+      metadata: {
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        cacheHit: false,
+        executionTime: Date.now() - startTime,
+        compressionRatio,
+        algorithm,
+        level
+      }
+    };
+  }
+  /**
+   * Decompress data
+   */
+  async decompress(options) {
+    if (!options.data || !Buffer.isBuffer(options.data)) {
+      throw new Error(
+        "Compressed data buffer is required for decompress operation"
+      );
+    }
+    const startTime = Date.now();
+    const metadataLength = options.data.readUInt32LE(0);
+    const metadataBuffer = options.data.subarray(4, 4 + metadataLength);
+    const metadata = JSON.parse(metadataBuffer.toString("utf-8"));
+    const compressedData = options.data.subarray(4 + metadataLength);
+    let decompressed;
+    try {
+      decompressed = await this.decompressWithAlgorithm(
+        compressedData,
+        metadata.algorithm,
+        options.dictionary
+      );
+    } catch (error2) {
+      throw new Error(`Decompression failed: ${error2}`);
+    }
+    if (metadata.deltaApplied) {
+      console.warn(
+        "[CacheCompression] Delta decompression requires baseline state"
+      );
+    }
+    const decompressedData = decompressed;
+    const tokens = this.tokenCounter.count(
+      decompressedData.toString("utf-8")
+    ).tokens;
+    return {
+      success: true,
+      operation: "decompress",
+      data: {
+        decompressed: decompressedData
+      },
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: 0,
+        cacheHit: false,
+        executionTime: Date.now() - startTime,
+        algorithm: metadata.algorithm,
+        level: metadata.level
+      }
+    };
+  }
+  /**
+   * Analyze data compressibility and recommend algorithm
+   */
+  async analyze(options) {
+    if (!options.data) {
+      throw new Error("Data is required for analyze operation");
+    }
+    const startTime = Date.now();
+    const dataBuffer = this.toBuffer(options.data);
+    const originalSize = dataBuffer.length;
+    const dataType = options.dataType || this.detectDataType(options.data);
+    const entropy = this.calculateEntropy(dataBuffer);
+    const repetition = this.calculateRepetition(dataBuffer);
+    const compressibility = (1 - entropy / 8) * 0.7 + repetition * 0.3;
+    const patterns = this.detectPatterns(dataBuffer, options.sampleSize);
+    let timeSeries;
+    if (this.isTimeSeries(options.data)) {
+      const deltaResult = this.applyDeltaCompression(options.data);
+      timeSeries = {
+        isDelta: true,
+        deltaSize: deltaResult.delta.length,
+        temporalPatterns: deltaResult.patterns
+      };
+    }
+    let recommendedAlgorithm;
+    let recommendedLevel;
+    if (compressibility > 0.7) {
+      recommendedAlgorithm = "brotli";
+      recommendedLevel = 9;
+    } else if (compressibility > 0.5) {
+      recommendedAlgorithm = "zstd";
+      recommendedLevel = 6;
+    } else if (compressibility > 0.3) {
+      recommendedAlgorithm = "lz4";
+      recommendedLevel = 3;
+    } else {
+      recommendedAlgorithm = "snappy";
+      recommendedLevel = 1;
+    }
+    const estimatedRatio = 1 - compressibility * 0.8;
+    const estimatedCompressedSize = Math.ceil(originalSize * estimatedRatio);
+    const analysis = {
+      dataType,
+      originalSize,
+      estimatedCompressedSize,
+      estimatedRatio,
+      recommendedAlgorithm,
+      recommendedLevel,
+      characteristics: {
+        entropy,
+        repetition,
+        compressibility,
+        patterns
+      },
+      timeSeries
+    };
+    const tokenCountResult = this.tokenCounter.count(JSON.stringify(analysis));
+    const tokens = tokenCountResult.tokens;
+    return {
+      success: true,
+      operation: "analyze",
+      data: {
+        analysis
+      },
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: 0,
+        cacheHit: false,
+        executionTime: Date.now() - startTime
+      }
+    };
+  }
+  /**
+   * Optimize compression settings for workload
+   */
+  async optimize(options) {
+    const startTime = Date.now();
+    const targetRatio = options.targetRatio || 0.3;
+    const maxLatency = options.maxLatency || 50;
+    const workloadType = options.workloadType || "balanced";
+    const algorithms = [
+      "gzip",
+      "brotli",
+      "lz4",
+      "zstd",
+      "snappy"
+    ];
+    const testData = options.testData || this.generateTestData(options.dataType || "json");
+    const recommendations = [];
+    for (const algorithm of algorithms) {
+      for (const level of [1, 3, 6, 9]) {
+        try {
+          const benchmark = await this.benchmarkAlgorithm(
+            algorithm,
+            level,
+            testData,
+            1
+          );
+          const meetsLatency = benchmark.compressionTime <= maxLatency;
+          const meetsRatio = benchmark.compressionRatio <= targetRatio;
+          if (workloadType === "read-heavy") {
+            if (meetsRatio && benchmark.decompressionTime <= maxLatency * 0.5) {
+              recommendations.push({
+                algorithm,
+                level,
+                expectedRatio: benchmark.compressionRatio,
+                expectedLatency: benchmark.decompressionTime,
+                useDictionary: false,
+                useDelta: false,
+                reasoning: `Optimized for read-heavy workload: fast decompression (${benchmark.decompressionTime}ms) with ${(benchmark.compressionRatio * 100).toFixed(1)}% ratio`
+              });
+            }
+          } else if (workloadType === "write-heavy") {
+            if (meetsLatency && meetsRatio) {
+              recommendations.push({
+                algorithm,
+                level,
+                expectedRatio: benchmark.compressionRatio,
+                expectedLatency: benchmark.compressionTime,
+                useDictionary: false,
+                useDelta: false,
+                reasoning: `Optimized for write-heavy workload: fast compression (${benchmark.compressionTime}ms) with ${(benchmark.compressionRatio * 100).toFixed(1)}% ratio`
+              });
+            }
+          } else {
+            const avgLatency = (benchmark.compressionTime + benchmark.decompressionTime) / 2;
+            if (avgLatency <= maxLatency && meetsRatio) {
+              recommendations.push({
+                algorithm,
+                level,
+                expectedRatio: benchmark.compressionRatio,
+                expectedLatency: avgLatency,
+                useDictionary: false,
+                useDelta: false,
+                reasoning: `Balanced optimization: average latency ${avgLatency.toFixed(1)}ms with ${(benchmark.compressionRatio * 100).toFixed(1)}% ratio`
+              });
+            }
+          }
+        } catch (error2) {
+          continue;
+        }
+      }
+    }
+    recommendations.sort((a2, b) => a2.expectedRatio - b.expectedRatio);
+    const tokenCountResult = this.tokenCounter.count(
+      JSON.stringify(recommendations)
+    );
+    const tokens = tokenCountResult.tokens;
+    return {
+      success: true,
+      operation: "optimize",
+      data: {
+        recommendations
+      },
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: 0,
+        cacheHit: false,
+        executionTime: Date.now() - startTime
+      }
+    };
+  }
+  /**
+   * Benchmark compression algorithms
+   */
+  async benchmark(options) {
+    const startTime = Date.now();
+    const algorithms = options.algorithms || [
+      "gzip",
+      "brotli",
+      "lz4",
+      "zstd",
+      "snappy"
+    ];
+    const testData = options.testData || this.generateTestData(options.dataType || "json");
+    const iterations = options.iterations || 10;
+    const results = [];
+    for (const algorithm of algorithms) {
+      for (const level of [1, 6, 9]) {
+        try {
+          const result = await this.benchmarkAlgorithm(
+            algorithm,
+            level,
+            testData,
+            iterations
+          );
+          results.push(result);
+        } catch (error2) {
+          console.warn(
+            `[CacheCompression] Benchmark failed for ${algorithm}:`,
+            error2
+          );
+        }
+      }
+    }
+    results.sort((a2, b) => a2.compressionRatio - b.compressionRatio);
+    const tokenCountResult = this.tokenCounter.count(JSON.stringify(results));
+    const tokens = tokenCountResult.tokens;
+    return {
+      success: true,
+      operation: "benchmark",
+      data: {
+        benchmarkResults: results
+      },
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: 0,
+        cacheHit: false,
+        executionTime: Date.now() - startTime
+      }
+    };
+  }
+  /**
+   * Configure compression settings
+   */
+  async configure(options) {
+    const startTime = Date.now();
+    if (options.defaultAlgorithm) {
+      this.config.defaultAlgorithm = options.defaultAlgorithm;
+    }
+    if (options.level !== void 0) {
+      this.config.defaultLevel = options.level;
+    }
+    if (options.autoSelect !== void 0) {
+      this.config.autoSelect = options.autoSelect;
+    }
+    if (options.enableDelta !== void 0) {
+      this.config.enableDelta = options.enableDelta;
+    }
+    if (options.dictionary) {
+      this.config.dictionary = options.dictionary;
+    }
+    const tokenCountResult = this.tokenCounter.count(
+      JSON.stringify(this.config)
+    );
+    const tokens = tokenCountResult.tokens;
+    return {
+      success: true,
+      operation: "configure",
+      data: {
+        configuration: this.config
+      },
+      metadata: {
+        tokensUsed: tokens,
+        tokensSaved: 0,
+        cacheHit: false,
+        executionTime: Date.now() - startTime
+      }
+    };
+  }
+  /**
+   * Compress using specific algorithm
+   */
+  async compressWithAlgorithm(data, algorithm, level, dictionary) {
+    switch (algorithm) {
+      case "gzip":
+        return await gzipAsync(data, { level });
+      case "brotli":
+        return await brotliCompressAsync(data, {
+          params: {
+            [constants.BROTLI_PARAM_QUALITY]: level
+          }
+        });
+      case "lz4":
+        if (!this.lz4Module) {
+          console.warn("[CacheCompression] LZ4 not available, using gzip");
+          return await gzipAsync(data, { level });
+        }
+        return Buffer.from(this.lz4Module.encode(data));
+      case "zstd":
+        if (!this.zstdModule) {
+          console.warn("[CacheCompression] ZSTD not available, using brotli");
+          return await brotliCompressAsync(data, {
+            params: {
+              [constants.BROTLI_PARAM_QUALITY]: level
+            }
+          });
+        }
+        return new Promise((resolve5, reject) => {
+          this.zstdModule.run((zstd) => {
+            try {
+              const compressed = zstd.compress(data, level);
+              resolve5(Buffer.from(compressed));
+            } catch (error2) {
+              reject(error2);
+            }
+          });
+        });
+      case "snappy":
+        if (!this.snappyModule) {
+          console.warn("[CacheCompression] Snappy not available, using gzip");
+          return await gzipAsync(data, { level: 1 });
+        }
+        return await this.snappyModule.compress(data);
+      case "custom":
+        return this.customCompress(data, dictionary);
+      default:
+        throw new Error(`Unsupported algorithm: ${algorithm}`);
+    }
+  }
+  /**
+   * Decompress using specific algorithm
+   */
+  async decompressWithAlgorithm(data, algorithm, dictionary) {
+    switch (algorithm) {
+      case "gzip":
+        return await gunzipAsync(data);
+      case "brotli":
+        return await brotliDecompressAsync(data);
+      case "lz4":
+        if (!this.lz4Module) {
+          return await gunzipAsync(data);
+        }
+        return Buffer.from(this.lz4Module.decode(data));
+      case "zstd":
+        if (!this.zstdModule) {
+          return await brotliDecompressAsync(data);
+        }
+        return new Promise((resolve5, reject) => {
+          this.zstdModule.run((zstd) => {
+            try {
+              const decompressed = zstd.decompress(data);
+              resolve5(Buffer.from(decompressed));
+            } catch (error2) {
+              reject(error2);
+            }
+          });
+        });
+      case "snappy":
+        if (!this.snappyModule) {
+          return await gunzipAsync(data);
+        }
+        return await this.snappyModule.uncompress(data);
+      case "custom":
+        return this.customDecompress(data, dictionary);
+      default:
+        throw new Error(`Unsupported algorithm: ${algorithm}`);
+    }
+  }
+  /**
+   * Custom compression for structured data
+   */
+  customCompress(data, dictionary) {
+    const str = data;
+    try {
+      const obj = JSON.parse(str.toString("utf-8"));
+      const dict = dictionary || this.buildDictionary(obj);
+      const compressed = this.compressWithDictionary(obj, dict);
+      return Buffer.from(JSON.stringify(compressed), "utf-8");
+    } catch {
+      return Buffer.from(str);
+    }
+  }
+  /**
+   * Custom decompression for structured data
+   */
+  customDecompress(data, _dictionary) {
+    try {
+      const compressed = JSON.parse(data.toString("utf-8"));
+      if (compressed.__dict) {
+        const dict = compressed.__dict;
+        const decompressed = this.decompressWithDictionary(
+          compressed.data,
+          dict
+        );
+        return Buffer.from(JSON.stringify(decompressed), "utf-8");
+      }
+      return data;
+    } catch {
+      return data;
+    }
+  }
+  /**
+   * Build compression dictionary from object
+   */
+  buildDictionary(obj) {
+    const strings = /* @__PURE__ */ new Map();
+    const traverse = (value) => {
+      if (typeof value === "string" && value.length > 10) {
+        strings.set(value, (strings.get(value) || 0) + 1);
+      } else if (typeof value === "object" && value !== null) {
+        Object.values(value).forEach(traverse);
+      }
+    };
+    traverse(obj);
+    const dict = {};
+    let id = 0;
+    const entries = Array.from(strings.entries());
+    for (const [str, count] of entries) {
+      if (count > 1) {
+        dict[str] = id++;
+      }
+    }
+    return dict;
+  }
+  /**
+   * Compress object using dictionary
+   */
+  compressWithDictionary(obj, dict) {
+    const dictMap = Buffer.isBuffer(dict) ? {} : dict;
+    const traverse = (value) => {
+      if (typeof value === "string" && dictMap[value] !== void 0) {
+        return { __ref: dictMap[value] };
+      } else if (Array.isArray(value)) {
+        return value.map(traverse);
+      } else if (typeof value === "object" && value !== null) {
+        const result = {};
+        for (const [k3, v2] of Object.entries(value)) {
+          result[k3] = traverse(v2);
+        }
+        return result;
+      }
+      return value;
+    };
+    return {
+      __dict: dictMap,
+      data: traverse(obj)
+    };
+  }
+  /**
+   * Decompress object using dictionary
+   */
+  decompressWithDictionary(data, dict) {
+    const invDict = {};
+    const entries = Object.entries(dict);
+    for (const [str, id] of entries) {
+      invDict[id] = str;
+    }
+    const traverse = (value) => {
+      if (value && typeof value === "object" && "__ref" in value) {
+        return invDict[value.__ref];
+      } else if (Array.isArray(value)) {
+        return value.map(traverse);
+      } else if (typeof value === "object" && value !== null) {
+        const result = {};
+        for (const [k3, v2] of Object.entries(value)) {
+          result[k3] = traverse(v2);
+        }
+        return result;
+      }
+      return value;
+    };
+    return traverse(data);
+  }
+  /**
+   * Apply delta compression for time-series data
+   */
+  applyDeltaCompression(data) {
+    const dataStr = typeof data === "string" ? data : JSON.stringify(data);
+    const patterns = [];
+    const delta = Buffer.from(dataStr);
+    return { delta, patterns };
+  }
+  /**
+   * Calculate Shannon entropy
+   */
+  calculateEntropy(data) {
+    const freq = /* @__PURE__ */ new Map();
+    for (let i = 0; i < data.length; i++) {
+      const byte = data[i];
+      freq.set(byte, (freq.get(byte) || 0) + 1);
+    }
+    let entropy = 0;
+    const len = data.length;
+    const counts = Array.from(freq.values());
+    for (const count of counts) {
+      const p = count / len;
+      entropy -= p * Math.log2(p);
+    }
+    return entropy;
+  }
+  /**
+   * Calculate repetition score
+   */
+  calculateRepetition(data) {
+    const windowSize = Math.min(64, Math.floor(data.length / 10));
+    const windows = /* @__PURE__ */ new Set();
+    let repeated = 0;
+    for (let i = 0; i <= data.length - windowSize; i++) {
+      const window2 = data.subarray(i, i + windowSize).toString("hex");
+      if (windows.has(window2)) {
+        repeated++;
+      } else {
+        windows.add(window2);
+      }
+    }
+    return data.length > 0 ? repeated / (data.length - windowSize + 1) : 0;
+  }
+  /**
+   * Detect common patterns in data
+   */
+  detectPatterns(data, sampleSize = 1e3) {
+    const patterns = [];
+    const sample = data.subarray(0, Math.min(sampleSize, data.length));
+    if (sample.includes(123) && sample.includes(125)) {
+      patterns.push("json-like");
+    }
+    if (sample.includes(60) && sample.includes(62)) {
+      patterns.push("xml-like");
+    }
+    const str = sample.toString("utf-8", 0, Math.min(100, sample.length));
+    if (/(.{3,})\1{2,}/.test(str)) {
+      patterns.push("repeated-sequences");
+    }
+    return patterns;
+  }
+  /**
+   * Detect data type from content
+   */
+  detectDataType(data) {
+    if (typeof data === "string") {
+      try {
+        JSON.parse(data);
+        return "json";
+      } catch {
+        return "text";
+      }
+    } else if (Buffer.isBuffer(data)) {
+      return "binary";
+    } else if (typeof data === "object") {
+      return "structured";
+    }
+    return "auto";
+  }
+  /**
+   * Check if data is time-series
+   */
+  isTimeSeries(data) {
+    try {
+      if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        return typeof first === "object" && (first.timestamp || first.time || first.date);
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  }
+  /**
+   * Convert data to buffer
+   */
+  toBuffer(data) {
+    if (Buffer.isBuffer(data)) {
+      return data;
+    } else if (typeof data === "string") {
+      return Buffer.from(data, "utf-8");
+    } else {
+      return Buffer.from(JSON.stringify(data), "utf-8");
+    }
+  }
+  /**
+   * Generate test data for benchmarking
+   */
+  generateTestData(dataType) {
+    const size = 1e4;
+    switch (dataType) {
+      case "json": {
+        const obj = {
+          users: Array.from({ length: 100 }, (_2, i) => ({
+            id: i,
+            name: `User ${i}`,
+            email: `user${i}@example.com`,
+            active: i % 2 === 0
+          }))
+        };
+        return Buffer.from(JSON.stringify(obj), "utf-8");
+      }
+      case "text": {
+        const text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(
+          200
+        );
+        return Buffer.from(text);
+      }
+      case "binary": {
+        const buffer = Buffer.allocUnsafe(size);
+        for (let i = 0; i < size; i++) {
+          buffer[i] = Math.floor(Math.random() * 256);
+        }
+        return buffer;
+      }
+      default: {
+        return Buffer.allocUnsafe(size);
+      }
+    }
+  }
+  /**
+   * Benchmark a specific algorithm
+   */
+  async benchmarkAlgorithm(algorithm, level, testData, iterations) {
+    const originalSize = testData.length;
+    let totalCompressTime = 0;
+    let totalDecompressTime = 0;
+    let compressed = Buffer.allocUnsafe(0);
+    for (let i = 0; i < iterations; i++) {
+      const startCompress = Date.now();
+      compressed = await this.compressWithAlgorithm(testData, algorithm, level);
+      totalCompressTime += Date.now() - startCompress;
+    }
+    for (let i = 0; i < iterations; i++) {
+      const startDecompress = Date.now();
+      await this.decompressWithAlgorithm(compressed, algorithm);
+      totalDecompressTime += Date.now() - startDecompress;
+    }
+    const avgCompressTime = totalCompressTime / iterations;
+    const avgDecompressTime = totalDecompressTime / iterations;
+    const compressedSize = compressed.length;
+    const compressionRatio = compressedSize / originalSize;
+    return {
+      algorithm,
+      level,
+      originalSize,
+      compressedSize,
+      compressionRatio,
+      compressionTime: avgCompressTime,
+      decompressionTime: avgDecompressTime,
+      throughput: {
+        compression: originalSize / 1024 / 1024 / (avgCompressTime / 1e3),
+        // MB/s
+        decompression: originalSize / 1024 / 1024 / (avgDecompressTime / 1e3)
+        // MB/s
+      },
+      memoryUsage: {
+        compression: compressedSize * 2,
+        // Estimate
+        decompression: originalSize * 1.5
+        // Estimate
+      }
+    };
+  }
+};
+var CACHE_COMPRESSION_TOOL_DEFINITION = {
+  name: "cache_compression",
+  description: "Advanced compression strategies for cache optimization with 89%+ token reduction. Supports 6 algorithms (gzip, brotli, lz4, zstd, snappy, custom), adaptive selection, dictionary-based compression, and delta compression for time-series data.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "compress",
+          "decompress",
+          "analyze",
+          "optimize",
+          "benchmark",
+          "configure"
+        ],
+        description: "Compression operation to perform"
+      },
+      data: {
+        description: "Data to compress/decompress/analyze"
+      },
+      algorithm: {
+        type: "string",
+        enum: ["gzip", "brotli", "lz4", "zstd", "snappy", "custom"],
+        description: "Compression algorithm (auto-selected if not specified)"
+      },
+      level: {
+        type: "number",
+        minimum: 0,
+        maximum: 9,
+        description: "Compression level (0-9, higher = better compression)"
+      },
+      dataType: {
+        type: "string",
+        enum: ["json", "text", "binary", "time-series", "structured", "auto"],
+        description: "Data type hint for adaptive compression"
+      },
+      targetRatio: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        description: "Target compression ratio for optimize operation (0-1)"
+      },
+      maxLatency: {
+        type: "number",
+        description: "Maximum acceptable latency in milliseconds"
+      },
+      workloadType: {
+        type: "string",
+        enum: ["read-heavy", "write-heavy", "balanced"],
+        description: "Workload type for optimization"
+      },
+      algorithms: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["gzip", "brotli", "lz4", "zstd", "snappy"]
+        },
+        description: "Algorithms to benchmark"
+      },
+      iterations: {
+        type: "number",
+        description: "Number of benchmark iterations"
+      },
+      defaultAlgorithm: {
+        type: "string",
+        enum: ["gzip", "brotli", "lz4", "zstd", "snappy", "custom"],
+        description: "Default algorithm for configure operation"
+      },
+      autoSelect: {
+        type: "boolean",
+        description: "Enable auto-selection of algorithm based on data type"
+      },
+      enableDelta: {
+        type: "boolean",
+        description: "Enable delta compression for time-series data"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching of analysis/benchmark results",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds",
+        default: 3600
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      // `dictionary` is deliberately absent -- it is a Buffer handed straight to zlib,
+      // so it cannot arrive as JSON and is programmatic-only.
+      sampleSize: {
+        type: "number",
+        description: "Bytes of the input to sample when choosing an algorithm, instead of measuring all of it"
+      },
+      includeMetrics: {
+        type: "boolean",
+        description: "Include per-algorithm ratio and timing metrics in the result",
+        default: false
+      },
+      testData: {
+        description: "Data to compress for a benchmark or analysis operation. Any JSON value; a string is used as-is and anything else is serialised first."
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-invalidation.ts
+import { createHash as createHash30 } from "crypto";
+import { EventEmitter as EventEmitter3 } from "events";
+var CacheInvalidationTool = class extends EventEmitter3 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Dependency graph
+  dependencyGraph = /* @__PURE__ */ new Map();
+  tagIndex = /* @__PURE__ */ new Map();
+  // Audit trail
+  auditLog = [];
+  maxAuditEntries = 1e4;
+  enableAudit = true;
+  // Scheduled invalidations
+  scheduledInvalidations = /* @__PURE__ */ new Map();
+  schedulerTimer = null;
+  // Configuration
+  strategy = "immediate";
+  mode = "eager";
+  // Statistics
+  stats = {
+    totalInvalidations: 0,
+    invalidationsByStrategy: {},
+    totalExecutionTime: 0,
+    totalKeysInvalidated: 0,
+    tokensSaved: 0
+  };
+  // Lazy invalidation queue
+  lazyInvalidationQueue = /* @__PURE__ */ new Set();
+  lazyProcessTimer = null;
+  // Distributed coordination
+  nodeId;
+  connectedNodes = /* @__PURE__ */ new Set();
+  constructor(cache, tokenCounter, metrics, nodeId) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.nodeId = nodeId || this.generateNodeId();
+    const strategies = [
+      "immediate",
+      "lazy",
+      "write-through",
+      "ttl-based",
+      "event-driven",
+      "dependency-cascade"
+    ];
+    for (const strategy of strategies) {
+      this.stats.invalidationsByStrategy[strategy] = 0;
+    }
+    this.startScheduler();
+  }
+  /**
+   * Main entry point for all cache invalidation operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `cache-invalidation:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "invalidate":
+          data = await this.invalidate(options);
+          break;
+        case "invalidate-pattern":
+          data = await this.invalidatePattern(options);
+          break;
+        case "invalidate-tag":
+          data = await this.invalidateTag(options);
+          break;
+        case "invalidate-dependency":
+          data = await this.invalidateDependency(options);
+          break;
+        case "schedule-invalidation":
+          data = await this.scheduleInvalidation(options);
+          break;
+        case "cancel-scheduled":
+          data = await this.cancelScheduled(options);
+          break;
+        case "audit-log":
+          data = await this.getAuditLog(options);
+          break;
+        case "set-dependency":
+          data = await this.setDependency(options);
+          break;
+        case "remove-dependency":
+          data = await this.removeDependency(options);
+          break;
+        case "validate":
+          data = await this.validate(options);
+          break;
+        case "configure":
+          data = await this.configure(options);
+          break;
+        case "stats":
+          data = await this.getStats(options);
+          break;
+        case "clear-audit":
+          data = await this.clearAudit(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `cache_invalidation_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `cache_invalidation_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Invalidate specific cache key(s)
+   */
+  async invalidate(options) {
+    const { key, keys, revalidateOnInvalidate = false } = options;
+    const startTime = Date.now();
+    const keysToInvalidate = keys || (key ? [key] : []);
+    if (keysToInvalidate.length === 0) {
+      throw new Error("key or keys is required for invalidate operation");
+    }
+    const invalidatedKeys = [];
+    for (const k3 of keysToInvalidate) {
+      if (this.mode === "lazy") {
+        this.lazyInvalidationQueue.add(k3);
+        this.scheduleLazyProcessing();
+        invalidatedKeys.push(k3);
+      } else {
+        const deleted = this.cache.delete(k3);
+        if (deleted) {
+          invalidatedKeys.push(k3);
+          const node = this.dependencyGraph.get(k3);
+          if (node) {
+            node.lastInvalidated = Date.now();
+          }
+          if (revalidateOnInvalidate) {
+            this.emit("revalidate-required", { key: k3 });
+          }
+        }
+      }
+    }
+    if (options.broadcastToNodes) {
+      this.broadcastInvalidation(invalidatedKeys);
+    }
+    const record2 = this.createAuditRecord(
+      this.strategy,
+      invalidatedKeys,
+      "Direct invalidation",
+      { mode: this.mode },
+      Date.now() - startTime
+    );
+    this.emit("invalidated", {
+      type: "manual",
+      affectedKeys: invalidatedKeys,
+      timestamp: Date.now()
+    });
+    return { invalidatedKeys, invalidationRecord: record2 };
+  }
+  /**
+   * Invalidate keys matching a pattern
+   */
+  async invalidatePattern(options) {
+    const { pattern } = options;
+    if (!pattern) {
+      throw new Error("pattern is required for invalidate-pattern operation");
+    }
+    const startTime = Date.now();
+    const regex = this.patternToRegex(pattern);
+    const allEntries = this.cache.getAllEntries();
+    const invalidatedKeys = [];
+    for (const entry of allEntries) {
+      if (regex.test(entry.key)) {
+        this.cache.delete(entry.key);
+        invalidatedKeys.push(entry.key);
+        const node = this.dependencyGraph.get(entry.key);
+        if (node) {
+          node.lastInvalidated = Date.now();
+        }
+      }
+    }
+    const record2 = this.createAuditRecord(
+      "event-driven",
+      invalidatedKeys,
+      `Pattern match: ${pattern}`,
+      { pattern },
+      Date.now() - startTime
+    );
+    this.emit("pattern-invalidated", {
+      pattern,
+      count: invalidatedKeys.length
+    });
+    return { invalidatedKeys, invalidationRecord: record2 };
+  }
+  /**
+   * Invalidate keys by tag
+   */
+  async invalidateTag(options) {
+    const { tag, tags } = options;
+    const tagsToInvalidate = tags || (tag ? [tag] : []);
+    if (tagsToInvalidate.length === 0) {
+      throw new Error("tag or tags is required for invalidate-tag operation");
+    }
+    const startTime = Date.now();
+    const invalidatedKeys = [];
+    for (const t2 of tagsToInvalidate) {
+      const keys = this.tagIndex.get(t2);
+      if (keys) {
+        for (const key of keys) {
+          this.cache.delete(key);
+          invalidatedKeys.push(key);
+          const node = this.dependencyGraph.get(key);
+          if (node) {
+            node.lastInvalidated = Date.now();
+          }
+        }
+      }
+    }
+    const record2 = this.createAuditRecord(
+      "event-driven",
+      invalidatedKeys,
+      `Tag invalidation: ${tagsToInvalidate.join(", ")}`,
+      { tags: tagsToInvalidate },
+      Date.now() - startTime
+    );
+    this.emit("tag-invalidated", {
+      tags: tagsToInvalidate,
+      count: invalidatedKeys.length
+    });
+    return { invalidatedKeys, invalidationRecord: record2 };
+  }
+  /**
+   * Invalidate with dependency cascade
+   */
+  async invalidateDependency(options) {
+    const { key, cascadeDepth = 10 } = options;
+    if (!key) {
+      throw new Error("key is required for invalidate-dependency operation");
+    }
+    const startTime = Date.now();
+    const invalidatedKeys = /* @__PURE__ */ new Set();
+    const visited = /* @__PURE__ */ new Set();
+    const invalidateCascade = (k3, depth) => {
+      if (depth > cascadeDepth || visited.has(k3)) return;
+      visited.add(k3);
+      const node = this.dependencyGraph.get(k3);
+      if (!node) return;
+      this.cache.delete(k3);
+      invalidatedKeys.add(k3);
+      node.lastInvalidated = Date.now();
+      for (const child of node.children) {
+        invalidateCascade(child, depth + 1);
+      }
+    };
+    invalidateCascade(key, 0);
+    const keys = Array.from(invalidatedKeys);
+    const record2 = this.createAuditRecord(
+      "dependency-cascade",
+      keys,
+      `Dependency cascade from: ${key}`,
+      { cascadeDepth, rootKey: key },
+      Date.now() - startTime
+    );
+    this.emit("dependency-invalidated", { rootKey: key, count: keys.length });
+    return { invalidatedKeys: keys, invalidationRecord: record2 };
+  }
+  /**
+   * Schedule future invalidation
+   */
+  async scheduleInvalidation(options) {
+    const { keys, pattern, tags, executeAt, cronExpression, repeatInterval } = options;
+    if (!keys && !pattern && !tags) {
+      throw new Error(
+        "keys, pattern, or tags is required for schedule-invalidation operation"
+      );
+    }
+    const scheduleId = this.generateScheduleId();
+    const scheduled = {
+      id: scheduleId,
+      keys: keys || [],
+      pattern,
+      tags,
+      executeAt: executeAt || Date.now() + 36e5,
+      // Default 1 hour
+      cronExpression,
+      repeatInterval,
+      createdAt: Date.now(),
+      lastExecuted: null,
+      executionCount: 0
+    };
+    this.scheduledInvalidations.set(scheduleId, scheduled);
+    this.emit("invalidation-scheduled", { scheduleId, scheduled });
+    return { scheduledInvalidation: scheduled };
+  }
+  /**
+   * Cancel scheduled invalidation
+   */
+  async cancelScheduled(options) {
+    const { scheduleId } = options;
+    if (!scheduleId) {
+      throw new Error("scheduleId is required for cancel-scheduled operation");
+    }
+    const scheduled = this.scheduledInvalidations.get(scheduleId);
+    if (!scheduled) {
+      throw new Error(`Scheduled invalidation not found: ${scheduleId}`);
+    }
+    this.scheduledInvalidations.delete(scheduleId);
+    this.emit("invalidation-cancelled", { scheduleId });
+    return { scheduledInvalidation: scheduled };
+  }
+  /**
+   * Get audit log
+   */
+  async getAuditLog(_options) {
+    return { auditLog: [...this.auditLog] };
+  }
+  /**
+   * Set dependency relationship
+   */
+  async setDependency(options) {
+    const { parentKey, childKey, childKeys, tag } = options;
+    if (!parentKey) {
+      throw new Error("parentKey is required for set-dependency operation");
+    }
+    if (!childKey && !childKeys && !tag) {
+      throw new Error(
+        "childKey, childKeys, or tag is required for set-dependency operation"
+      );
+    }
+    if (!this.dependencyGraph.has(parentKey)) {
+      this.dependencyGraph.set(parentKey, {
+        key: parentKey,
+        parents: /* @__PURE__ */ new Set(),
+        children: /* @__PURE__ */ new Set(),
+        tags: /* @__PURE__ */ new Set(),
+        createdAt: Date.now(),
+        lastInvalidated: null
+      });
+    }
+    const parentNode = this.dependencyGraph.get(parentKey);
+    if (tag) {
+      parentNode.tags.add(tag);
+      if (!this.tagIndex.has(tag)) {
+        this.tagIndex.set(tag, /* @__PURE__ */ new Set());
+      }
+      this.tagIndex.get(tag).add(parentKey);
+    }
+    const children = childKeys || (childKey ? [childKey] : []);
+    for (const child of children) {
+      if (!this.dependencyGraph.has(child)) {
+        this.dependencyGraph.set(child, {
+          key: child,
+          parents: /* @__PURE__ */ new Set(),
+          children: /* @__PURE__ */ new Set(),
+          tags: /* @__PURE__ */ new Set(),
+          createdAt: Date.now(),
+          lastInvalidated: null
+        });
+      }
+      const childNode = this.dependencyGraph.get(child);
+      parentNode.children.add(child);
+      childNode.parents.add(parentKey);
+    }
+    this.emit("dependency-set", { parentKey, children, tag });
+    return { dependency: parentNode };
+  }
+  /**
+   * Remove dependency relationship
+   */
+  async removeDependency(options) {
+    const { parentKey, childKey } = options;
+    if (!parentKey || !childKey) {
+      throw new Error(
+        "parentKey and childKey are required for remove-dependency operation"
+      );
+    }
+    const parentNode = this.dependencyGraph.get(parentKey);
+    const childNode = this.dependencyGraph.get(childKey);
+    if (parentNode) {
+      parentNode.children.delete(childKey);
+    }
+    if (childNode) {
+      childNode.parents.delete(parentKey);
+    }
+    this.emit("dependency-removed", { parentKey, childKey });
+    return { dependency: parentNode };
+  }
+  /**
+   * Validate cache entries
+   */
+  async validate(options) {
+    const { keys, skipExpired = true } = options;
+    const allEntries = this.cache.getAllEntries();
+    const validationResults = [];
+    const keysToValidate = keys || allEntries.map((e) => e.key);
+    for (const key of keysToValidate) {
+      const entry = allEntries.find((e) => e.key === key);
+      if (!entry) {
+        validationResults.push({
+          key,
+          valid: false,
+          reason: "Entry not found"
+        });
+        continue;
+      }
+      if (skipExpired) {
+        const node = this.dependencyGraph.get(key);
+        if (node && node.lastInvalidated) {
+          const age = Date.now() - node.lastInvalidated;
+          if (age > 36e5) {
+            validationResults.push({
+              key,
+              valid: false,
+              reason: "Expired (last invalidated > 1 hour ago)"
+            });
+            continue;
+          }
+        }
+      }
+      validationResults.push({
+        key,
+        valid: true,
+        reason: "Valid"
+      });
+    }
+    return { validationResults };
+  }
+  /**
+   * Configure invalidation settings
+   */
+  async configure(options) {
+    if (options.strategy) {
+      this.strategy = options.strategy;
+    }
+    if (options.mode) {
+      this.mode = options.mode;
+    }
+    if (options.enableAudit !== void 0) {
+      this.enableAudit = options.enableAudit;
+    }
+    if (options.maxAuditEntries) {
+      this.maxAuditEntries = options.maxAuditEntries;
+      if (this.auditLog.length > this.maxAuditEntries) {
+        this.auditLog = this.auditLog.slice(-this.maxAuditEntries);
+      }
+    }
+    this.emit("configuration-updated", {
+      strategy: this.strategy,
+      mode: this.mode,
+      enableAudit: this.enableAudit,
+      maxAuditEntries: this.maxAuditEntries
+    });
+    return {
+      stats: {
+        totalInvalidations: this.stats.totalInvalidations,
+        invalidationsByStrategy: { ...this.stats.invalidationsByStrategy },
+        averageInvalidationTime: this.stats.totalInvalidations > 0 ? this.stats.totalExecutionTime / this.stats.totalInvalidations : 0,
+        averageKeysInvalidated: this.stats.totalInvalidations > 0 ? this.stats.totalKeysInvalidated / this.stats.totalInvalidations : 0,
+        dependencyGraphSize: this.dependencyGraph.size,
+        scheduledInvalidationsCount: this.scheduledInvalidations.size,
+        auditLogSize: this.auditLog.length,
+        tokensSaved: this.stats.tokensSaved
+      }
+    };
+  }
+  /**
+   * Get invalidation statistics
+   */
+  async getStats(_options) {
+    const stats = {
+      totalInvalidations: this.stats.totalInvalidations,
+      invalidationsByStrategy: { ...this.stats.invalidationsByStrategy },
+      averageInvalidationTime: this.stats.totalInvalidations > 0 ? this.stats.totalExecutionTime / this.stats.totalInvalidations : 0,
+      averageKeysInvalidated: this.stats.totalInvalidations > 0 ? this.stats.totalKeysInvalidated / this.stats.totalInvalidations : 0,
+      dependencyGraphSize: this.dependencyGraph.size,
+      scheduledInvalidationsCount: this.scheduledInvalidations.size,
+      auditLogSize: this.auditLog.length,
+      tokensSaved: this.stats.tokensSaved
+    };
+    return { stats };
+  }
+  /**
+   * Clear audit log
+   */
+  async clearAudit(_options) {
+    const count = this.auditLog.length;
+    this.auditLog = [];
+    this.emit("audit-cleared", { count });
+    return { auditLog: [] };
+  }
+  /**
+   * Create audit record
+   */
+  createAuditRecord(strategy, affectedKeys, reason, metadata, executionTime) {
+    if (!this.enableAudit) {
+      return {
+        id: "",
+        timestamp: Date.now(),
+        strategy,
+        affectedKeys: [],
+        reason: "",
+        metadata: {},
+        executionTime: 0
+      };
+    }
+    const record2 = {
+      id: this.generateRecordId(),
+      timestamp: Date.now(),
+      strategy,
+      affectedKeys,
+      reason,
+      metadata,
+      executionTime
+    };
+    this.auditLog.push(record2);
+    if (this.auditLog.length > this.maxAuditEntries) {
+      this.auditLog = this.auditLog.slice(-this.maxAuditEntries);
+    }
+    this.stats.totalInvalidations++;
+    this.stats.invalidationsByStrategy[strategy] = (this.stats.invalidationsByStrategy[strategy] || 0) + 1;
+    this.stats.totalExecutionTime += executionTime;
+    this.stats.totalKeysInvalidated += affectedKeys.length;
+    const tokensSaved = 0;
+    this.stats.tokensSaved += tokensSaved;
+    return record2;
+  }
+  /**
+   * Pattern to regex conversion
+   */
+  patternToRegex(pattern) {
+    let regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+    return new RegExp(`^${regexPattern}$`);
+  }
+  /**
+   * Start scheduler for processing scheduled invalidations
+   */
+  startScheduler() {
+    if (this.schedulerTimer) return;
+    this.schedulerTimer = setInterval(() => {
+      this.processScheduledInvalidations();
+    }, 1e4);
+    this.schedulerTimer.unref();
+  }
+  /**
+   * Process scheduled invalidations
+   */
+  async processScheduledInvalidations() {
+    const now2 = Date.now();
+    for (const [id, scheduled] of this.scheduledInvalidations.entries()) {
+      if (scheduled.executeAt <= now2) {
+        try {
+          const invalidatedKeys = [];
+          if (scheduled.keys.length > 0) {
+            for (const key of scheduled.keys) {
+              this.cache.delete(key);
+              invalidatedKeys.push(key);
+            }
+          }
+          if (scheduled.pattern) {
+            const result = await this.invalidatePattern({
+              operation: "invalidate-pattern",
+              pattern: scheduled.pattern
+            });
+            invalidatedKeys.push(...result.invalidatedKeys || []);
+          }
+          if (scheduled.tags && scheduled.tags.length > 0) {
+            const result = await this.invalidateTag({
+              operation: "invalidate-tag",
+              tags: scheduled.tags
+            });
+            invalidatedKeys.push(...result.invalidatedKeys || []);
+          }
+          scheduled.lastExecuted = now2;
+          scheduled.executionCount++;
+          if (scheduled.repeatInterval) {
+            scheduled.executeAt = now2 + scheduled.repeatInterval;
+          } else {
+            this.scheduledInvalidations.delete(id);
+          }
+          this.emit("scheduled-invalidation-executed", {
+            scheduleId: id,
+            count: invalidatedKeys.length
+          });
+        } catch (error2) {
+          const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+          this.emit("scheduled-invalidation-failed", {
+            scheduleId: id,
+            error: errorMessage
+          });
+        }
+      }
+    }
+  }
+  /**
+   * Schedule lazy processing
+   */
+  scheduleLazyProcessing() {
+    if (this.lazyProcessTimer) return;
+    this.lazyProcessTimer = setTimeout(() => {
+      this.processLazyInvalidations();
+      this.lazyProcessTimer = null;
+    }, 5e3);
+    this.lazyProcessTimer.unref();
+  }
+  /**
+   * Process lazy invalidation queue
+   */
+  processLazyInvalidations() {
+    const keys = Array.from(this.lazyInvalidationQueue);
+    this.lazyInvalidationQueue.clear();
+    for (const key of keys) {
+      this.cache.delete(key);
+      const node = this.dependencyGraph.get(key);
+      if (node) {
+        node.lastInvalidated = Date.now();
+      }
+    }
+    if (keys.length > 0) {
+      this.emit("lazy-invalidations-processed", { count: keys.length });
+    }
+  }
+  /**
+   * Broadcast invalidation to distributed nodes
+   */
+  broadcastInvalidation(keys) {
+    this.emit("broadcast-invalidation", {
+      nodeId: this.nodeId,
+      keys,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Generate unique node ID
+   */
+  generateNodeId() {
+    return createHash30("sha256").update(`${Date.now()}-${Math.random()}`).digest("hex").substring(0, 16);
+  }
+  /**
+   * Generate unique record ID
+   */
+  generateRecordId() {
+    return createHash30("sha256").update(`${Date.now()}-${this.stats.totalInvalidations}`).digest("hex").substring(0, 16);
+  }
+  /**
+   * Generate unique schedule ID
+   */
+  generateScheduleId() {
+    return createHash30("sha256").update(`schedule-${Date.now()}-${Math.random()}`).digest("hex").substring(0, 16);
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["stats", "audit-log", "validate"].includes(operation);
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation } = options;
+    switch (operation) {
+      case "stats":
+        return {};
+      case "audit-log":
+        return {};
+      case "validate":
+        return { keys: options.keys };
+      default:
+        return {};
+    }
+  }
+  /**
+   * Handle external invalidation event
+   */
+  handleExternalEvent(event) {
+    const { type, affectedKeys, metadata } = event;
+    if (this.strategy !== "event-driven") {
+      return;
+    }
+    for (const key of affectedKeys) {
+      this.cache.delete(key);
+    }
+    this.createAuditRecord(
+      "event-driven",
+      affectedKeys,
+      `External event: ${type}`,
+      metadata || {},
+      0
+    );
+    this.emit("external-event-processed", { type, count: affectedKeys.length });
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    if (this.schedulerTimer) {
+      clearInterval(this.schedulerTimer);
+    }
+    if (this.lazyProcessTimer) {
+      clearTimeout(this.lazyProcessTimer);
+    }
+    this.dependencyGraph.clear();
+    this.tagIndex.clear();
+    this.auditLog = [];
+    this.scheduledInvalidations.clear();
+    this.lazyInvalidationQueue.clear();
+    this.connectedNodes.clear();
+    this.removeAllListeners();
+  }
+};
+var cacheInvalidationInstance = null;
+function getCacheInvalidationTool(cache, tokenCounter, metrics, nodeId) {
+  if (!cacheInvalidationInstance) {
+    cacheInvalidationInstance = new CacheInvalidationTool(
+      cache,
+      tokenCounter,
+      metrics,
+      nodeId
+    );
+  }
+  return cacheInvalidationInstance;
+}
+var CACHE_INVALIDATION_TOOL_DEFINITION = {
+  name: "cache_invalidation",
+  description: "Comprehensive cache invalidation with 88%+ token reduction, dependency tracking, pattern matching, scheduled invalidation, and distributed coordination",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "invalidate",
+          "invalidate-pattern",
+          "invalidate-tag",
+          "invalidate-dependency",
+          "schedule-invalidation",
+          "cancel-scheduled",
+          "audit-log",
+          "set-dependency",
+          "remove-dependency",
+          "validate",
+          "configure",
+          "stats",
+          "clear-audit"
+        ],
+        description: "The cache invalidation operation to perform"
+      },
+      key: {
+        type: "string",
+        description: "Cache key to invalidate"
+      },
+      keys: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of cache keys to invalidate"
+      },
+      pattern: {
+        type: "string",
+        description: "Pattern for matching keys (wildcards: * for any chars, ? for single char)"
+      },
+      tag: {
+        type: "string",
+        description: "Tag to invalidate all associated keys"
+      },
+      tags: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of tags to invalidate"
+      },
+      parentKey: {
+        type: "string",
+        description: "Parent key for dependency relationship"
+      },
+      childKey: {
+        type: "string",
+        description: "Child key for dependency relationship"
+      },
+      childKeys: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of child keys for dependency relationship"
+      },
+      cascadeDepth: {
+        type: "number",
+        description: "Maximum depth for dependency cascade (default: 10)"
+      },
+      scheduleId: {
+        type: "string",
+        description: "ID of scheduled invalidation"
+      },
+      cronExpression: {
+        type: "string",
+        description: "Cron expression for scheduled invalidation"
+      },
+      executeAt: {
+        type: "number",
+        description: "Timestamp when to execute invalidation"
+      },
+      repeatInterval: {
+        type: "number",
+        description: "Interval in ms for repeating scheduled invalidation"
+      },
+      strategy: {
+        type: "string",
+        enum: [
+          "immediate",
+          "lazy",
+          "write-through",
+          "ttl-based",
+          "event-driven",
+          "dependency-cascade"
+        ],
+        description: "Invalidation strategy"
+      },
+      mode: {
+        type: "string",
+        enum: ["eager", "lazy", "scheduled"],
+        description: "Invalidation mode"
+      },
+      enableAudit: {
+        type: "boolean",
+        description: "Enable audit logging (default: true)"
+      },
+      maxAuditEntries: {
+        type: "number",
+        description: "Maximum audit log entries to keep (default: 10000)"
+      },
+      revalidateOnInvalidate: {
+        type: "boolean",
+        description: "Trigger revalidation after invalidation"
+      },
+      skipExpired: {
+        type: "boolean",
+        description: "Skip expired entries during validation (default: true)"
+      },
+      broadcastToNodes: {
+        type: "boolean",
+        description: "Broadcast invalidation to distributed nodes"
+      },
+      nodeId: {
+        type: "string",
+        description: "Node ID for distributed coordination"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-optimizer.ts
+import { EventEmitter as EventEmitter4 } from "events";
+var CacheOptimizerTool = class extends EventEmitter4 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Access history for analysis
+  accessHistory = [];
+  maxHistorySize = 1e5;
+  // Performance tracking
+  evictionEvents = [];
+  // ML models for optimization
+  learningRate = 0.01;
+  optimizationState = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+  }
+  /**
+   * Main entry point for cache optimizer operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `cache-optimizer:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "analyze":
+          data = await this.analyze(options);
+          break;
+        case "benchmark":
+          data = await this.benchmark(options);
+          break;
+        case "optimize":
+          data = await this.optimize(options);
+          break;
+        case "recommend":
+          data = await this.recommend(options);
+          break;
+        case "simulate":
+          data = await this.simulate(options);
+          break;
+        case "tune":
+          data = await this.tune(options);
+          break;
+        case "detect-bottlenecks":
+          data = await this.detectBottlenecks(options);
+          break;
+        case "cost-benefit":
+          data = await this.analyzeCostBenefit(options);
+          break;
+        case "configure":
+          data = await this.configure(options);
+          break;
+        case "report":
+          data = await this.generateReport(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `cache_optimizer_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `cache_optimizer_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Analyze current cache performance
+   */
+  async analyze(options) {
+    const window2 = options.analysisWindow || 36e5;
+    const now2 = Date.now();
+    const recentAccesses = this.accessHistory.filter(
+      (record2) => now2 - record2.timestamp <= window2
+    );
+    if (recentAccesses.length === 0) {
+      const metrics2 = this.generateSyntheticMetrics();
+      return { metrics: metrics2 };
+    }
+    const hits = recentAccesses.filter((r) => r.hit).length;
+    const hitRate = recentAccesses.length > 0 ? hits / recentAccesses.length : 0;
+    const missRate = 1 - hitRate;
+    const latencies = recentAccesses.map((r) => r.latency).sort((a2, b) => a2 - b);
+    const averageLatency = latencies.reduce((sum, l) => sum + l, 0) / latencies.length || 0;
+    const p50Latency = this.percentile(latencies, 0.5);
+    const p95Latency = this.percentile(latencies, 0.95);
+    const p99Latency = this.percentile(latencies, 0.99);
+    const durationSeconds = window2 / 1e3;
+    const throughput = recentAccesses.length / durationSeconds;
+    const memoryUsage = recentAccesses.reduce((sum, r) => sum + r.size, 0);
+    const evictions = this.evictionEvents.filter(
+      (e) => now2 - e.timestamp <= window2
+    ).length;
+    const evictionRate = evictions / durationSeconds;
+    const cacheStats = this.cache.getStats();
+    const compressionRatio = cacheStats.compressionRatio;
+    const tokenReductionRate = hitRate * (1 - compressionRatio) * 0.9;
+    const metrics = {
+      hitRate,
+      missRate,
+      averageLatency,
+      p50Latency,
+      p95Latency,
+      p99Latency,
+      throughput,
+      memoryUsage,
+      evictionRate,
+      compressionRatio,
+      tokenReductionRate
+    };
+    let bottlenecks;
+    if (options.includeBottlenecks) {
+      const bottleneckResult = await this.detectBottlenecks(options);
+      bottlenecks = bottleneckResult.bottlenecks;
+    }
+    this.emit("analysis-complete", { metrics, bottlenecks });
+    return { metrics, bottlenecks };
+  }
+  /**
+   * Benchmark different eviction strategies
+   */
+  async benchmark(options) {
+    const strategies = options.strategies || [
+      "LRU",
+      "LFU",
+      "FIFO",
+      "TTL",
+      "SIZE",
+      "HYBRID"
+    ];
+    const workloadSize = options.workloadSize || 1e4;
+    const iterations = options.iterations || 100;
+    const benchmarks = [];
+    for (const strategy of strategies) {
+      const config2 = this.getDefaultConfig(strategy);
+      const metrics = await this.benchmarkStrategy(
+        strategy,
+        config2,
+        workloadSize,
+        iterations,
+        options.workloadPattern || "uniform"
+      );
+      const score = this.calculateStrategyScore(
+        metrics,
+        options.objective || "balanced"
+      );
+      const analysis = this.analyzeStrategyPerformance(strategy, metrics);
+      benchmarks.push({
+        strategy,
+        config: config2,
+        metrics,
+        score,
+        strengths: analysis.strengths,
+        weaknesses: analysis.weaknesses
+      });
+    }
+    benchmarks.sort((a2, b) => b.score - a2.score);
+    this.emit("benchmark-complete", { benchmarks });
+    return { benchmarks };
+  }
+  /**
+   * Optimize cache configuration
+   */
+  async optimize(options) {
+    const constraints = options.constraints || {};
+    const benchmarkResult = await this.benchmark(options);
+    const benchmarks = benchmarkResult.benchmarks;
+    const feasibleBenchmarks = benchmarks.filter(
+      (b) => this.meetsConstraints(b.metrics, constraints)
+    );
+    if (feasibleBenchmarks.length === 0) {
+      throw new Error("No strategies meet the specified constraints");
+    }
+    const recommendations = await this.generateRecommendations(
+      feasibleBenchmarks,
+      options.currentStrategy,
+      options.currentConfig
+    );
+    this.emit("optimization-complete", { recommendations });
+    return { recommendations, benchmarks: feasibleBenchmarks };
+  }
+  /**
+   * Generate optimization recommendations
+   */
+  async recommend(options) {
+    const analysisResult = await this.analyze(options);
+    const currentMetrics = analysisResult.metrics;
+    const benchmarkResult = await this.benchmark(options);
+    const benchmarks = benchmarkResult.benchmarks;
+    const recommendations = await this.generateRecommendations(
+      benchmarks,
+      options.currentStrategy,
+      options.currentConfig,
+      currentMetrics
+    );
+    return { recommendations, metrics: currentMetrics, benchmarks };
+  }
+  /**
+   * Simulate strategy change
+   */
+  async simulate(options) {
+    const targetStrategy = options.targetStrategy || "HYBRID";
+    const targetConfig = options.targetConfig || this.getDefaultConfig(targetStrategy);
+    const duration3 = options.simulationDuration || 6e4;
+    const currentState = await this.captureCurrentState();
+    const simulation = await this.runSimulation(
+      targetStrategy,
+      targetConfig,
+      duration3,
+      currentState
+    );
+    this.emit("simulation-complete", { simulation });
+    return { simulation };
+  }
+  /**
+   * Tune cache parameters using ML
+   */
+  async tune(options) {
+    const method = options.tuningMethod || "bayesian";
+    const epochs = options.epochs || 50;
+    const learningRate = options.learningRate || this.learningRate;
+    let tuningResult;
+    switch (method) {
+      case "grid-search":
+        tuningResult = await this.gridSearchTuning(epochs);
+        break;
+      case "gradient-descent":
+        tuningResult = await this.gradientDescentTuning(epochs, learningRate);
+        break;
+      case "bayesian":
+        tuningResult = await this.bayesianTuning(epochs);
+        break;
+      case "evolutionary":
+        tuningResult = await this.evolutionaryTuning(epochs);
+        break;
+      default:
+        throw new Error(`Unknown tuning method: ${method}`);
+    }
+    this.emit("tuning-complete", { tuningResult });
+    return { tuning: tuningResult };
+  }
+  /**
+   * Detect performance bottlenecks
+   */
+  async detectBottlenecks(_options) {
+    const bottlenecks = [];
+    const analysisResult = await this.analyze({ operation: "analyze" });
+    const metrics = analysisResult.metrics;
+    if (metrics.evictionRate > 100) {
+      bottlenecks.push({
+        type: "memory",
+        severity: "high",
+        description: "High eviction rate indicates insufficient cache capacity",
+        metrics: {
+          evictionRate: metrics.evictionRate,
+          memoryUsage: metrics.memoryUsage
+        },
+        impact: `${(metrics.evictionRate / 100 * 10).toFixed(1)}% potential hit rate loss`,
+        recommendations: [
+          "Increase L1/L2 cache sizes",
+          "Enable compression to store more entries",
+          "Implement multi-tier caching to expand capacity"
+        ]
+      });
+    }
+    if (metrics.hitRate < 0.5) {
+      bottlenecks.push({
+        type: "eviction",
+        severity: metrics.hitRate < 0.3 ? "critical" : "high",
+        description: "Low hit rate suggests suboptimal eviction strategy",
+        metrics: {
+          hitRate: metrics.hitRate,
+          missRate: metrics.missRate
+        },
+        impact: `${((1 - metrics.hitRate) * 100).toFixed(1)}% of requests missing cache`,
+        recommendations: [
+          "Switch to HYBRID eviction strategy for better adaptability",
+          "Analyze access patterns to select optimal strategy",
+          "Consider LFU for skewed workloads or LRU for temporal patterns"
+        ]
+      });
+    }
+    if (metrics.compressionRatio > 0.8 && metrics.averageLatency > 10) {
+      bottlenecks.push({
+        type: "compression",
+        severity: "medium",
+        description: "Poor compression ratio with high latency",
+        metrics: {
+          compressionRatio: metrics.compressionRatio,
+          averageLatency: metrics.averageLatency
+        },
+        impact: "Compression overhead not justified by space savings",
+        recommendations: [
+          "Disable compression for small or incompressible data",
+          "Use faster compression algorithm (e.g., LZ4 instead of Brotli)",
+          "Implement selective compression based on data type"
+        ]
+      });
+    }
+    if (metrics.p99Latency > metrics.p50Latency * 10) {
+      bottlenecks.push({
+        type: "io",
+        severity: "medium",
+        description: "High latency variance suggests I/O contention",
+        metrics: {
+          p50Latency: metrics.p50Latency,
+          p99Latency: metrics.p99Latency,
+          variance: metrics.p99Latency / metrics.p50Latency
+        },
+        impact: "Unpredictable performance affecting user experience",
+        recommendations: [
+          "Increase L1 cache to reduce disk access",
+          "Enable write-back mode to batch writes",
+          "Use connection pooling for database access"
+        ]
+      });
+    }
+    if (metrics.throughput < 1e3 && metrics.averageLatency > 5) {
+      bottlenecks.push({
+        type: "contention",
+        severity: "low",
+        description: "Low throughput with moderate latency suggests lock contention",
+        metrics: {
+          throughput: metrics.throughput,
+          averageLatency: metrics.averageLatency
+        },
+        impact: "Concurrent access serialization reducing parallelism",
+        recommendations: [
+          "Implement lock-free data structures where possible",
+          "Use read-write locks to allow concurrent reads",
+          "Partition cache by key hash to reduce contention"
+        ]
+      });
+    }
+    return { bottlenecks };
+  }
+  /**
+   * Perform cost-benefit analysis
+   */
+  async analyzeCostBenefit(options) {
+    const strategies = options.strategies || ["LRU", "LFU", "HYBRID"];
+    const costBenefit = [];
+    for (const strategy of strategies) {
+      const config2 = this.getDefaultConfig(strategy);
+      const costs = this.estimateCosts(strategy, config2);
+      const benefits = await this.estimateBenefits(strategy, config2);
+      const roi = this.calculateROI(costs, benefits);
+      const breakEvenPoint = this.calculateBreakEven(costs, benefits);
+      costBenefit.push({
+        strategy,
+        costs,
+        benefits,
+        roi,
+        breakEvenPoint
+      });
+    }
+    costBenefit.sort((a2, b) => b.roi - a2.roi);
+    return { costBenefit };
+  }
+  /**
+   * Configure cache settings
+   */
+  async configure(options) {
+    const config2 = options.targetConfig || this.getDefaultConfig("HYBRID");
+    this.emit("configuration-updated", { config: config2 });
+    return { config: config2 };
+  }
+  /**
+   * Generate comprehensive optimization report
+   */
+  async generateReport(options) {
+    const analysisResult = await this.analyze({
+      ...options,
+      operation: "analyze",
+      includeBottlenecks: true
+    });
+    const currentMetrics = analysisResult.metrics;
+    const benchmarkResult = await this.benchmark({
+      ...options,
+      operation: "benchmark"
+    });
+    const benchmarks = benchmarkResult.benchmarks;
+    const recommendResult = await this.recommend({
+      ...options,
+      operation: "recommend"
+    });
+    const recommendations = recommendResult.recommendations;
+    const bottleneckResult = await this.detectBottlenecks({
+      ...options,
+      operation: "detect-bottlenecks"
+    });
+    const bottlenecks = bottleneckResult.bottlenecks;
+    const costBenefitResult = await this.analyzeCostBenefit({
+      ...options,
+      operation: "cost-benefit"
+    });
+    const costBenefit = costBenefitResult.costBenefit;
+    const optimalBenchmark = benchmarks[0];
+    const optimalMetrics = optimalBenchmark.metrics;
+    const potentialImprovement = (optimalMetrics.hitRate - currentMetrics.hitRate) / currentMetrics.hitRate * 100;
+    const workloadPattern = this.detectWorkloadPattern();
+    const { hotKeys, coldKeys } = this.identifyKeyPatterns();
+    const actionItems = this.generateActionItems(
+      recommendations,
+      bottlenecks,
+      costBenefit
+    );
+    const report = {
+      timestamp: Date.now(),
+      summary: {
+        currentPerformance: currentMetrics,
+        optimalPerformance: optimalMetrics,
+        potentialImprovement
+      },
+      analysis: {
+        workloadPattern,
+        hotKeys,
+        coldKeys,
+        bottlenecks
+      },
+      recommendations,
+      benchmarks,
+      costBenefit,
+      actionItems
+    };
+    this.emit("report-generated", { report });
+    return { report };
+  }
+  /**
+   * Benchmark a specific strategy
+   */
+  async benchmarkStrategy(strategy, _config, workloadSize, iterations, pattern) {
+    const latencies = [];
+    let hits = 0;
+    let totalSize = 0;
+    let evictions = 0;
+    const startTime = Date.now();
+    for (let i = 0; i < iterations; i++) {
+      const accessPattern = this.generateAccessPattern(workloadSize, pattern);
+      for (const _key of accessPattern) {
+        const accessStart = Date.now();
+        const hit = Math.random() < this.predictHitProbability(strategy, pattern);
+        if (hit) hits++;
+        const latency = Date.now() - accessStart;
+        latencies.push(latency);
+        totalSize += Math.floor(Math.random() * 1e3) + 100;
+      }
+      evictions += Math.floor(Math.random() * 10);
+    }
+    const duration3 = (Date.now() - startTime) / 1e3;
+    const totalRequests = iterations * workloadSize;
+    return {
+      hitRate: hits / totalRequests,
+      missRate: 1 - hits / totalRequests,
+      averageLatency: latencies.reduce((sum, l) => sum + l, 0) / latencies.length,
+      p50Latency: this.percentile(
+        latencies.sort((a2, b) => a2 - b),
+        0.5
+      ),
+      p95Latency: this.percentile(latencies, 0.95),
+      p99Latency: this.percentile(latencies, 0.99),
+      throughput: totalRequests / duration3,
+      memoryUsage: totalSize,
+      evictionRate: evictions / duration3,
+      compressionRatio: 0.3 + Math.random() * 0.3,
+      tokenReductionRate: hits / totalRequests * 0.85
+    };
+  }
+  /**
+   * Calculate strategy score based on objective
+   */
+  calculateStrategyScore(metrics, objective) {
+    switch (objective) {
+      case "hit-rate":
+        return metrics.hitRate * 100;
+      case "latency":
+        return 100 - Math.min(100, metrics.averageLatency);
+      case "memory":
+        return 100 - metrics.memoryUsage / 1e7 * 100;
+      case "throughput":
+        return Math.min(100, metrics.throughput / 100);
+      case "balanced":
+        return metrics.hitRate * 40 + (100 - Math.min(100, metrics.averageLatency)) * 30 + Math.min(100, metrics.throughput / 100) * 20 + metrics.tokenReductionRate * 100 * 10;
+      default:
+        return metrics.hitRate * 100;
+    }
+  }
+  /**
+   * Analyze strategy performance
+   */
+  analyzeStrategyPerformance(strategy, metrics) {
+    const strengths = [];
+    const weaknesses = [];
+    if (metrics.hitRate > 0.8) {
+      strengths.push(
+        `Excellent hit rate: ${(metrics.hitRate * 100).toFixed(1)}%`
+      );
+    } else if (metrics.hitRate < 0.5) {
+      weaknesses.push(`Low hit rate: ${(metrics.hitRate * 100).toFixed(1)}%`);
+    }
+    if (metrics.averageLatency < 5) {
+      strengths.push(
+        `Fast average latency: ${metrics.averageLatency.toFixed(2)}ms`
+      );
+    } else if (metrics.averageLatency > 20) {
+      weaknesses.push(
+        `High average latency: ${metrics.averageLatency.toFixed(2)}ms`
+      );
+    }
+    if (metrics.throughput > 1e4) {
+      strengths.push(`High throughput: ${metrics.throughput.toFixed(0)} req/s`);
+    } else if (metrics.throughput < 1e3) {
+      weaknesses.push(`Low throughput: ${metrics.throughput.toFixed(0)} req/s`);
+    }
+    if (metrics.tokenReductionRate > 0.8) {
+      strengths.push(
+        `Excellent token reduction: ${(metrics.tokenReductionRate * 100).toFixed(1)}%`
+      );
+    }
+    if (strategy === "LRU") {
+      strengths.push("Works well for temporal access patterns");
+      weaknesses.push("Vulnerable to scan-resistant workloads");
+    } else if (strategy === "LFU") {
+      strengths.push("Excellent for skewed access distributions");
+      weaknesses.push("Slow to adapt to changing patterns");
+    } else if (strategy === "HYBRID") {
+      strengths.push("Adapts to various workload patterns");
+      strengths.push("Balances recency and frequency");
+    }
+    return { strengths, weaknesses };
+  }
+  /**
+   * Check if metrics meet constraints
+   */
+  meetsConstraints(metrics, constraints) {
+    if (!constraints) return true;
+    if (constraints.maxMemory && metrics.memoryUsage > constraints.maxMemory) {
+      return false;
+    }
+    if (constraints.maxLatency && metrics.averageLatency > constraints.maxLatency) {
+      return false;
+    }
+    if (constraints.minHitRate && metrics.hitRate < constraints.minHitRate) {
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Generate optimization recommendations
+   */
+  async generateRecommendations(benchmarks, currentStrategy, _currentConfig, currentMetrics) {
+    const recommendations = [];
+    for (let i = 0; i < Math.min(3, benchmarks.length); i++) {
+      const benchmark = benchmarks[i];
+      let expectedImprovement = {
+        hitRate: 0,
+        latency: 0,
+        memory: 0,
+        tokens: 0
+      };
+      if (currentMetrics) {
+        expectedImprovement = {
+          hitRate: (benchmark.metrics.hitRate - currentMetrics.hitRate) * 100,
+          latency: (currentMetrics.averageLatency - benchmark.metrics.averageLatency) / currentMetrics.averageLatency * 100,
+          memory: (currentMetrics.memoryUsage - benchmark.metrics.memoryUsage) / currentMetrics.memoryUsage * 100,
+          tokens: (benchmark.metrics.tokenReductionRate - currentMetrics.tokenReductionRate) * 100
+        };
+      }
+      const reasoning = this.generateRecommendationReasoning(
+        benchmark,
+        currentStrategy,
+        expectedImprovement
+      );
+      const implementationSteps = this.generateImplementationSteps(
+        benchmark.strategy,
+        currentStrategy
+      );
+      const risks = this.identifyRisks(benchmark.strategy, currentStrategy);
+      const confidence = this.calculateConfidence(benchmark, currentMetrics);
+      recommendations.push({
+        recommendedStrategy: benchmark.strategy,
+        recommendedConfig: benchmark.config,
+        expectedImprovement,
+        confidence,
+        reasoning,
+        implementationSteps,
+        risks
+      });
+    }
+    return recommendations;
+  }
+  /**
+   * Run simulation of strategy change
+   */
+  async runSimulation(strategy, config2, duration3, _currentState) {
+    const events = [];
+    const startTime = Date.now();
+    let hits = 0;
+    let totalRequests = 0;
+    const latencies = [];
+    while (Date.now() - startTime < duration3) {
+      const key = this.generateRandomKey();
+      const accessStart = Date.now();
+      const hit = Math.random() < this.predictHitProbability(strategy, "uniform");
+      if (hit) hits++;
+      const latency = Date.now() - accessStart;
+      latencies.push(latency);
+      totalRequests++;
+      events.push({
+        timestamp: Date.now(),
+        type: hit ? "hit" : "miss",
+        key,
+        tier: "L1",
+        details: { latency }
+      });
+      if (Math.random() < 0.05) {
+        events.push({
+          timestamp: Date.now(),
+          type: "eviction",
+          key: this.generateRandomKey(),
+          tier: "L1",
+          details: { strategy }
+        });
+      }
+      await new Promise((resolve5) => setTimeout(resolve5, 1));
+    }
+    const simulatedMetrics = {
+      hitRate: hits / totalRequests,
+      missRate: 1 - hits / totalRequests,
+      averageLatency: latencies.reduce((sum, l) => sum + l, 0) / latencies.length,
+      p50Latency: this.percentile(
+        latencies.sort((a2, b) => a2 - b),
+        0.5
+      ),
+      p95Latency: this.percentile(latencies, 0.95),
+      p99Latency: this.percentile(latencies, 0.99),
+      throughput: totalRequests / (duration3 / 1e3),
+      memoryUsage: config2.l1MaxSize * 1024,
+      evictionRate: events.filter((e) => e.type === "eviction").length / (duration3 / 1e3),
+      compressionRatio: 0.35,
+      tokenReductionRate: hits / totalRequests * 0.87
+    };
+    const baselineMetrics = await this.analyze({ operation: "analyze" });
+    const baseline = baselineMetrics.metrics;
+    const comparisonToBaseline = {
+      hitRateDelta: simulatedMetrics.hitRate - baseline.hitRate,
+      latencyDelta: simulatedMetrics.averageLatency - baseline.averageLatency,
+      memoryDelta: simulatedMetrics.memoryUsage - baseline.memoryUsage,
+      tokenDelta: simulatedMetrics.tokenReductionRate - baseline.tokenReductionRate
+    };
+    let recommendation = "test-further";
+    let reasoning = "Simulation results are inconclusive";
+    if (comparisonToBaseline.hitRateDelta > 0.1) {
+      recommendation = "adopt";
+      reasoning = "Significant improvement in hit rate justifies adoption";
+    } else if (comparisonToBaseline.hitRateDelta < -0.05) {
+      recommendation = "reject";
+      reasoning = "Degraded hit rate makes this change inadvisable";
+    }
+    return {
+      strategy,
+      config: config2,
+      simulatedMetrics,
+      comparisonToBaseline,
+      events,
+      recommendation,
+      reasoning
+    };
+  }
+  /**
+   * Grid search tuning
+   */
+  async gridSearchTuning(epochs) {
+    const improvementHistory = [];
+    let bestScore = 0;
+    let bestConfig = this.getDefaultConfig("HYBRID");
+    const l1Sizes = [50, 100, 200, 500];
+    const l2Sizes = [500, 1e3, 2e3];
+    const strategies = ["LRU", "LFU", "HYBRID"];
+    let iteration = 0;
+    for (const strategy of strategies) {
+      for (const l1 of l1Sizes) {
+        for (const l2 of l2Sizes) {
+          if (iteration >= epochs) break;
+          const config2 = this.getDefaultConfig(strategy);
+          config2.l1MaxSize = l1;
+          config2.l2MaxSize = l2;
+          const metrics = await this.benchmarkStrategy(
+            strategy,
+            config2,
+            1e3,
+            10,
+            "uniform"
+          );
+          const score = this.calculateStrategyScore(metrics, "balanced");
+          improvementHistory.push({ iteration, config: config2, score });
+          if (score > bestScore) {
+            bestScore = score;
+            bestConfig = config2;
+          }
+          iteration++;
+        }
+      }
+    }
+    const converged = improvementHistory.length > 10 && Math.abs(
+      improvementHistory[improvementHistory.length - 1].score - bestScore
+    ) < 0.1;
+    return {
+      method: "grid-search",
+      iterations: iteration,
+      bestConfig,
+      bestScore,
+      improvementHistory,
+      convergenceMetrics: {
+        converged,
+        finalImprovement: bestScore,
+        epochs: iteration
+      }
+    };
+  }
+  /**
+   * Gradient descent tuning
+   */
+  async gradientDescentTuning(epochs, learningRate) {
+    const improvementHistory = [];
+    let currentConfig = this.getDefaultConfig("HYBRID");
+    let bestScore = 0;
+    let bestConfig = { ...currentConfig };
+    for (let iteration = 0; iteration < epochs; iteration++) {
+      const metrics = await this.benchmarkStrategy(
+        currentConfig.strategy,
+        currentConfig,
+        1e3,
+        10,
+        "uniform"
+      );
+      const score = this.calculateStrategyScore(metrics, "balanced");
+      improvementHistory.push({
+        iteration,
+        config: { ...currentConfig },
+        score
+      });
+      if (score > bestScore) {
+        bestScore = score;
+        bestConfig = { ...currentConfig };
+      }
+      const l1Gradient = (Math.random() - 0.5) * learningRate * 100;
+      const l2Gradient = (Math.random() - 0.5) * learningRate * 200;
+      currentConfig.l1MaxSize = Math.max(
+        10,
+        Math.floor(currentConfig.l1MaxSize + l1Gradient)
+      );
+      currentConfig.l2MaxSize = Math.max(
+        50,
+        Math.floor(currentConfig.l2MaxSize + l2Gradient)
+      );
+    }
+    const converged = improvementHistory.length > 10 && Math.abs(
+      improvementHistory[improvementHistory.length - 1].score - improvementHistory[improvementHistory.length - 2].score
+    ) < 0.01;
+    return {
+      method: "gradient-descent",
+      iterations: epochs,
+      bestConfig,
+      bestScore,
+      improvementHistory,
+      convergenceMetrics: {
+        converged,
+        finalImprovement: bestScore,
+        epochs
+      }
+    };
+  }
+  /**
+   * Bayesian optimization tuning
+   */
+  async bayesianTuning(epochs) {
+    const improvementHistory = [];
+    let bestScore = 0;
+    let bestConfig = this.getDefaultConfig("HYBRID");
+    for (let iteration = 0; iteration < epochs; iteration++) {
+      let config2;
+      if (iteration < 10 || Math.random() < 0.3) {
+        const strategies = ["LRU", "LFU", "FIFO", "HYBRID"];
+        const strategy = strategies[Math.floor(Math.random() * strategies.length)];
+        config2 = this.getDefaultConfig(strategy);
+        config2.l1MaxSize = Math.floor(50 + Math.random() * 450);
+        config2.l2MaxSize = Math.floor(500 + Math.random() * 1500);
+      } else {
+        config2 = { ...bestConfig };
+        config2.l1MaxSize = Math.max(
+          10,
+          Math.floor(config2.l1MaxSize + (Math.random() - 0.5) * 100)
+        );
+        config2.l2MaxSize = Math.max(
+          50,
+          Math.floor(config2.l2MaxSize + (Math.random() - 0.5) * 200)
+        );
+      }
+      const metrics = await this.benchmarkStrategy(
+        config2.strategy,
+        config2,
+        1e3,
+        10,
+        "uniform"
+      );
+      const score = this.calculateStrategyScore(metrics, "balanced");
+      improvementHistory.push({ iteration, config: { ...config2 }, score });
+      if (score > bestScore) {
+        bestScore = score;
+        bestConfig = { ...config2 };
+      }
+    }
+    const converged = improvementHistory.length > 10 && Math.abs(
+      improvementHistory[improvementHistory.length - 1].score - bestScore
+    ) < 0.5;
+    return {
+      method: "bayesian",
+      iterations: epochs,
+      bestConfig,
+      bestScore,
+      improvementHistory,
+      convergenceMetrics: {
+        converged,
+        finalImprovement: bestScore,
+        epochs
+      }
+    };
+  }
+  /**
+   * Evolutionary algorithm tuning
+   */
+  async evolutionaryTuning(epochs) {
+    const populationSize = 20;
+    const improvementHistory = [];
+    let bestScore = 0;
+    let bestConfig = this.getDefaultConfig("HYBRID");
+    let population = [];
+    for (let i = 0; i < populationSize; i++) {
+      const strategies = ["LRU", "LFU", "FIFO", "HYBRID"];
+      const strategy = strategies[Math.floor(Math.random() * strategies.length)];
+      const config2 = this.getDefaultConfig(strategy);
+      config2.l1MaxSize = Math.floor(50 + Math.random() * 450);
+      config2.l2MaxSize = Math.floor(500 + Math.random() * 1500);
+      population.push(config2);
+    }
+    for (let generation2 = 0; generation2 < epochs; generation2++) {
+      const fitness = [];
+      for (const config2 of population) {
+        const metrics = await this.benchmarkStrategy(
+          config2.strategy,
+          config2,
+          1e3,
+          5,
+          "uniform"
+        );
+        const score = this.calculateStrategyScore(metrics, "balanced");
+        fitness.push({ config: config2, score });
+        if (score > bestScore) {
+          bestScore = score;
+          bestConfig = { ...config2 };
+        }
+      }
+      improvementHistory.push({
+        iteration: generation2,
+        config: { ...bestConfig },
+        score: bestScore
+      });
+      fitness.sort((a2, b) => b.score - a2.score);
+      const survivors = fitness.slice(0, populationSize / 2).map((f) => f.config);
+      const nextGeneration = [...survivors];
+      while (nextGeneration.length < populationSize) {
+        const parent1 = survivors[Math.floor(Math.random() * survivors.length)];
+        const parent2 = survivors[Math.floor(Math.random() * survivors.length)];
+        const child = {
+          ...parent1,
+          l1MaxSize: Math.random() < 0.5 ? parent1.l1MaxSize : parent2.l1MaxSize,
+          l2MaxSize: Math.random() < 0.5 ? parent1.l2MaxSize : parent2.l2MaxSize
+        };
+        if (Math.random() < 0.2) {
+          child.l1MaxSize = Math.max(
+            10,
+            Math.floor(child.l1MaxSize + (Math.random() - 0.5) * 100)
+          );
+        }
+        if (Math.random() < 0.2) {
+          child.l2MaxSize = Math.max(
+            50,
+            Math.floor(child.l2MaxSize + (Math.random() - 0.5) * 200)
+          );
+        }
+        nextGeneration.push(child);
+      }
+      population = nextGeneration;
+    }
+    const converged = improvementHistory.length > 10 && Math.abs(
+      improvementHistory[improvementHistory.length - 1].score - improvementHistory[improvementHistory.length - 2].score
+    ) < 0.1;
+    return {
+      method: "evolutionary",
+      iterations: epochs,
+      bestConfig,
+      bestScore,
+      improvementHistory,
+      convergenceMetrics: {
+        converged,
+        finalImprovement: bestScore,
+        epochs
+      }
+    };
+  }
+  /**
+   * Estimate costs for a strategy
+   */
+  estimateCosts(strategy, config2) {
+    const memory = (config2.l1MaxSize + config2.l2MaxSize + config2.l3MaxSize) * 1024;
+    let cpu = 5;
+    if (strategy === "LFU") cpu += 10;
+    if (strategy === "HYBRID") cpu += 15;
+    if (config2.compressionEnabled) cpu += 20;
+    let latency = 1;
+    if (strategy === "HYBRID") latency += 2;
+    if (config2.compressionEnabled) latency += 5;
+    let complexity = 3;
+    if (strategy === "HYBRID") complexity = 8;
+    if (strategy === "LFU") complexity = 6;
+    return { memory, cpu, latency, complexity };
+  }
+  /**
+   * Estimate benefits for a strategy
+   */
+  async estimateBenefits(strategy, config2) {
+    const metrics = await this.benchmarkStrategy(
+      strategy,
+      config2,
+      1e3,
+      10,
+      "uniform"
+    );
+    const tokenSavings = metrics.hitRate * metrics.tokenReductionRate * 1e4;
+    let reliability = 7;
+    if (strategy === "HYBRID") reliability = 9;
+    if (metrics.hitRate > 0.8) reliability += 1;
+    return {
+      hitRate: metrics.hitRate,
+      tokenSavings,
+      throughput: metrics.throughput,
+      reliability
+    };
+  }
+  /**
+   * Calculate ROI
+   */
+  calculateROI(costs, benefits) {
+    const normalizedCost = (costs.cpu + costs.latency + costs.complexity) / 3;
+    const normalizedBenefit = (benefits.hitRate * 100 + benefits.reliability * 10) / 2;
+    return normalizedBenefit - normalizedCost;
+  }
+  /**
+   * Calculate break-even point
+   */
+  calculateBreakEven(costs, benefits) {
+    const implementationCost = costs.complexity * 100;
+    return implementationCost / Math.max(1, benefits.tokenSavings);
+  }
+  /**
+   * Generate recommendation reasoning
+   */
+  generateRecommendationReasoning(benchmark, currentStrategy, improvement) {
+    let reasoning = `${benchmark.strategy} strategy achieved a score of ${benchmark.score.toFixed(1)} `;
+    if (currentStrategy && improvement) {
+      if (improvement.hitRate > 5) {
+        reasoning += `with ${improvement.hitRate.toFixed(1)}% better hit rate than ${currentStrategy}. `;
+      }
+      if (improvement.latency > 10) {
+        reasoning += `Latency improved by ${improvement.latency.toFixed(1)}%. `;
+      }
+      if (improvement.tokens > 5) {
+        reasoning += `Token reduction improved by ${improvement.tokens.toFixed(1)}%. `;
+      }
+    }
+    reasoning += `Key strengths: ${benchmark.strengths.join(", ")}.`;
+    return reasoning;
+  }
+  /**
+   * Generate implementation steps
+   */
+  generateImplementationSteps(targetStrategy, currentStrategy) {
+    const steps = [];
+    if (currentStrategy !== targetStrategy) {
+      steps.push(
+        `Switch eviction strategy from ${currentStrategy || "current"} to ${targetStrategy}`
+      );
+    }
+    steps.push(
+      "Run simulation with new configuration to validate improvements"
+    );
+    steps.push("Deploy to staging environment for real-world testing");
+    steps.push("Monitor hit rate, latency, and memory usage for 24 hours");
+    steps.push("Gradually roll out to production with canary deployment");
+    steps.push("Set up alerts for performance regressions");
+    return steps;
+  }
+  /**
+   * Identify risks
+   */
+  identifyRisks(targetStrategy, currentStrategy) {
+    const risks = [];
+    if (!currentStrategy) {
+      risks.push(
+        "No baseline for comparison - monitor carefully during rollout"
+      );
+    }
+    if (targetStrategy === "HYBRID") {
+      risks.push("Higher CPU overhead from adaptive algorithm");
+    }
+    if (targetStrategy === "LFU") {
+      risks.push("Slow adaptation to changing access patterns");
+    }
+    if (targetStrategy !== currentStrategy) {
+      risks.push("Potential cache miss spike during transition");
+      risks.push("Need to retrain predictive models with new strategy");
+    }
+    return risks;
+  }
+  /**
+   * Calculate recommendation confidence
+   */
+  calculateConfidence(benchmark, currentMetrics) {
+    let confidence = 0.5;
+    if (benchmark.score > 70) confidence += 0.2;
+    if (benchmark.metrics.hitRate > 0.8) confidence += 0.1;
+    if (benchmark.weaknesses.length === 0) confidence += 0.1;
+    if (currentMetrics) {
+      if (benchmark.metrics.hitRate > currentMetrics.hitRate * 1.1) {
+        confidence += 0.1;
+      }
+    }
+    return Math.min(1, confidence);
+  }
+  /**
+   * Capture current cache state
+   */
+  async captureCurrentState() {
+    const entries = /* @__PURE__ */ new Map();
+    const cacheEntries = this.cache.getAllEntries();
+    for (const entry of cacheEntries) {
+      entries.set(entry.key, {
+        key: entry.key,
+        value: entry.value,
+        tier: "L1",
+        size: entry.originalSize,
+        hits: entry.hitCount,
+        lastAccess: entry.lastAccessedAt,
+        createdAt: entry.createdAt,
+        frequency: entry.hitCount,
+        insertionOrder: 0
+      });
+    }
+    return {
+      entries,
+      strategy: "HYBRID",
+      config: this.getDefaultConfig("HYBRID")
+    };
+  }
+  /**
+   * Detect workload pattern
+   */
+  detectWorkloadPattern() {
+    if (this.accessHistory.length < 100) return "unknown";
+    const keyFrequency = /* @__PURE__ */ new Map();
+    for (const record2 of this.accessHistory) {
+      keyFrequency.set(record2.key, (keyFrequency.get(record2.key) || 0) + 1);
+    }
+    const frequencies = Array.from(keyFrequency.values()).sort((a2, b) => b - a2);
+    const top10Percent = frequencies.slice(
+      0,
+      Math.ceil(frequencies.length * 0.1)
+    );
+    const top10Sum = top10Percent.reduce((sum, f) => sum + f, 0);
+    const totalSum = frequencies.reduce((sum, f) => sum + f, 0);
+    const concentration = top10Sum / totalSum;
+    if (concentration > 0.8) return "skewed";
+    if (concentration < 0.2) return "uniform";
+    const timeDeltas = [];
+    for (let i = 1; i < this.accessHistory.length; i++) {
+      timeDeltas.push(
+        this.accessHistory[i].timestamp - this.accessHistory[i - 1].timestamp
+      );
+    }
+    const avgDelta = timeDeltas.reduce((sum, d3) => sum + d3, 0) / timeDeltas.length;
+    const variance = timeDeltas.reduce((sum, d3) => sum + Math.pow(d3 - avgDelta, 2), 0) / timeDeltas.length;
+    if (variance / avgDelta < 0.1) return "predictable";
+    if (variance / avgDelta > 10) return "burst";
+    return "temporal";
+  }
+  /**
+   * Identify hot and cold keys
+   */
+  identifyKeyPatterns() {
+    const keyStats = /* @__PURE__ */ new Map();
+    for (const record2 of this.accessHistory) {
+      const stats = keyStats.get(record2.key) || { count: 0, lastAccess: 0 };
+      stats.count++;
+      stats.lastAccess = Math.max(stats.lastAccess, record2.timestamp);
+      keyStats.set(record2.key, stats);
+    }
+    const sortedByCount = Array.from(keyStats.entries()).sort((a2, b) => b[1].count - a2[1].count).slice(0, 10);
+    const sortedByAge = Array.from(keyStats.entries()).sort((a2, b) => a2[1].lastAccess - b[1].lastAccess).slice(0, 10);
+    return {
+      hotKeys: sortedByCount.map(([key, stats]) => ({
+        key,
+        accessCount: stats.count,
+        tier: "L1"
+      })),
+      coldKeys: sortedByAge.map(([key, stats]) => ({
+        key,
+        lastAccess: stats.lastAccess,
+        tier: "L3"
+      }))
+    };
+  }
+  /**
+   * Generate action items
+   */
+  generateActionItems(recommendations, bottlenecks, costBenefit) {
+    const actionItems = [];
+    if (recommendations.length > 0 && recommendations[0].confidence > 0.7) {
+      actionItems.push({
+        priority: "high",
+        action: `Implement ${recommendations[0].recommendedStrategy} strategy`,
+        expectedImpact: `${recommendations[0].expectedImprovement.hitRate.toFixed(1)}% hit rate improvement`,
+        effort: "medium"
+      });
+    }
+    for (const bottleneck of bottlenecks) {
+      if (bottleneck.severity === "critical" || bottleneck.severity === "high") {
+        actionItems.push({
+          priority: bottleneck.severity === "critical" ? "high" : "medium",
+          action: bottleneck.recommendations[0],
+          expectedImpact: bottleneck.impact,
+          effort: "medium"
+        });
+      }
+    }
+    if (costBenefit.length > 0 && costBenefit[0].roi > 20) {
+      actionItems.push({
+        priority: "medium",
+        action: `Adopt ${costBenefit[0].strategy} for optimal ROI`,
+        expectedImpact: `ROI score of ${costBenefit[0].roi.toFixed(1)}`,
+        effort: "low"
+      });
+    }
+    return actionItems;
+  }
+  /**
+   * Get default configuration for strategy
+   */
+  getDefaultConfig(strategy) {
+    return {
+      strategy,
+      l1MaxSize: 100,
+      l2MaxSize: 1e3,
+      l3MaxSize: 1e4,
+      ttl: 36e5,
+      compressionEnabled: true,
+      prefetchEnabled: false,
+      writeMode: "write-through"
+    };
+  }
+  /**
+   * Generate synthetic metrics for testing
+   */
+  generateSyntheticMetrics() {
+    return {
+      hitRate: 0.75 + Math.random() * 0.15,
+      missRate: 0.1 + Math.random() * 0.15,
+      averageLatency: 5 + Math.random() * 10,
+      p50Latency: 3 + Math.random() * 5,
+      p95Latency: 15 + Math.random() * 10,
+      p99Latency: 25 + Math.random() * 15,
+      throughput: 5e3 + Math.random() * 5e3,
+      memoryUsage: 1e5 + Math.random() * 9e5,
+      evictionRate: 10 + Math.random() * 90,
+      compressionRatio: 0.3 + Math.random() * 0.3,
+      tokenReductionRate: 0.8 + Math.random() * 0.1
+    };
+  }
+  /**
+   * Generate access pattern
+   */
+  generateAccessPattern(size, pattern) {
+    const keys = [];
+    switch (pattern) {
+      case "uniform":
+        for (let i = 0; i < size; i++) {
+          keys.push(`key-${Math.floor(Math.random() * 1e3)}`);
+        }
+        break;
+      case "skewed":
+        for (let i = 0; i < size; i++) {
+          if (Math.random() < 0.8) {
+            keys.push(`hot-key-${Math.floor(Math.random() * 10)}`);
+          } else {
+            keys.push(`cold-key-${Math.floor(Math.random() * 1e3)}`);
+          }
+        }
+        break;
+      case "temporal":
+        for (let i = 0; i < size; i++) {
+          const timeWindow = Math.floor(i / 100);
+          keys.push(`key-${timeWindow}-${Math.floor(Math.random() * 10)}`);
+        }
+        break;
+      default:
+        for (let i = 0; i < size; i++) {
+          keys.push(`key-${i}`);
+        }
+    }
+    return keys;
+  }
+  /**
+   * Predict hit probability for strategy
+   */
+  predictHitProbability(strategy, pattern) {
+    let base = 0.6;
+    if (strategy === "LRU" && pattern === "temporal") base = 0.8;
+    if (strategy === "LFU" && pattern === "skewed") base = 0.85;
+    if (strategy === "HYBRID") base = 0.75;
+    return Math.min(0.95, base + Math.random() * 0.1);
+  }
+  /**
+   * Calculate percentile
+   */
+  percentile(values, p) {
+    if (values.length === 0) return 0;
+    const index2 = Math.ceil(values.length * p) - 1;
+    return values[Math.max(0, Math.min(index2, values.length - 1))];
+  }
+  /**
+   * Generate random key
+   */
+  generateRandomKey() {
+    return `key-${Math.floor(Math.random() * 1e4)}`;
+  }
+  /**
+   * Record access for analysis
+   */
+  recordAccess(key, hit, latency, tier, size) {
+    this.accessHistory.push({
+      key,
+      timestamp: Date.now(),
+      hit,
+      latency,
+      tier,
+      size
+    });
+    if (this.accessHistory.length > this.maxHistorySize) {
+      this.accessHistory = this.accessHistory.slice(-this.maxHistorySize / 2);
+    }
+  }
+  /**
+   * Record eviction event
+   */
+  recordEviction(strategy) {
+    this.evictionEvents.push({
+      timestamp: Date.now(),
+      strategy
+    });
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["analyze", "benchmark", "recommend", "detect-bottlenecks"].includes(
+      operation
+    );
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation, objective, workloadPattern } = options;
+    switch (operation) {
+      case "analyze":
+        return { analysisWindow: options.analysisWindow };
+      case "benchmark":
+        return { strategies: options.strategies, workloadPattern };
+      case "recommend":
+        return { objective, currentStrategy: options.currentStrategy };
+      default:
+        return {};
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    this.accessHistory = [];
+    this.evictionEvents = [];
+    this.optimizationState.clear();
+    this.removeAllListeners();
+  }
+};
+var cacheOptimizerInstance = null;
+function getCacheOptimizerTool(cache, tokenCounter, metrics) {
+  if (!cacheOptimizerInstance) {
+    cacheOptimizerInstance = new CacheOptimizerTool(
+      cache,
+      tokenCounter,
+      metrics
+    );
+  }
+  return cacheOptimizerInstance;
+}
+var CACHE_OPTIMIZER_TOOL_DEFINITION = {
+  name: "cache_optimizer",
+  description: "Advanced cache optimization with 89%+ token reduction. Analyzes performance, benchmarks strategies, provides ML-based recommendations, detects bottlenecks, and performs cost-benefit analysis.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "analyze",
+          "benchmark",
+          "optimize",
+          "recommend",
+          "simulate",
+          "tune",
+          "detect-bottlenecks",
+          "cost-benefit",
+          "configure",
+          "report"
+        ],
+        description: "The optimization operation to perform"
+      },
+      analysisWindow: {
+        type: "number",
+        description: "Time window in milliseconds for analysis (default: 3600000)"
+      },
+      strategies: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"]
+        },
+        description: "Eviction strategies to benchmark"
+      },
+      objective: {
+        type: "string",
+        enum: ["hit-rate", "latency", "memory", "throughput", "balanced"],
+        description: "Optimization objective (default: balanced)"
+      },
+      workloadPattern: {
+        type: "string",
+        enum: [
+          "uniform",
+          "skewed",
+          "temporal",
+          "burst",
+          "predictable",
+          "unknown"
+        ],
+        description: "Workload pattern for benchmarking"
+      },
+      tuningMethod: {
+        type: "string",
+        enum: ["grid-search", "gradient-descent", "bayesian", "evolutionary"],
+        description: "ML tuning method (default: bayesian)"
+      },
+      epochs: {
+        type: "number",
+        description: "Number of training epochs for tuning (default: 50)"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      includePredictions: {
+        type: "boolean",
+        description: "Include forecast figures alongside the current measurements",
+        default: false
+      },
+      includeBottlenecks: {
+        type: "boolean",
+        description: "Include the identified bottlenecks rather than the summary alone",
+        default: false
+      },
+      workloadSize: {
+        type: "number",
+        description: "Number of synthetic operations to model when simulating a workload"
+      },
+      iterations: {
+        type: "number",
+        description: "How many times to repeat a simulation or tuning pass"
+      },
+      constraints: {
+        type: "object",
+        description: "Hard limits the recommendation must respect",
+        properties: {
+          maxMemory: { type: "number", description: "Cap in bytes" },
+          maxLatency: { type: "number", description: "Cap in milliseconds" },
+          minHitRate: {
+            type: "number",
+            description: "Floor as a fraction from 0 to 1"
+          }
+        }
+      },
+      currentStrategy: {
+        type: "string",
+        enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"],
+        description: "Eviction strategy in use now, used as the comparison baseline"
+      },
+      currentConfig: {
+        type: "object",
+        properties: {
+          strategy: {
+            type: "string",
+            enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"]
+          },
+          l1MaxSize: { type: "number" },
+          l2MaxSize: { type: "number" },
+          l3MaxSize: { type: "number" },
+          ttl: { type: "number" },
+          compressionEnabled: { type: "boolean" },
+          prefetchEnabled: { type: "boolean" },
+          writeMode: { type: "string", enum: ["write-through", "write-back"] }
+        },
+        // Every field of CacheConfiguration is non-optional, so a partial object is not
+        // a valid configuration. Declaring the properties without this said otherwise.
+        required: [
+          "strategy",
+          "l1MaxSize",
+          "l2MaxSize",
+          "l3MaxSize",
+          "ttl",
+          "compressionEnabled",
+          "prefetchEnabled",
+          "writeMode"
+        ],
+        description: "Full cache configuration in use now"
+      },
+      targetStrategy: {
+        type: "string",
+        enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"],
+        description: "Eviction strategy to evaluate against the current one"
+      },
+      targetConfig: {
+        type: "object",
+        properties: {
+          strategy: {
+            type: "string",
+            enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"]
+          },
+          l1MaxSize: { type: "number" },
+          l2MaxSize: { type: "number" },
+          l3MaxSize: { type: "number" },
+          ttl: { type: "number" },
+          compressionEnabled: { type: "boolean" },
+          prefetchEnabled: { type: "boolean" },
+          writeMode: { type: "string", enum: ["write-through", "write-back"] }
+        },
+        // Every field of CacheConfiguration is non-optional, so a partial object is not
+        // a valid configuration. Declaring the properties without this said otherwise.
+        required: [
+          "strategy",
+          "l1MaxSize",
+          "l2MaxSize",
+          "l3MaxSize",
+          "ttl",
+          "compressionEnabled",
+          "prefetchEnabled",
+          "writeMode"
+        ],
+        description: "Full cache configuration to evaluate against the current one"
+      },
+      simulationDuration: {
+        type: "number",
+        description: "Simulated time span in seconds"
+      },
+      learningRate: {
+        type: "number",
+        description: "Step size for the adaptive tuner; larger converges faster and overshoots"
+      },
+      reportFormat: {
+        type: "string",
+        enum: ["json", "markdown", "html"],
+        description: "Format for a report operation",
+        default: "json"
+      },
+      includeCharts: {
+        type: "boolean",
+        description: "Embed charts in a markdown or html report",
+        default: false
+      },
+      includeRecommendations: {
+        type: "boolean",
+        description: "Include the recommended changes, not just the measurements",
+        default: true
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-partition.ts
+import { createHash as createHash31 } from "crypto";
+import { EventEmitter as EventEmitter5 } from "events";
+var CachePartitionTool = class extends EventEmitter5 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Partition storage
+  partitions;
+  partitionStores;
+  // Consistent hashing ring
+  hashRing;
+  // Sharding configuration
+  shardingConfig;
+  // Migration tracking
+  activeMigrations;
+  // Performance tracking
+  partitionMetrics;
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.partitions = /* @__PURE__ */ new Map();
+    this.partitionStores = /* @__PURE__ */ new Map();
+    this.activeMigrations = /* @__PURE__ */ new Map();
+    this.partitionMetrics = /* @__PURE__ */ new Map();
+    this.shardingConfig = {
+      strategy: "consistent-hash",
+      virtualNodesPerPartition: 150,
+      hashFunction: "sha256",
+      replicationFactor: 3
+    };
+    this.hashRing = {
+      nodes: [],
+      partitions: /* @__PURE__ */ new Map()
+    };
+  }
+  /**
+   * Main entry point for all partition operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true, cacheTTL = 300 } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `cache-partition:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "create-partition":
+          data = await this.createPartition(options);
+          break;
+        case "delete-partition":
+          data = await this.deletePartition(options);
+          break;
+        case "list-partitions":
+          data = await this.listPartitions(options);
+          break;
+        case "migrate":
+          data = await this.migrate(options);
+          break;
+        case "rebalance":
+          data = await this.rebalance(options);
+          break;
+        case "configure-sharding":
+          data = await this.configureSharding(options);
+          break;
+        case "stats":
+          data = await this.getStatistics(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        this.cache.set(cacheKey, JSON.stringify(data), cacheTTL, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `partition_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `partition_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Create a new cache partition
+   */
+  async createPartition(options) {
+    const { partitionId, strategy = "hash" } = options;
+    if (!partitionId) {
+      throw new Error("partitionId is required for create-partition operation");
+    }
+    if (this.partitions.has(partitionId)) {
+      throw new Error(`Partition ${partitionId} already exists`);
+    }
+    const partition = {
+      id: partitionId,
+      strategy,
+      status: "active",
+      keyCount: 0,
+      memoryUsage: 0,
+      virtualNodes: [],
+      createdAt: Date.now(),
+      lastAccessed: Date.now(),
+      metadata: {}
+    };
+    const store = {
+      partitionId,
+      keys: /* @__PURE__ */ new Set(),
+      memoryUsage: 0,
+      accessCounts: /* @__PURE__ */ new Map(),
+      lastAccessed: Date.now()
+    };
+    const virtualNodeIds = this.addVirtualNodesToRing(partitionId);
+    partition.virtualNodes = virtualNodeIds;
+    this.partitions.set(partitionId, partition);
+    this.partitionStores.set(partitionId, store);
+    this.hashRing.partitions.set(partitionId, partition);
+    this.partitionMetrics.set(partitionId, {
+      hits: 0,
+      misses: 0,
+      evictions: 0
+    });
+    this.emit("partition-created", { partitionId, strategy });
+    return { partition };
+  }
+  /**
+   * Delete a cache partition
+   */
+  async deletePartition(options) {
+    const { partitionId } = options;
+    if (!partitionId) {
+      throw new Error("partitionId is required for delete-partition operation");
+    }
+    const partition = this.partitions.get(partitionId);
+    if (!partition) {
+      throw new Error(`Partition ${partitionId} not found`);
+    }
+    partition.status = "draining";
+    this.removeVirtualNodesFromRing(partitionId);
+    const store = this.partitionStores.get(partitionId);
+    if (store) {
+      store.keys.clear();
+      store.accessCounts.clear();
+    }
+    this.partitions.delete(partitionId);
+    this.partitionStores.delete(partitionId);
+    this.hashRing.partitions.delete(partitionId);
+    this.partitionMetrics.delete(partitionId);
+    this.emit("partition-deleted", { partitionId });
+    return { partition };
+  }
+  /**
+   * List all partitions
+   */
+  async listPartitions(_options) {
+    const partitions = Array.from(this.partitions.values()).map((p) => ({
+      ...p,
+      virtualNodes: p.virtualNodes.slice(0, 10)
+      // Truncate for token efficiency
+    }));
+    return { partitions };
+  }
+  /**
+   * Migrate keys between partitions
+   */
+  async migrate(options) {
+    const { sourcePartition, targetPartition, keyPattern } = options;
+    if (!sourcePartition || !targetPartition) {
+      throw new Error(
+        "sourcePartition and targetPartition are required for migrate operation"
+      );
+    }
+    const sourceStore = this.partitionStores.get(sourcePartition);
+    const targetStore = this.partitionStores.get(targetPartition);
+    if (!sourceStore || !targetStore) {
+      throw new Error("Source or target partition not found");
+    }
+    let keysToMigrate;
+    if (keyPattern) {
+      const pattern = new RegExp(keyPattern);
+      keysToMigrate = Array.from(sourceStore.keys).filter(
+        (key) => pattern.test(key)
+      );
+    } else {
+      keysToMigrate = Array.from(sourceStore.keys);
+    }
+    const migrationId = `${sourcePartition}->${targetPartition}-${Date.now()}`;
+    const migrationPlan = {
+      sourcePartition,
+      targetPartition,
+      keysToMigrate,
+      estimatedDuration: keysToMigrate.length * 10,
+      // 10ms per key estimate
+      status: "pending"
+    };
+    this.activeMigrations.set(migrationId, migrationPlan);
+    this.performMigration(migrationId, migrationPlan).catch((error2) => {
+      console.error("Migration failed:", error2);
+      migrationPlan.status = "failed";
+    });
+    return { migrationPlan };
+  }
+  /**
+   * Rebalance partitions
+   */
+  async rebalance(options) {
+    const { targetDistribution = "even", maxMigrations = 1e3 } = options;
+    const startTime = Date.now();
+    let migrationsPerformed = 0;
+    let keysMoved = 0;
+    const currentDistribution = this.calculateDistribution();
+    const targetDist = this.calculateTargetDistribution(
+      targetDistribution,
+      currentDistribution
+    );
+    const migrations = this.planRebalanceMigrations(
+      currentDistribution,
+      targetDist,
+      maxMigrations
+    );
+    for (const migration of migrations) {
+      try {
+        await this.executeSingleMigration(migration);
+        migrationsPerformed++;
+        keysMoved += migration.keyCount;
+      } catch (error2) {
+        console.error("Migration failed:", error2);
+      }
+    }
+    const newDistribution = this.calculateDistribution();
+    const rebalanceResults = {
+      migrationsPerformed,
+      keysMoved,
+      newDistribution,
+      duration: Date.now() - startTime
+    };
+    this.emit("rebalance-completed", rebalanceResults);
+    return { rebalanceResults };
+  }
+  /**
+   * Configure sharding strategy
+   */
+  async configureSharding(options) {
+    const { shardingStrategy, virtualNodes, partitionFunction } = options;
+    if (shardingStrategy) {
+      this.shardingConfig.strategy = shardingStrategy;
+    }
+    if (virtualNodes !== void 0) {
+      this.shardingConfig.virtualNodesPerPartition = virtualNodes;
+      this.rebuildHashRing();
+    }
+    if (partitionFunction) {
+      this.shardingConfig.partitionFunction = partitionFunction;
+    }
+    this.emit("sharding-configured", this.shardingConfig);
+    return { shardingConfig: { ...this.shardingConfig } };
+  }
+  /**
+   * Get partition statistics
+   */
+  async getStatistics(options) {
+    const { includeKeyDistribution = true, includeMemoryUsage = true } = options;
+    const totalPartitions = this.partitions.size;
+    let totalKeys = 0;
+    let totalMemory = 0;
+    const partitionDetails = {};
+    for (const [partitionId, store] of Array.from(
+      this.partitionStores.entries()
+    )) {
+      const metrics = this.partitionMetrics.get(partitionId);
+      const totalAccesses = metrics ? metrics.hits + metrics.misses : 0;
+      const hitRate = totalAccesses > 0 ? metrics.hits / totalAccesses : 0;
+      const evictionRate = metrics ? metrics.evictions / Math.max(1, store.keys.size) : 0;
+      totalKeys += store.keys.size;
+      totalMemory += store.memoryUsage;
+      if (includeKeyDistribution || includeMemoryUsage) {
+        partitionDetails[partitionId] = {
+          keyCount: includeKeyDistribution ? store.keys.size : 0,
+          memoryUsage: includeMemoryUsage ? store.memoryUsage : 0,
+          hitRate,
+          evictionRate
+        };
+      }
+    }
+    const averageKeysPerPartition = totalPartitions > 0 ? totalKeys / totalPartitions : 0;
+    const keyCounts = Array.from(this.partitionStores.values()).map(
+      (s) => s.keys.size
+    );
+    const loadImbalance = this.calculateLoadImbalance(
+      keyCounts,
+      averageKeysPerPartition
+    );
+    const partitionStoreEntries = Array.from(this.partitionStores.entries());
+    const hotPartitions = partitionStoreEntries.filter(([_id, store]) => store.keys.size > averageKeysPerPartition * 2).map(([id]) => id);
+    const statistics = {
+      totalPartitions,
+      totalKeys,
+      totalMemory,
+      averageKeysPerPartition,
+      loadImbalance,
+      hotPartitions,
+      partitionDetails
+    };
+    return { statistics };
+  }
+  /**
+   * Add virtual nodes to consistent hash ring
+   */
+  addVirtualNodesToRing(partitionId) {
+    const virtualNodeCount = this.shardingConfig.virtualNodesPerPartition;
+    const virtualNodeIds = [];
+    for (let i = 0; i < virtualNodeCount; i++) {
+      const nodeId = this.hashRing.nodes.length;
+      const hash = this.hashVirtualNode(partitionId, i);
+      const vnode = {
+        id: nodeId,
+        partitionId,
+        hash
+      };
+      this.hashRing.nodes.push(vnode);
+      virtualNodeIds.push(nodeId);
+    }
+    this.hashRing.nodes.sort((a2, b) => a2.hash - b.hash);
+    return virtualNodeIds;
+  }
+  /**
+   * Remove virtual nodes from hash ring
+   */
+  removeVirtualNodesFromRing(partitionId) {
+    this.hashRing.nodes = this.hashRing.nodes.filter(
+      (node) => node.partitionId !== partitionId
+    );
+  }
+  /**
+   * Hash a virtual node
+   */
+  hashVirtualNode(partitionId, index2) {
+    const hashFunction = this.shardingConfig.hashFunction;
+    const input = `${partitionId}:vnode:${index2}`;
+    const hash = createHash31(hashFunction).update(input).digest();
+    return hash.readUInt32BE(0);
+  }
+  /**
+   * Hash a key to find its partition
+   */
+  hashKey(key) {
+    const hashFunction = this.shardingConfig.hashFunction;
+    const hash = createHash31(hashFunction).update(key).digest();
+    return hash.readUInt32BE(0);
+  }
+  /**
+   * Find partition for a key using consistent hashing
+   */
+  getPartitionForKey(key) {
+    if (this.hashRing.nodes.length === 0) {
+      return null;
+    }
+    const keyHash = this.hashKey(key);
+    let left = 0;
+    let right = this.hashRing.nodes.length - 1;
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      if (this.hashRing.nodes[mid].hash < keyHash) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+    const nodeIndex = left % this.hashRing.nodes.length;
+    return this.hashRing.nodes[nodeIndex].partitionId;
+  }
+  /**
+   * Perform migration asynchronously
+   */
+  async performMigration(migrationId, plan) {
+    plan.status = "in-progress";
+    const sourceStore = this.partitionStores.get(plan.sourcePartition);
+    const targetStore = this.partitionStores.get(plan.targetPartition);
+    if (!sourceStore || !targetStore) {
+      throw new Error("Source or target partition store not found");
+    }
+    for (const key of plan.keysToMigrate) {
+      if (sourceStore.keys.has(key)) {
+        sourceStore.keys.delete(key);
+        targetStore.keys.add(key);
+        const accessCount = sourceStore.accessCounts.get(key) || 0;
+        sourceStore.accessCounts.delete(key);
+        targetStore.accessCounts.set(key, accessCount);
+        const estimatedSize = 1024;
+        sourceStore.memoryUsage -= estimatedSize;
+        targetStore.memoryUsage += estimatedSize;
+        const sourcePartition = this.partitions.get(plan.sourcePartition);
+        const targetPartition = this.partitions.get(plan.targetPartition);
+        if (sourcePartition && targetPartition) {
+          sourcePartition.keyCount--;
+          sourcePartition.memoryUsage -= estimatedSize;
+          targetPartition.keyCount++;
+          targetPartition.memoryUsage += estimatedSize;
+        }
+      }
+    }
+    plan.status = "completed";
+    this.activeMigrations.delete(migrationId);
+  }
+  /**
+   * Calculate current distribution
+   */
+  calculateDistribution() {
+    const distribution = {};
+    for (const [partitionId, store] of Array.from(
+      this.partitionStores.entries()
+    )) {
+      distribution[partitionId] = store.keys.size;
+    }
+    return distribution;
+  }
+  /**
+   * Calculate target distribution
+   */
+  calculateTargetDistribution(strategy, current) {
+    const totalKeys = Object.values(current).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const partitionCount = Object.keys(current).length;
+    if (strategy === "even") {
+      const targetPerPartition = Math.floor(totalKeys / partitionCount);
+      const target = {};
+      for (const partitionId of Object.keys(current)) {
+        target[partitionId] = targetPerPartition;
+      }
+      return target;
+    }
+    return { ...current };
+  }
+  /**
+   * Plan rebalance migrations
+   */
+  planRebalanceMigrations(current, target, maxMigrations) {
+    const migrations = [];
+    const overloaded = [];
+    const underloaded = [];
+    for (const partitionId of Object.keys(current)) {
+      const diff = current[partitionId] - target[partitionId];
+      if (diff > 0) {
+        overloaded.push({ id: partitionId, excess: diff });
+      } else if (diff < 0) {
+        underloaded.push({ id: partitionId, deficit: -diff });
+      }
+    }
+    overloaded.sort((a2, b) => b.excess - a2.excess);
+    underloaded.sort((a2, b) => b.deficit - a2.deficit);
+    let migrationCount = 0;
+    let overIdx = 0;
+    let underIdx = 0;
+    while (overIdx < overloaded.length && underIdx < underloaded.length && migrationCount < maxMigrations) {
+      const over = overloaded[overIdx];
+      const under = underloaded[underIdx];
+      const moveCount = Math.min(over.excess, under.deficit);
+      migrations.push({
+        source: over.id,
+        target: under.id,
+        keyCount: moveCount
+      });
+      over.excess -= moveCount;
+      under.deficit -= moveCount;
+      if (over.excess === 0) overIdx++;
+      if (under.deficit === 0) underIdx++;
+      migrationCount++;
+    }
+    return migrations;
+  }
+  /**
+   * Execute a single migration
+   */
+  async executeSingleMigration(migration) {
+    const sourceStore = this.partitionStores.get(migration.source);
+    const targetStore = this.partitionStores.get(migration.target);
+    if (!sourceStore || !targetStore) {
+      throw new Error("Source or target partition not found");
+    }
+    const keysToMove = Array.from(sourceStore.keys).slice(
+      0,
+      migration.keyCount
+    );
+    for (const key of keysToMove) {
+      sourceStore.keys.delete(key);
+      targetStore.keys.add(key);
+      const accessCount = sourceStore.accessCounts.get(key) || 0;
+      sourceStore.accessCounts.delete(key);
+      targetStore.accessCounts.set(key, accessCount);
+      const estimatedSize = 1024;
+      sourceStore.memoryUsage -= estimatedSize;
+      targetStore.memoryUsage += estimatedSize;
+    }
+    const sourcePartition = this.partitions.get(migration.source);
+    const targetPartition = this.partitions.get(migration.target);
+    if (sourcePartition && targetPartition) {
+      sourcePartition.keyCount -= migration.keyCount;
+      targetPartition.keyCount += migration.keyCount;
+      const totalMemoryMoved = migration.keyCount * 1024;
+      sourcePartition.memoryUsage -= totalMemoryMoved;
+      targetPartition.memoryUsage += totalMemoryMoved;
+    }
+  }
+  /**
+   * Calculate load imbalance coefficient
+   */
+  calculateLoadImbalance(keyCounts, average) {
+    if (keyCounts.length === 0 || average === 0) {
+      return 0;
+    }
+    const variance = keyCounts.reduce((sum, count) => {
+      return sum + Math.pow(count - average, 2);
+    }, 0) / keyCounts.length;
+    const stdDev = Math.sqrt(variance);
+    return stdDev / average;
+  }
+  /**
+   * Rebuild hash ring with new configuration
+   */
+  rebuildHashRing() {
+    this.hashRing.nodes = [];
+    for (const [partitionId, partition] of Array.from(
+      this.partitions.entries()
+    )) {
+      const virtualNodeIds = this.addVirtualNodesToRing(partitionId);
+      partition.virtualNodes = virtualNodeIds;
+    }
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["list-partitions", "stats", "configure-sharding"].includes(
+      operation
+    );
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation } = options;
+    switch (operation) {
+      case "list-partitions":
+        return {};
+      case "stats":
+        return {
+          includeKeyDistribution: options.includeKeyDistribution,
+          includeMemoryUsage: options.includeMemoryUsage
+        };
+      case "configure-sharding":
+        return {};
+      default:
+        return {};
+    }
+  }
+  /**
+   * Detect hot partitions that need splitting
+   */
+  detectHotPartitions(threshold = 2) {
+    const stats = this.calculateDistribution();
+    const average = Object.values(stats).reduce((sum, count) => sum + count, 0) / Object.keys(stats).length;
+    return Object.entries(stats).filter(([_id, count]) => count > average * threshold).map(([id]) => id);
+  }
+  /**
+   * Split a hot partition into multiple partitions
+   */
+  async splitPartition(partitionId, targetCount = 2) {
+    const partition = this.partitions.get(partitionId);
+    if (!partition) {
+      throw new Error(`Partition ${partitionId} not found`);
+    }
+    const store = this.partitionStores.get(partitionId);
+    if (!store) {
+      throw new Error(`Partition store ${partitionId} not found`);
+    }
+    const newPartitionIds = [];
+    for (let i = 0; i < targetCount; i++) {
+      const newId = `${partitionId}-split-${i}`;
+      await this.createPartition({
+        operation: "create-partition",
+        partitionId: newId,
+        strategy: partition.strategy
+      });
+      newPartitionIds.push(newId);
+    }
+    const keys = Array.from(store.keys);
+    const keysPerPartition = Math.ceil(keys.length / targetCount);
+    for (let i = 0; i < targetCount; i++) {
+      const startIdx = i * keysPerPartition;
+      const endIdx = Math.min(startIdx + keysPerPartition, keys.length);
+      const keysToMigrate = keys.slice(startIdx, endIdx);
+      const migrationPlan = {
+        sourcePartition: partitionId,
+        targetPartition: newPartitionIds[i],
+        keysToMigrate,
+        estimatedDuration: keysToMigrate.length * 10,
+        status: "pending"
+      };
+      await this.performMigration(`split-${i}`, migrationPlan);
+    }
+    await this.deletePartition({
+      operation: "delete-partition",
+      partitionId
+    });
+    this.emit("partition-split", {
+      original: partitionId,
+      new: newPartitionIds
+    });
+    return newPartitionIds;
+  }
+  /**
+   * Get partition health status
+   */
+  getPartitionHealth(partitionId) {
+    const partition = this.partitions.get(partitionId);
+    const store = this.partitionStores.get(partitionId);
+    const metrics = this.partitionMetrics.get(partitionId);
+    if (!partition || !store || !metrics) {
+      return {
+        healthy: false,
+        issues: ["Partition not found"],
+        recommendations: []
+      };
+    }
+    const issues = [];
+    const recommendations = [];
+    const stats = this.calculateDistribution();
+    const average = Object.values(stats).reduce((sum, count) => sum + count, 0) / Object.keys(stats).length;
+    if (store.keys.size > average * 2) {
+      issues.push("Partition is overloaded (2x average)");
+      recommendations.push("Consider splitting this partition");
+    }
+    const totalAccesses = metrics.hits + metrics.misses;
+    const hitRate = totalAccesses > 0 ? metrics.hits / totalAccesses : 0;
+    if (hitRate < 0.5 && totalAccesses > 100) {
+      issues.push("Low cache hit rate (<50%)");
+      recommendations.push("Review caching strategy or TTL settings");
+    }
+    const evictionRate = store.keys.size > 0 ? metrics.evictions / store.keys.size : 0;
+    if (evictionRate > 0.5) {
+      issues.push("High eviction rate (>50%)");
+      recommendations.push(
+        "Increase partition capacity or review eviction policy"
+      );
+    }
+    return {
+      healthy: issues.length === 0,
+      issues,
+      recommendations
+    };
+  }
+  /**
+   * Export partition configuration
+   */
+  exportConfiguration() {
+    return {
+      partitions: Array.from(this.partitions.values()),
+      shardingConfig: { ...this.shardingConfig },
+      hashRing: {
+        nodeCount: this.hashRing.nodes.length,
+        partitionCount: this.hashRing.partitions.size
+      }
+    };
+  }
+  /**
+   * Import partition configuration
+   */
+  importConfiguration(config2) {
+    this.partitions.clear();
+    this.partitionStores.clear();
+    this.hashRing.nodes = [];
+    this.hashRing.partitions.clear();
+    this.shardingConfig = { ...config2.shardingConfig };
+    const partitions = Array.from(config2.partitions);
+    for (const partition of partitions) {
+      this.partitions.set(partition.id, partition);
+      const store = {
+        partitionId: partition.id,
+        keys: /* @__PURE__ */ new Set(),
+        memoryUsage: partition.memoryUsage,
+        accessCounts: /* @__PURE__ */ new Map(),
+        lastAccessed: partition.lastAccessed
+      };
+      this.partitionStores.set(partition.id, store);
+      this.hashRing.partitions.set(partition.id, partition);
+      this.addVirtualNodesToRing(partition.id);
+      this.partitionMetrics.set(partition.id, {
+        hits: 0,
+        misses: 0,
+        evictions: 0
+      });
+    }
+    this.emit("configuration-imported", {
+      partitionCount: config2.partitions.length
+    });
+  }
+  /**
+   * Merge multiple partitions into a single partition
+   */
+  async mergePartitions(partitionIds, targetId) {
+    if (partitionIds.length < 2) {
+      throw new Error("At least 2 partitions required for merge");
+    }
+    for (const id of partitionIds) {
+      if (!this.partitions.has(id)) {
+        throw new Error(`Partition ${id} not found`);
+      }
+    }
+    if (!this.partitions.has(targetId)) {
+      await this.createPartition({
+        operation: "create-partition",
+        partitionId: targetId,
+        strategy: this.partitions.get(partitionIds[0]).strategy
+      });
+    }
+    let keysMerged = 0;
+    for (const sourceId of partitionIds) {
+      if (sourceId === targetId) continue;
+      const sourceStore = this.partitionStores.get(sourceId);
+      if (!sourceStore) continue;
+      const keys = Array.from(sourceStore.keys);
+      const migrationPlan = {
+        sourcePartition: sourceId,
+        targetPartition: targetId,
+        keysToMigrate: keys,
+        estimatedDuration: keys.length * 10,
+        status: "pending"
+      };
+      await this.performMigration(`merge-${sourceId}`, migrationPlan);
+      keysMerged += keys.length;
+    }
+    const deletedPartitions = [];
+    for (const sourceId of partitionIds) {
+      if (sourceId !== targetId) {
+        await this.deletePartition({
+          operation: "delete-partition",
+          partitionId: sourceId
+        });
+        deletedPartitions.push(sourceId);
+      }
+    }
+    const mergedPartition = this.partitions.get(targetId);
+    this.emit("partitions-merged", {
+      source: partitionIds,
+      target: targetId,
+      keysMerged
+    });
+    return {
+      mergedPartition,
+      keysMerged,
+      deletedPartitions
+    };
+  }
+  /**
+   * Route a query to appropriate partition(s)
+   */
+  routeQuery(key, options) {
+    const { replicationFactor = this.shardingConfig.replicationFactor } = options || {};
+    const primaryPartition = this.getPartitionForKey(key);
+    if (!primaryPartition) {
+      throw new Error("No partitions available for routing");
+    }
+    const replicaPartitions = [];
+    const keyHash = this.hashKey(key);
+    let currentIndex = this.hashRing.nodes.findIndex((n7) => n7.hash >= keyHash);
+    if (currentIndex === -1) {
+      currentIndex = 0;
+    }
+    const seenPartitions = /* @__PURE__ */ new Set([primaryPartition]);
+    let offset = 1;
+    while (replicaPartitions.length < replicationFactor - 1 && offset < this.hashRing.nodes.length) {
+      const nodeIndex = (currentIndex + offset) % this.hashRing.nodes.length;
+      const partitionId = this.hashRing.nodes[nodeIndex].partitionId;
+      if (!seenPartitions.has(partitionId)) {
+        replicaPartitions.push(partitionId);
+        seenPartitions.add(partitionId);
+      }
+      offset++;
+    }
+    return {
+      primaryPartition,
+      replicaPartitions
+    };
+  }
+  /**
+   * Execute cross-partition scatter-gather query
+   */
+  async scatterGather(operation, options) {
+    const { partitions, parallel = true, timeout: timeout2 = 3e4 } = options || {};
+    const targetPartitions = partitions || Array.from(this.partitions.keys());
+    const results = /* @__PURE__ */ new Map();
+    if (parallel) {
+      const promises = targetPartitions.map(async (partitionId) => {
+        const store = this.partitionStores.get(partitionId);
+        if (!store) return;
+        try {
+          const result = await Promise.race([
+            operation(partitionId, store),
+            new Promise(
+              (_2, reject) => setTimeout(() => reject(new Error("Timeout")), timeout2)
+            )
+          ]);
+          results.set(partitionId, result);
+        } catch (error2) {
+          console.error(
+            `Scatter-gather failed for partition ${partitionId}:`,
+            error2
+          );
+        }
+      });
+      await Promise.all(promises);
+    } else {
+      for (const partitionId of targetPartitions) {
+        const store = this.partitionStores.get(partitionId);
+        if (!store) continue;
+        try {
+          const result = await operation(partitionId, store);
+          results.set(partitionId, result);
+        } catch (error2) {
+          console.error(
+            `Scatter-gather failed for partition ${partitionId}:`,
+            error2
+          );
+        }
+      }
+    }
+    return results;
+  }
+  /**
+   * Get partition affinity for a set of keys
+   */
+  getKeyAffinityMap(keys) {
+    const affinityMap = /* @__PURE__ */ new Map();
+    for (const key of keys) {
+      const partitionId = this.getPartitionForKey(key);
+      if (!partitionId) continue;
+      if (!affinityMap.has(partitionId)) {
+        affinityMap.set(partitionId, []);
+      }
+      affinityMap.get(partitionId).push(key);
+    }
+    return affinityMap;
+  }
+  /**
+   * Optimize partition placement for locality
+   */
+  async optimizeLocality(keyGroups) {
+    const recommendedMigrations = [];
+    for (const [group, keys] of Array.from(keyGroups.entries())) {
+      if (keys.length < 2) continue;
+      const partitionAssignments = /* @__PURE__ */ new Map();
+      for (const key of keys) {
+        const partitionId = this.getPartitionForKey(key);
+        if (!partitionId) continue;
+        if (!partitionAssignments.has(partitionId)) {
+          partitionAssignments.set(partitionId, []);
+        }
+        partitionAssignments.get(partitionId).push(key);
+      }
+      if (partitionAssignments.size > 1) {
+        let maxPartition = "";
+        let maxCount = 0;
+        for (const [partitionId, partitionKeys] of Array.from(
+          partitionAssignments.entries()
+        )) {
+          if (partitionKeys.length > maxCount) {
+            maxCount = partitionKeys.length;
+            maxPartition = partitionId;
+          }
+        }
+        for (const [partitionId, partitionKeys] of Array.from(
+          partitionAssignments.entries()
+        )) {
+          if (partitionId !== maxPartition) {
+            recommendedMigrations.push({
+              keys: partitionKeys,
+              from: partitionId,
+              to: maxPartition,
+              reason: `Co-locate group '${group}' for improved locality`
+            });
+          }
+        }
+      }
+    }
+    const estimatedImprovement = recommendedMigrations.reduce(
+      (sum, m2) => sum + m2.keys.length,
+      0
+    );
+    return {
+      recommendedMigrations,
+      estimatedImprovement
+    };
+  }
+  /**
+   * Set partition-level TTL policy
+   */
+  setPartitionTTL(partitionId, ttl) {
+    const partition = this.partitions.get(partitionId);
+    if (!partition) {
+      throw new Error(`Partition ${partitionId} not found`);
+    }
+    partition.metadata.ttl = ttl;
+    this.emit("partition-ttl-updated", { partitionId, ttl });
+  }
+  /**
+   * Set partition-level eviction policy
+   */
+  setPartitionEvictionPolicy(partitionId, policy) {
+    const partition = this.partitions.get(partitionId);
+    if (!partition) {
+      throw new Error(`Partition ${partitionId} not found`);
+    }
+    partition.metadata.evictionPolicy = policy;
+    this.emit("partition-eviction-policy-updated", { partitionId, policy });
+  }
+  /**
+   * Get partition topology visualization
+   */
+  getTopologyVisualization() {
+    const nodes = [];
+    const edges = [];
+    for (const [partitionId, partition] of Array.from(
+      this.partitions.entries()
+    )) {
+      nodes.push({
+        id: partitionId,
+        type: "partition",
+        partitionId,
+        keyCount: partition.keyCount,
+        memoryUsage: partition.memoryUsage
+      });
+      for (let i = 0; i < Math.min(5, partition.virtualNodes.length); i++) {
+        const vnodeId = `vnode-${partitionId}-${i}`;
+        nodes.push({
+          id: vnodeId,
+          type: "virtual-node",
+          partitionId,
+          keyCount: 0,
+          memoryUsage: 0
+        });
+        edges.push({
+          from: partitionId,
+          to: vnodeId,
+          type: "virtual-node"
+        });
+      }
+    }
+    for (const [_migrationId, plan] of Array.from(
+      this.activeMigrations.entries()
+    )) {
+      edges.push({
+        from: plan.sourcePartition,
+        to: plan.targetPartition,
+        type: "migration"
+      });
+    }
+    return { nodes, edges };
+  }
+  /**
+   * Record key access for analytics
+   */
+  recordKeyAccess(key, partitionId) {
+    const store = this.partitionStores.get(partitionId);
+    if (!store) return;
+    store.accessCounts.set(key, (store.accessCounts.get(key) || 0) + 1);
+    store.lastAccessed = Date.now();
+    const partition = this.partitions.get(partitionId);
+    if (partition) {
+      partition.lastAccessed = Date.now();
+    }
+    const metrics = this.partitionMetrics.get(partitionId);
+    if (metrics) {
+      metrics.hits++;
+    }
+  }
+  /**
+   * Record key miss for analytics
+   */
+  recordKeyMiss(_key, partitionId) {
+    const metrics = this.partitionMetrics.get(partitionId);
+    if (metrics) {
+      metrics.misses++;
+    }
+  }
+  /**
+   * Record key eviction for analytics
+   */
+  recordKeyEviction(key, partitionId) {
+    const store = this.partitionStores.get(partitionId);
+    if (!store) return;
+    store.keys.delete(key);
+    store.accessCounts.delete(key);
+    const partition = this.partitions.get(partitionId);
+    if (partition) {
+      partition.keyCount--;
+    }
+    const metrics = this.partitionMetrics.get(partitionId);
+    if (metrics) {
+      metrics.evictions++;
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    this.partitions.clear();
+    this.partitionStores.clear();
+    this.hashRing.nodes = [];
+    this.hashRing.partitions.clear();
+    this.activeMigrations.clear();
+    this.partitionMetrics.clear();
+    this.removeAllListeners();
+  }
+};
+var cachePartitionInstance = null;
+function getCachePartitionTool(cache, tokenCounter, metrics) {
+  if (!cachePartitionInstance) {
+    cachePartitionInstance = new CachePartitionTool(
+      cache,
+      tokenCounter,
+      metrics
+    );
+  }
+  return cachePartitionInstance;
+}
+var CACHE_PARTITION_TOOL_DEFINITION = {
+  name: "cache_partition",
+  description: "Advanced cache partitioning and sharding with 87%+ token reduction through consistent hashing, automatic rebalancing, and partition isolation",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "create-partition",
+          "delete-partition",
+          "list-partitions",
+          "migrate",
+          "rebalance",
+          "configure-sharding",
+          "stats"
+        ],
+        description: "The partition operation to perform"
+      },
+      partitionId: {
+        type: "string",
+        description: "Partition identifier (required for create/delete operations)"
+      },
+      strategy: {
+        type: "string",
+        enum: ["hash", "range", "category", "geographic", "custom"],
+        description: "Partitioning strategy (default: hash)"
+      },
+      sourcePartition: {
+        type: "string",
+        description: "Source partition for migration"
+      },
+      targetPartition: {
+        type: "string",
+        description: "Target partition for migration"
+      },
+      keyPattern: {
+        type: "string",
+        description: "Regex pattern for keys to migrate"
+      },
+      targetDistribution: {
+        type: "string",
+        enum: ["even", "weighted", "capacity-based"],
+        description: "Target distribution strategy for rebalancing (default: even)"
+      },
+      maxMigrations: {
+        type: "number",
+        description: "Maximum number of migrations during rebalance (default: 1000)"
+      },
+      shardingStrategy: {
+        type: "string",
+        enum: ["consistent-hash", "range", "custom"],
+        description: "Sharding strategy configuration"
+      },
+      virtualNodes: {
+        type: "number",
+        description: "Number of virtual nodes per partition (default: 150)"
+      },
+      partitionFunction: {
+        type: "string",
+        description: "Custom partition function (JavaScript code)"
+      },
+      includeKeyDistribution: {
+        type: "boolean",
+        description: "Include key distribution in statistics (default: true)"
+      },
+      includeMemoryUsage: {
+        type: "boolean",
+        description: "Include memory usage in statistics (default: true)"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-replication.ts
+import { EventEmitter as EventEmitter6 } from "events";
+import { createHash as createHash32 } from "crypto";
+var CacheReplicationTool = class extends EventEmitter6 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Replication state
+  config;
+  nodes;
+  replicationLog;
+  currentVersion;
+  vectorClock;
+  pendingConflicts;
+  snapshots;
+  // Timers
+  syncTimer = null;
+  heartbeatTimer = null;
+  healthCheckTimer = null;
+  snapshotTimer = null;
+  // Statistics
+  stats;
+  constructor(cache, tokenCounter, metrics, nodeId = "primary") {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.config = {
+      mode: "primary-replica",
+      consistency: "eventual",
+      conflictResolution: "last-write-wins",
+      syncInterval: 5e3,
+      // 5 seconds
+      heartbeatInterval: 1e3,
+      // 1 second
+      healthCheckInterval: 1e4,
+      // 10 seconds
+      maxLag: 3e4,
+      // 30 seconds
+      writeQuorum: 1,
+      readQuorum: 1,
+      enableCompression: true,
+      enableDelta: true,
+      snapshotInterval: 3e5,
+      // 5 minutes
+      retentionPeriod: 864e5
+      // 24 hours
+    };
+    this.nodes = /* @__PURE__ */ new Map();
+    this.replicationLog = [];
+    this.currentVersion = 0;
+    this.vectorClock = { [nodeId]: 0 };
+    this.pendingConflicts = [];
+    this.snapshots = /* @__PURE__ */ new Map();
+    this.nodes.set(nodeId, {
+      id: nodeId,
+      region: "default",
+      endpoint: "local",
+      isPrimary: true,
+      health: "healthy",
+      lastHeartbeat: Date.now(),
+      lag: 0,
+      version: 0,
+      vectorClock: { [nodeId]: 0 },
+      weight: 1,
+      capacity: 1024 * 1024 * 1024,
+      // 1GB default
+      used: 0
+    });
+    this.stats = {
+      syncCount: 0,
+      conflictCount: 0,
+      resolvedConflictCount: 0,
+      snapshotCount: 0,
+      failoverCount: 0,
+      totalBytesTransferred: 0,
+      startTime: Date.now()
+    };
+    this.startBackgroundTasks();
+  }
+  /**
+   * Main entry point for replication operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true, cacheTTL = 300 } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = generateCacheKey("replication", {
+        operation,
+        ...this.getCacheKeyParams(options)
+      });
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    let nodesAffected = 0;
+    let entriesSynced = 0;
+    try {
+      switch (operation) {
+        case "configure":
+          data = await this.configure(options);
+          break;
+        case "add-replica":
+          data = await this.addReplica(options);
+          nodesAffected = 1;
+          break;
+        case "remove-replica":
+          data = await this.removeReplica(options);
+          nodesAffected = 1;
+          break;
+        case "promote-replica":
+          data = await this.promoteReplica(options);
+          nodesAffected = 2;
+          break;
+        case "sync":
+          const syncResult = await this.sync(options);
+          data = syncResult.data;
+          entriesSynced = syncResult.entriesSynced;
+          break;
+        case "status":
+          data = await this.getStatus(options);
+          break;
+        case "health-check":
+          data = await this.healthCheck(options);
+          break;
+        case "resolve-conflicts":
+          data = await this.resolveConflicts(options);
+          break;
+        case "snapshot":
+          data = await this.createSnapshot(options);
+          break;
+        case "restore":
+          data = await this.restore(options);
+          break;
+        case "rebalance":
+          data = await this.rebalance(options);
+          nodesAffected = this.nodes.size;
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsed = this.tokenCounter.count(JSON.stringify(data)).tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, cacheTTL);
+      }
+      this.metrics.record({
+        operation: `replication_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, nodesAffected, entriesSynced }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime,
+          nodesAffected,
+          entriesSynced
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `replication_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Configure replication settings
+   */
+  async configure(options) {
+    if (options.mode) {
+      this.config.mode = options.mode;
+    }
+    if (options.consistency) {
+      this.config.consistency = options.consistency;
+    }
+    if (options.conflictResolution) {
+      this.config.conflictResolution = options.conflictResolution;
+    }
+    if (options.syncInterval !== void 0) {
+      this.config.syncInterval = options.syncInterval;
+      this.restartSyncTimer();
+    }
+    if (options.heartbeatInterval !== void 0) {
+      this.config.heartbeatInterval = options.heartbeatInterval;
+      this.restartHeartbeatTimer();
+    }
+    if (options.writeQuorum !== void 0) {
+      this.config.writeQuorum = options.writeQuorum;
+    }
+    if (options.readQuorum !== void 0) {
+      this.config.readQuorum = options.readQuorum;
+    }
+    if (options.enableCompression !== void 0) {
+      this.config.enableCompression = options.enableCompression;
+    }
+    this.emit("configuration-updated", this.config);
+    return { config: { ...this.config } };
+  }
+  /**
+   * Add replica node
+   */
+  async addReplica(options) {
+    const { nodeId, region, endpoint, weight } = options;
+    if (!nodeId || !region || !endpoint) {
+      throw new Error("nodeId, region, and endpoint are required");
+    }
+    if (this.nodes.has(nodeId)) {
+      throw new Error(`Node ${nodeId} already exists`);
+    }
+    const node = {
+      id: nodeId,
+      region,
+      endpoint,
+      isPrimary: false,
+      health: "healthy",
+      lastHeartbeat: Date.now(),
+      lag: 0,
+      version: 0,
+      vectorClock: { [nodeId]: 0 },
+      weight: weight || 1,
+      capacity: 1024 * 1024 * 1024,
+      // 1GB default
+      used: 0
+    };
+    this.nodes.set(nodeId, node);
+    this.vectorClock[nodeId] = 0;
+    this.emit("replica-added", node);
+    await this.syncNode(nodeId);
+    return { nodes: Array.from(this.nodes.values()) };
+  }
+  /**
+   * Remove replica node
+   */
+  async removeReplica(options) {
+    const { nodeId } = options;
+    if (!nodeId) {
+      throw new Error("nodeId is required");
+    }
+    const node = this.nodes.get(nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+    if (node.isPrimary) {
+      throw new Error(
+        "Cannot remove primary node. Promote another replica first."
+      );
+    }
+    this.nodes.delete(nodeId);
+    delete this.vectorClock[nodeId];
+    this.emit("replica-removed", { nodeId });
+    return { nodes: Array.from(this.nodes.values()) };
+  }
+  /**
+   * Promote replica to primary
+   */
+  async promoteReplica(options) {
+    const { targetNodeId } = options;
+    if (!targetNodeId) {
+      throw new Error("targetNodeId is required");
+    }
+    const targetNode = this.nodes.get(targetNodeId);
+    if (!targetNode) {
+      throw new Error(`Node ${targetNodeId} not found`);
+    }
+    if (targetNode.isPrimary) {
+      throw new Error(`Node ${targetNodeId} is already primary`);
+    }
+    const currentPrimary = Array.from(this.nodes.values()).find(
+      (n7) => n7.isPrimary
+    );
+    if (currentPrimary && this.config.mode === "primary-replica") {
+      currentPrimary.isPrimary = false;
+    }
+    targetNode.isPrimary = true;
+    this.stats.failoverCount++;
+    this.emit("replica-promoted", {
+      from: currentPrimary?.id,
+      to: targetNodeId
+    });
+    return { nodes: Array.from(this.nodes.values()) };
+  }
+  /**
+   * Synchronize with replicas
+   */
+  async sync(options) {
+    const { deltaOnly = true } = options;
+    const delta = this.createSyncDelta(deltaOnly);
+    let entriesSynced = 0;
+    const nodeEntries = Array.from(this.nodes.entries());
+    for (const [nodeId, node] of nodeEntries) {
+      if (node.isPrimary) continue;
+      try {
+        await this.syncNode(nodeId, delta);
+        entriesSynced += delta.entries.length;
+        node.version = delta.toVersion;
+        node.lag = 0;
+      } catch (error2) {
+        console.error(`Failed to sync with node ${nodeId}:`, error2);
+        node.health = "degraded";
+      }
+    }
+    this.stats.syncCount++;
+    this.stats.totalBytesTransferred += delta.size;
+    this.emit("sync-completed", { entriesSynced, delta });
+    return {
+      data: {
+        delta,
+        stats: this.getStatsSnapshot()
+      },
+      entriesSynced
+    };
+  }
+  /**
+   * Get replication status
+   */
+  async getStatus(_options) {
+    const stats = this.getStatsSnapshot();
+    const nodes = Array.from(this.nodes.values());
+    return {
+      stats,
+      nodes,
+      config: { ...this.config }
+    };
+  }
+  /**
+   * Perform health check on all nodes
+   */
+  async healthCheck(_options) {
+    const healthChecks = [];
+    const nodeEntries = Array.from(this.nodes.entries());
+    for (const [nodeId, node] of nodeEntries) {
+      const timeSinceHeartbeat = Date.now() - node.lastHeartbeat;
+      const errors = [];
+      const warnings = [];
+      if (node.lag > this.config.maxLag) {
+        errors.push(`Replication lag exceeds threshold: ${node.lag}ms`);
+      } else if (node.lag > this.config.maxLag * 0.5) {
+        warnings.push(`High replication lag: ${node.lag}ms`);
+      }
+      if (timeSinceHeartbeat > this.config.heartbeatInterval * 3) {
+        errors.push(`No heartbeat received for ${timeSinceHeartbeat}ms`);
+        node.health = "offline";
+      } else if (timeSinceHeartbeat > this.config.heartbeatInterval * 2) {
+        warnings.push(`Delayed heartbeat: ${timeSinceHeartbeat}ms`);
+        node.health = "degraded";
+      }
+      const usagePercent = node.used / node.capacity;
+      if (usagePercent > 0.95) {
+        errors.push(
+          `Storage capacity critical: ${(usagePercent * 100).toFixed(1)}%`
+        );
+      } else if (usagePercent > 0.8) {
+        warnings.push(
+          `Storage capacity high: ${(usagePercent * 100).toFixed(1)}%`
+        );
+      }
+      let health;
+      if (errors.length > 0) {
+        health = node.health === "offline" ? "offline" : "unhealthy";
+      } else if (warnings.length > 0) {
+        health = "degraded";
+      } else {
+        health = "healthy";
+      }
+      node.health = health;
+      healthChecks.push({
+        nodeId,
+        health,
+        lag: node.lag,
+        lastSync: node.version,
+        errors,
+        warnings,
+        metrics: {
+          throughput: this.calculateNodeThroughput(nodeId),
+          latency: node.lag,
+          errorRate: errors.length / (errors.length + warnings.length + 1),
+          uptime: Date.now() - this.stats.startTime
+        }
+      });
+    }
+    this.emit("health-check-completed", healthChecks);
+    return { healthChecks };
+  }
+  /**
+   * Resolve conflicts
+   */
+  async resolveConflicts(options) {
+    const conflicts = options.conflicts || this.pendingConflicts;
+    const resolved = [];
+    for (const conflict of conflicts) {
+      let resolution;
+      switch (this.config.conflictResolution) {
+        case "last-write-wins":
+          resolution = conflict.localEntry.timestamp > conflict.remoteEntry.timestamp ? conflict.localEntry : conflict.remoteEntry;
+          break;
+        case "first-write-wins":
+          resolution = conflict.localEntry.timestamp < conflict.remoteEntry.timestamp ? conflict.localEntry : conflict.remoteEntry;
+          break;
+        case "vector-clock":
+          resolution = this.resolveWithVectorClock(conflict);
+          break;
+        case "merge":
+          resolution = this.mergeConflict(conflict);
+          break;
+        case "custom":
+          if (options.customResolver) {
+            resolution = options.customResolver(conflict);
+          } else {
+            throw new Error(
+              "Custom resolver required for custom conflict resolution"
+            );
+          }
+          break;
+        default:
+          resolution = conflict.localEntry;
+      }
+      conflict.resolution = resolution;
+      conflict.resolvedBy = this.config.conflictResolution;
+      resolved.push(conflict);
+      this.applyReplicationEntry(resolution);
+    }
+    this.pendingConflicts = this.pendingConflicts.filter(
+      (c2) => !resolved.includes(c2)
+    );
+    this.stats.resolvedConflictCount += resolved.length;
+    this.emit("conflicts-resolved", resolved);
+    return { conflicts: resolved };
+  }
+  /**
+   * Create snapshot
+   */
+  async createSnapshot(options) {
+    const snapshotId = this.generateSnapshotId();
+    const entries = [];
+    for (const entry of this.replicationLog) {
+      if (entry.operation === "set") {
+        entries.push([entry.key, entry.value]);
+      }
+    }
+    const data = JSON.stringify(entries);
+    const compressed = this.config.enableCompression ? this.compressData(data) : data;
+    const metadata = {
+      id: snapshotId,
+      version: this.currentVersion,
+      timestamp: Date.now(),
+      nodeId: this.getPrimaryNode()?.id || "unknown",
+      entryCount: entries.length,
+      size: Buffer.byteLength(compressed),
+      compressed: this.config.enableCompression,
+      checksum: this.calculateChecksum(compressed)
+    };
+    this.snapshots.set(snapshotId, { metadata, data: compressed });
+    this.stats.snapshotCount++;
+    this.cleanupOldSnapshots();
+    this.emit("snapshot-created", metadata);
+    return {
+      snapshot: {
+        metadata,
+        data: options.includeMetadata ? compressed : ""
+      }
+    };
+  }
+  /**
+   * Restore from snapshot
+   */
+  async restore(options) {
+    const { snapshotId } = options;
+    if (!snapshotId) {
+      throw new Error("snapshotId is required");
+    }
+    const snapshot = this.snapshots.get(snapshotId);
+    if (!snapshot) {
+      throw new Error(`Snapshot ${snapshotId} not found`);
+    }
+    const data = snapshot.metadata.compressed ? this.decompressData(snapshot.data) : snapshot.data;
+    const entries = JSON.parse(data);
+    this.replicationLog = [];
+    this.currentVersion = snapshot.metadata.version;
+    for (const [key, value] of entries) {
+      const entry = {
+        key,
+        value,
+        operation: "set",
+        timestamp: Date.now(),
+        version: this.currentVersion,
+        vectorClock: { ...this.vectorClock },
+        nodeId: this.getPrimaryNode()?.id || "unknown",
+        checksum: this.calculateChecksum(JSON.stringify(value))
+      };
+      this.replicationLog.push(entry);
+      this.cache.set(key, JSON.stringify(value), value.length, value.length);
+    }
+    this.emit("restore-completed", {
+      snapshotId,
+      entriesRestored: entries.length
+    });
+    return {
+      snapshot: {
+        metadata: snapshot.metadata,
+        data: ""
+      },
+      stats: this.getStatsSnapshot()
+    };
+  }
+  /**
+   * Rebalance load across replicas
+   */
+  async rebalance(_options) {
+    const nodes = Array.from(this.nodes.values()).filter((n7) => !n7.isPrimary);
+    if (nodes.length === 0) {
+      throw new Error("No replica nodes to rebalance");
+    }
+    const totalCapacity = nodes.reduce((sum, n7) => sum + n7.capacity, 0);
+    for (const node of nodes) {
+      const capacityRatio = node.capacity / totalCapacity;
+      const usageRatio = 1 - node.used / node.capacity;
+      node.weight = capacityRatio * usageRatio;
+    }
+    const totalWeight = nodes.reduce((sum, n7) => sum + n7.weight, 0);
+    for (const node of nodes) {
+      node.weight = node.weight / totalWeight;
+    }
+    this.emit("rebalance-completed", { nodes });
+    return { nodes: Array.from(this.nodes.values()) };
+  }
+  /**
+   * Start background tasks
+   */
+  startBackgroundTasks() {
+    this.restartSyncTimer();
+    this.restartHeartbeatTimer();
+    this.restartHealthCheckTimer();
+    this.restartSnapshotTimer();
+  }
+  /**
+   * Restart sync timer
+   */
+  restartSyncTimer() {
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer);
+    }
+    this.syncTimer = setInterval(() => {
+      this.sync({ operation: "sync" }).catch((err) => {
+        console.error("Auto-sync failed:", err);
+      });
+    }, this.config.syncInterval);
+    this.syncTimer.unref();
+  }
+  /**
+   * Restart heartbeat timer
+   */
+  restartHeartbeatTimer() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+    }
+    this.heartbeatTimer = setInterval(() => {
+      this.sendHeartbeats();
+    }, this.config.heartbeatInterval);
+    this.heartbeatTimer.unref();
+  }
+  /**
+   * Restart health check timer
+   */
+  restartHealthCheckTimer() {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+    }
+    this.healthCheckTimer = setInterval(() => {
+      this.healthCheck({ operation: "health-check" }).catch((err) => {
+        console.error("Health check failed:", err);
+      });
+    }, this.config.healthCheckInterval);
+    this.healthCheckTimer.unref();
+  }
+  /**
+   * Restart snapshot timer
+   */
+  restartSnapshotTimer() {
+    if (this.snapshotTimer) {
+      clearInterval(this.snapshotTimer);
+    }
+    this.snapshotTimer = setInterval(() => {
+      this.createSnapshot({ operation: "snapshot" }).catch((err) => {
+        console.error("Snapshot creation failed:", err);
+      });
+    }, this.config.snapshotInterval);
+    this.snapshotTimer.unref();
+  }
+  /**
+   * Send heartbeats to all nodes
+   */
+  sendHeartbeats() {
+    const now2 = Date.now();
+    const nodes = Array.from(this.nodes.values());
+    for (const node of nodes) {
+      node.lastHeartbeat = now2;
+    }
+  }
+  /**
+   * Create sync delta
+   */
+  createSyncDelta(deltaOnly) {
+    const entries = deltaOnly ? this.replicationLog.slice(-1e3) : this.replicationLog;
+    const data = JSON.stringify(entries);
+    const compressed = this.config.enableCompression ? this.compressData(data) : data;
+    return {
+      entries,
+      fromVersion: deltaOnly ? this.currentVersion - entries.length : 0,
+      toVersion: this.currentVersion,
+      compressed: this.config.enableCompression,
+      size: Buffer.byteLength(compressed),
+      checksum: this.calculateChecksum(compressed)
+    };
+  }
+  /**
+   * Sync with specific node
+   */
+  async syncNode(nodeId, delta) {
+    const node = this.nodes.get(nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+    const syncDelta = delta || this.createSyncDelta(true);
+    node.version = syncDelta.toVersion;
+    node.lag = Date.now() - (syncDelta.entries[syncDelta.entries.length - 1]?.timestamp || Date.now());
+    this.emit("node-synced", { nodeId, delta: syncDelta });
+  }
+  /**
+   * Apply replication entry
+   */
+  applyReplicationEntry(entry) {
+    if (entry.operation === "set") {
+      this.cache.set(
+        entry.key,
+        JSON.stringify(entry.value),
+        JSON.stringify(entry.value).length,
+        JSON.stringify(entry.value).length
+      );
+    } else if (entry.operation === "delete") {
+      this.cache.delete(entry.key);
+    }
+    this.replicationLog.push(entry);
+    this.currentVersion++;
+    this.incrementVectorClock(entry.nodeId);
+  }
+  /**
+   * Resolve conflict using vector clocks
+   */
+  resolveWithVectorClock(conflict) {
+    const local = conflict.localEntry;
+    const remote = conflict.remoteEntry;
+    const localHappenedBefore = this.happenedBefore(
+      local.vectorClock,
+      remote.vectorClock
+    );
+    const remoteHappenedBefore = this.happenedBefore(
+      remote.vectorClock,
+      local.vectorClock
+    );
+    if (localHappenedBefore) {
+      return remote;
+    } else if (remoteHappenedBefore) {
+      return local;
+    } else {
+      return local.timestamp > remote.timestamp ? local : remote;
+    }
+  }
+  /**
+   * Check if clock1 happened before clock2
+   */
+  happenedBefore(clock1, clock2) {
+    let anyLess = false;
+    for (const nodeId of Object.keys({ ...clock1, ...clock2 })) {
+      const v1 = clock1[nodeId] || 0;
+      const v2 = clock2[nodeId] || 0;
+      if (v1 > v2) return false;
+      if (v1 < v2) anyLess = true;
+    }
+    return anyLess;
+  }
+  /**
+   * Merge conflicting entries
+   */
+  mergeConflict(conflict) {
+    const local = conflict.localEntry;
+    const remote = conflict.remoteEntry;
+    let mergedValue;
+    try {
+      const localVal = typeof local.value === "string" ? JSON.parse(local.value) : local.value;
+      const remoteVal = typeof remote.value === "string" ? JSON.parse(remote.value) : remote.value;
+      if (typeof localVal === "object" && typeof remoteVal === "object" && !Array.isArray(localVal) && !Array.isArray(remoteVal)) {
+        mergedValue = { ...localVal, ...remoteVal };
+      } else {
+        mergedValue = local.timestamp > remote.timestamp ? localVal : remoteVal;
+      }
+    } catch {
+      mergedValue = local.timestamp > remote.timestamp ? local.value : remote.value;
+    }
+    return {
+      ...local,
+      value: mergedValue,
+      timestamp: Math.max(local.timestamp, remote.timestamp),
+      vectorClock: this.mergeVectorClocks(
+        local.vectorClock,
+        remote.vectorClock
+      )
+    };
+  }
+  /**
+   * Merge vector clocks
+   */
+  mergeVectorClocks(clock1, clock2) {
+    const merged = {};
+    for (const nodeId of Object.keys({ ...clock1, ...clock2 })) {
+      merged[nodeId] = Math.max(clock1[nodeId] || 0, clock2[nodeId] || 0);
+    }
+    return merged;
+  }
+  /**
+   * Increment vector clock for node
+   */
+  incrementVectorClock(nodeId) {
+    this.vectorClock[nodeId] = (this.vectorClock[nodeId] || 0) + 1;
+  }
+  /**
+   * Get primary node
+   */
+  getPrimaryNode() {
+    return Array.from(this.nodes.values()).find((n7) => n7.isPrimary);
+  }
+  /**
+   * Get statistics snapshot
+   */
+  getStatsSnapshot() {
+    const nodes = Array.from(this.nodes.values());
+    const healthyNodes = nodes.filter((n7) => n7.health === "healthy");
+    const primaryNodes = nodes.filter((n7) => n7.isPrimary);
+    const replicaNodes = nodes.filter((n7) => !n7.isPrimary);
+    const lags = nodes.map((n7) => n7.lag);
+    const averageLag = lags.reduce((sum, lag) => sum + lag, 0) / lags.length || 0;
+    const maxLag = Math.max(...lags, 0);
+    const uptime2 = Date.now() - this.stats.startTime;
+    const throughput = this.stats.syncCount / (uptime2 / 1e3);
+    return {
+      mode: this.config.mode,
+      consistency: this.config.consistency,
+      totalNodes: nodes.length,
+      healthyNodes: healthyNodes.length,
+      primaryNodes: primaryNodes.length,
+      replicaNodes: replicaNodes.length,
+      totalEntries: this.replicationLog.length,
+      syncedEntries: this.stats.syncCount,
+      pendingEntries: 0,
+      conflicts: this.stats.conflictCount,
+      resolvedConflicts: this.stats.resolvedConflictCount,
+      averageLag,
+      maxLag,
+      throughput,
+      regions: Array.from(new Set(nodes.map((n7) => n7.region))),
+      healthChecks: []
+    };
+  }
+  /**
+   * Calculate node throughput
+   */
+  calculateNodeThroughput(_nodeId) {
+    const uptime2 = Date.now() - this.stats.startTime;
+    return this.stats.syncCount / (uptime2 / 1e3);
+  }
+  /**
+   * Generate snapshot ID
+   */
+  generateSnapshotId() {
+    return `snapshot-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  }
+  /**
+   * Clean up old snapshots
+   */
+  cleanupOldSnapshots() {
+    const cutoff = Date.now() - this.config.retentionPeriod;
+    const snapshotEntries = Array.from(this.snapshots.entries());
+    for (const [id, snapshot] of snapshotEntries) {
+      if (snapshot.metadata.timestamp < cutoff) {
+        this.snapshots.delete(id);
+      }
+    }
+  }
+  /**
+   * Calculate checksum
+   */
+  calculateChecksum(data) {
+    return createHash32("sha256").update(data).digest("hex").substring(0, 16);
+  }
+  /**
+   * Compress data
+   */
+  compressData(data) {
+    return Buffer.from(data).toString("base64");
+  }
+  /**
+   * Decompress data
+   */
+  decompressData(data) {
+    return Buffer.from(data, "base64").toString("utf-8");
+  }
+  /**
+   * Check if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["status", "health-check"].includes(operation);
+  }
+  /**
+   * Get cache key parameters
+   */
+  getCacheKeyParams(options) {
+    const { operation, nodeId } = options;
+    switch (operation) {
+      case "status":
+        return {};
+      case "health-check":
+        return { nodeId };
+      default:
+        return {};
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    if (this.syncTimer) clearInterval(this.syncTimer);
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.healthCheckTimer) clearInterval(this.healthCheckTimer);
+    if (this.snapshotTimer) clearInterval(this.snapshotTimer);
+    this.nodes.clear();
+    this.replicationLog = [];
+    this.pendingConflicts = [];
+    this.snapshots.clear();
+    this.removeAllListeners();
+  }
+};
+var replicationInstance = null;
+function getCacheReplicationTool(cache, tokenCounter, metrics, nodeId) {
+  if (!replicationInstance) {
+    replicationInstance = new CacheReplicationTool(
+      cache,
+      tokenCounter,
+      metrics,
+      nodeId
+    );
+  }
+  return replicationInstance;
+}
+var CACHE_REPLICATION_TOOL_DEFINITION = {
+  name: "cache_replication",
+  description: "Distributed cache replication with 88%+ token reduction. Supports primary-replica and multi-primary modes, strong/eventual consistency, automatic conflict resolution, failover, incremental sync, and health monitoring.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "configure",
+          "add-replica",
+          "remove-replica",
+          "promote-replica",
+          "sync",
+          "status",
+          "health-check",
+          "resolve-conflicts",
+          "snapshot",
+          "restore",
+          "rebalance"
+        ],
+        description: "Replication operation to perform"
+      },
+      mode: {
+        type: "string",
+        enum: [
+          "primary-replica",
+          "multi-primary",
+          "master-slave",
+          "peer-to-peer"
+        ],
+        description: "Replication mode (for configure operation)"
+      },
+      consistency: {
+        type: "string",
+        enum: ["eventual", "strong", "causal"],
+        description: "Consistency model (for configure operation)"
+      },
+      conflictResolution: {
+        type: "string",
+        enum: [
+          "last-write-wins",
+          "first-write-wins",
+          "merge",
+          "custom",
+          "vector-clock"
+        ],
+        description: "Conflict resolution strategy (for configure operation)"
+      },
+      syncInterval: {
+        type: "number",
+        description: "Sync interval in milliseconds (for configure operation)"
+      },
+      heartbeatInterval: {
+        type: "number",
+        description: "Heartbeat interval in milliseconds (for configure operation)"
+      },
+      writeQuorum: {
+        type: "number",
+        description: "Number of replicas required for writes (for configure operation)"
+      },
+      readQuorum: {
+        type: "number",
+        description: "Number of replicas required for reads (for configure operation)"
+      },
+      nodeId: {
+        type: "string",
+        description: "Node ID (for add-replica/remove-replica operations)"
+      },
+      region: {
+        type: "string",
+        description: "Region name (for add-replica operation)"
+      },
+      endpoint: {
+        type: "string",
+        description: "Node endpoint URL (for add-replica operation)"
+      },
+      weight: {
+        type: "number",
+        description: "Node weight for load balancing (for add-replica operation)"
+      },
+      targetNodeId: {
+        type: "string",
+        description: "Target node ID (for promote-replica operation)"
+      },
+      force: {
+        type: "boolean",
+        description: "Force sync even if up-to-date (for sync operation)"
+      },
+      deltaOnly: {
+        type: "boolean",
+        description: "Sync only delta changes (for sync operation)"
+      },
+      snapshotId: {
+        type: "string",
+        description: "Snapshot ID (for restore operation)"
+      },
+      includeMetadata: {
+        type: "boolean",
+        description: "Include snapshot data in response (for snapshot operation)"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      enableCompression: {
+        type: "boolean",
+        description: "Compress replicated payloads before sending them to peers",
+        default: false
+      },
+      conflicts: {
+        type: "array",
+        description: "Conflicts to resolve, for a resolve operation. Each entry names the key and the competing local and remote entries.",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            localEntry: { type: "object" },
+            remoteEntry: { type: "object" },
+            resolution: { type: "object" },
+            resolvedBy: {
+              type: "string",
+              description: "Which resolution rule settled this conflict"
+            },
+            timestamp: { type: "number" }
+          },
+          // Conflict requires all of these; only `resolution` and `resolvedBy` are
+          // optional, because they are what a resolve operation fills in.
+          required: ["key", "localEntry", "remoteEntry", "timestamp"]
+        }
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/cache-warmup.ts
+import { EventEmitter as EventEmitter7 } from "events";
+var CacheWarmupTool = class extends EventEmitter7 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Configuration
+  config = {
+    maxConcurrency: 10,
+    batchSize: 50,
+    defaultTimeout: 3e4,
+    maxRetries: 3,
+    enableRollback: true,
+    progressReporting: true
+  };
+  // Active jobs
+  activeJobs = /* @__PURE__ */ new Map();
+  jobCounter = 0;
+  // Schedules
+  schedules = /* @__PURE__ */ new Map();
+  scheduleTimers = /* @__PURE__ */ new Map();
+  // Access patterns
+  accessHistory = /* @__PURE__ */ new Map();
+  hotKeys = /* @__PURE__ */ new Set();
+  // Dependency graph
+  dependencyGraph = null;
+  resolvedOrder = [];
+  // Statistics
+  stats = {
+    totalWarmed: 0,
+    totalFailed: 0,
+    totalSkipped: 0,
+    averageWarmupTime: 0,
+    lastWarmupTime: 0
+  };
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+  }
+  /**
+   * Main entry point for cache warmup operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `cache-warmup:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "immediate":
+          data = await this.immediateWarmup(options);
+          break;
+        case "schedule":
+          data = await this.scheduleWarmup(options);
+          break;
+        case "pattern-based":
+          data = await this.patternBasedWarmup(options);
+          break;
+        case "dependency-based":
+          data = await this.dependencyBasedWarmup(options);
+          break;
+        case "selective":
+          data = await this.selectiveWarmup(options);
+          break;
+        case "status":
+          data = await this.getStatus(options);
+          break;
+        case "cancel":
+          data = await this.cancelWarmup(options);
+          break;
+        case "pause":
+          data = await this.pauseWarmup(options);
+          break;
+        case "resume":
+          data = await this.resumeWarmup(options);
+          break;
+        case "configure":
+          data = await this.configure(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `cache_warmup_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `cache_warmup_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Immediate cache warmup
+   */
+  async immediateWarmup(options) {
+    const {
+      keys = [],
+      strategy = "progressive",
+      priority = "normal",
+      dryRun = false,
+      maxConcurrency = this.config.maxConcurrency,
+      batchSize = this.config.batchSize,
+      enableRollback = this.config.enableRollback
+    } = options;
+    if (keys.length === 0) {
+      throw new Error("No keys provided for immediate warmup");
+    }
+    const jobId = this.generateJobId();
+    const job = {
+      id: jobId,
+      keys,
+      priority,
+      strategy,
+      status: "warming",
+      options,
+      progress: {
+        status: "warming",
+        totalKeys: keys.length,
+        warmedKeys: 0,
+        failedKeys: 0,
+        skippedKeys: 0,
+        percentComplete: 0,
+        startTime: Date.now(),
+        elapsedTime: 0,
+        throughput: 0,
+        errors: []
+      },
+      rollbackData: enableRollback ? /* @__PURE__ */ new Map() : void 0,
+      abortController: new AbortController()
+    };
+    if (dryRun) {
+      const simulation = await this.simulateWarmup(keys, options);
+      return { simulation };
+    }
+    this.activeJobs.set(jobId, job);
+    this.emit("warmup-started", { jobId, keys: keys.length, strategy });
+    try {
+      let warmedKeys;
+      if (strategy === "progressive") {
+        warmedKeys = await this.progressiveWarmup(
+          job,
+          maxConcurrency,
+          batchSize
+        );
+      } else if (strategy === "dependency") {
+        warmedKeys = await this.warmupWithDependencies(job, options);
+      } else if (strategy === "pattern") {
+        warmedKeys = await this.warmupByPattern(job, options);
+      } else {
+        warmedKeys = await this.parallelWarmup(job, maxConcurrency, batchSize);
+      }
+      job.progress.status = "completed";
+      job.status = "completed";
+      this.stats.totalWarmed += warmedKeys.length;
+      this.stats.totalFailed += job.progress.failedKeys;
+      this.stats.lastWarmupTime = Date.now();
+      this.emit("warmup-completed", {
+        jobId,
+        warmedKeys: warmedKeys.length,
+        failed: job.progress.failedKeys
+      });
+      return {
+        progress: job.progress,
+        warmedKeys,
+        failedKeys: job.progress.errors.map((e) => e.key)
+      };
+    } catch (error2) {
+      job.progress.status = "failed";
+      job.status = "failed";
+      if (enableRollback && job.rollbackData) {
+        await this.rollback(job);
+      }
+      this.emit("warmup-failed", { jobId, error: String(error2) });
+      throw error2;
+    } finally {
+      this.activeJobs.delete(jobId);
+    }
+  }
+  /**
+   * Schedule cache warmup with cron expression
+   */
+  async scheduleWarmup(options) {
+    const { schedule: cronExpression, scheduleId } = options;
+    if (!cronExpression) {
+      throw new Error("Schedule expression is required");
+    }
+    const id = scheduleId || this.generateScheduleId();
+    const parsedCron = this.parseCronExpression(cronExpression);
+    const nextRun = this.calculateNextRun(parsedCron);
+    const schedule = {
+      id,
+      cronExpression,
+      options,
+      enabled: true,
+      nextRun,
+      status: "active"
+    };
+    this.schedules.set(id, schedule);
+    this.scheduleNextRun(schedule);
+    this.emit("schedule-created", { id, nextRun });
+    return {
+      schedule,
+      schedules: Array.from(this.schedules.values())
+    };
+  }
+  /**
+   * Pattern-based warmup from access history
+   */
+  async patternBasedWarmup(options) {
+    const {
+      accessHistory,
+      minAccessCount = 5,
+      timeWindow = 36e5,
+      // 1 hour
+      warmupPercentage = 80,
+      pattern
+    } = options;
+    if (accessHistory) {
+      this.updateAccessHistory(accessHistory);
+    }
+    const now2 = Date.now();
+    const hotKeys = this.identifyHotKeys(now2 - timeWindow, minAccessCount);
+    let keysToWarm = Array.from(hotKeys);
+    if (pattern) {
+      const regex = new RegExp(pattern);
+      keysToWarm = keysToWarm.filter((key) => regex.test(key));
+    }
+    const maxKeys = Math.ceil(keysToWarm.length * (warmupPercentage / 100));
+    keysToWarm = keysToWarm.slice(0, maxKeys);
+    return this.immediateWarmup({
+      ...options,
+      operation: "immediate",
+      keys: keysToWarm,
+      strategy: "progressive"
+    });
+  }
+  /**
+   * Dependency-based warmup with graph resolution
+   */
+  async dependencyBasedWarmup(options) {
+    const { dependencies, keys = [] } = options;
+    if (!dependencies) {
+      throw new Error(
+        "Dependency graph is required for dependency-based warmup"
+      );
+    }
+    this.dependencyGraph = dependencies;
+    const resolvedKeys = this.resolveDependencies(keys);
+    this.resolvedOrder = resolvedKeys;
+    this.emit("dependencies-resolved", {
+      requestedKeys: keys.length,
+      resolvedKeys: resolvedKeys.length
+    });
+    return this.immediateWarmup({
+      ...options,
+      operation: "immediate",
+      keys: resolvedKeys,
+      strategy: "dependency"
+    });
+  }
+  /**
+   * Selective warmup for specific keys/categories
+   */
+  async selectiveWarmup(options) {
+    const { keys = [], categories = [] } = options;
+    let keysToWarm = [...keys];
+    if (categories.length > 0) {
+      for (const [key, entries] of this.accessHistory.entries()) {
+        const hasCategory = entries.some(
+          (entry) => entry.category && categories.includes(entry.category)
+        );
+        if (hasCategory && !keysToWarm.includes(key)) {
+          keysToWarm.push(key);
+        }
+      }
+    }
+    if (keysToWarm.length === 0) {
+      throw new Error("No keys to warm up");
+    }
+    return this.immediateWarmup({
+      ...options,
+      operation: "immediate",
+      keys: keysToWarm
+    });
+  }
+  /**
+   * Get warmup status
+   */
+  async getStatus(_options) {
+    const activeJobs = Array.from(this.activeJobs.values());
+    const schedules = Array.from(this.schedules.values());
+    const progress = activeJobs.length > 0 ? activeJobs[0].progress : void 0;
+    return {
+      progress,
+      schedules
+    };
+  }
+  /**
+   * Cancel warmup job
+   */
+  async cancelWarmup(options) {
+    const { scheduleId } = options;
+    if (scheduleId) {
+      const schedule = this.schedules.get(scheduleId);
+      if (schedule) {
+        this.cancelSchedule(scheduleId);
+        return { schedule: { ...schedule, status: "completed" } };
+      }
+    }
+    for (const job of this.activeJobs.values()) {
+      job.abortController?.abort();
+      job.status = "cancelled";
+      job.progress.status = "cancelled";
+      if (job.rollbackData) {
+        await this.rollback(job);
+      }
+    }
+    this.activeJobs.clear();
+    return { progress: void 0 };
+  }
+  /**
+   * Pause warmup job
+   */
+  async pauseWarmup(_options) {
+    for (const job of this.activeJobs.values()) {
+      job.status = "paused";
+      job.progress.status = "paused";
+    }
+    this.emit("warmup-paused", { jobs: this.activeJobs.size });
+    return { progress: Array.from(this.activeJobs.values())[0]?.progress };
+  }
+  /**
+   * Resume warmup job
+   */
+  async resumeWarmup(_options) {
+    for (const job of this.activeJobs.values()) {
+      if (job.status === "paused") {
+        job.status = "warming";
+        job.progress.status = "warming";
+      }
+    }
+    this.emit("warmup-resumed", { jobs: this.activeJobs.size });
+    return { progress: Array.from(this.activeJobs.values())[0]?.progress };
+  }
+  /**
+   * Configure warmup settings
+   */
+  async configure(options) {
+    if (options.maxConcurrency !== void 0) {
+      this.config.maxConcurrency = options.maxConcurrency;
+    }
+    if (options.batchSize !== void 0) {
+      this.config.batchSize = options.batchSize;
+    }
+    if (options.timeout !== void 0) {
+      this.config.defaultTimeout = options.timeout;
+    }
+    if (options.maxRetries !== void 0) {
+      this.config.maxRetries = options.maxRetries;
+    }
+    if (options.enableRollback !== void 0) {
+      this.config.enableRollback = options.enableRollback;
+    }
+    if (options.reportProgress !== void 0) {
+      this.config.progressReporting = options.reportProgress;
+    }
+    this.emit("configuration-updated", this.config);
+    return { configuration: { ...this.config } };
+  }
+  /**
+   * Progressive warmup - warm hot keys first
+   */
+  async progressiveWarmup(job, maxConcurrency, batchSize) {
+    const { keys } = job;
+    const sortedKeys = this.sortKeysByPriority(keys);
+    const warmedKeys = [];
+    for (let i = 0; i < sortedKeys.length; i += batchSize) {
+      if (job.abortController?.signal.aborted || job.status === "paused") {
+        break;
+      }
+      const batch = sortedKeys.slice(i, i + batchSize);
+      const batchResults = await this.warmBatchParallel(
+        batch,
+        job,
+        maxConcurrency
+      );
+      warmedKeys.push(...batchResults.warmed);
+      this.updateProgress(
+        job,
+        batchResults.warmed.length,
+        batchResults.failed.length
+      );
+      if (job.options.delayBetweenBatches) {
+        await this.sleep(job.options.delayBetweenBatches);
+      }
+      this.emit("batch-completed", {
+        jobId: job.id,
+        batch: i / batchSize + 1,
+        warmed: batchResults.warmed.length,
+        failed: batchResults.failed.length
+      });
+    }
+    return warmedKeys;
+  }
+  /**
+   * Warmup with dependency resolution
+   */
+  async warmupWithDependencies(job, options) {
+    const keysToWarm = this.resolvedOrder.length > 0 ? this.resolvedOrder : job.keys;
+    const warmedKeys = [];
+    for (const key of keysToWarm) {
+      if (job.abortController?.signal.aborted || job.status === "paused") {
+        break;
+      }
+      const result = await this.warmKey(key, job, options);
+      if (result.success) {
+        warmedKeys.push(key);
+        this.updateProgress(job, 1, 0);
+      } else {
+        this.updateProgress(job, 0, 1);
+      }
+    }
+    return warmedKeys;
+  }
+  /**
+   * Warmup by pattern matching
+   */
+  async warmupByPattern(job, options) {
+    const { pattern } = options;
+    let keysToWarm = job.keys;
+    if (pattern) {
+      const regex = new RegExp(pattern);
+      keysToWarm = keysToWarm.filter((key) => regex.test(key));
+    }
+    return this.parallelWarmup(
+      { ...job, keys: keysToWarm },
+      this.config.maxConcurrency,
+      this.config.batchSize
+    );
+  }
+  /**
+   * Parallel warmup with concurrency control
+   */
+  async parallelWarmup(job, maxConcurrency, batchSize) {
+    const warmedKeys = [];
+    const { keys } = job;
+    for (let i = 0; i < keys.length; i += batchSize) {
+      if (job.abortController?.signal.aborted || job.status === "paused") {
+        break;
+      }
+      const batch = keys.slice(i, i + batchSize);
+      const batchResults = await this.warmBatchParallel(
+        batch,
+        job,
+        maxConcurrency
+      );
+      warmedKeys.push(...batchResults.warmed);
+      this.updateProgress(
+        job,
+        batchResults.warmed.length,
+        batchResults.failed.length
+      );
+    }
+    return warmedKeys;
+  }
+  /**
+   * Warm a batch of keys in parallel
+   */
+  async warmBatchParallel(keys, job, maxConcurrency) {
+    const warmed = [];
+    const failed = [];
+    const chunks = [];
+    for (let i = 0; i < keys.length; i += maxConcurrency) {
+      chunks.push(keys.slice(i, i + maxConcurrency));
+    }
+    for (const chunk of chunks) {
+      if (job.abortController?.signal.aborted || job.status === "paused") {
+        break;
+      }
+      const promises = chunk.map((key) => this.warmKey(key, job, job.options));
+      const results = await Promise.allSettled(promises);
+      results.forEach((result, index2) => {
+        if (result.status === "fulfilled" && result.value.success) {
+          warmed.push(chunk[index2]);
+        } else {
+          failed.push(chunk[index2]);
+        }
+      });
+    }
+    return { warmed, failed };
+  }
+  /**
+   * Warm a single key
+   */
+  async warmKey(key, job, options) {
+    const {
+      dataFetcher,
+      dataSource,
+      timeout: timeout2 = this.config.defaultTimeout
+    } = options;
+    let retries = 0;
+    const maxRetries = options.maxRetries || this.config.maxRetries;
+    job.progress.currentKey = key;
+    while (retries <= maxRetries) {
+      try {
+        if (job.rollbackData) {
+          const existing = this.cache.get(key);
+          job.rollbackData.set(key, existing);
+        }
+        const data = await this.fetchData(
+          key,
+          dataFetcher,
+          dataSource,
+          timeout2
+        );
+        const originalSize = data.length;
+        const compressedSize = originalSize;
+        this.cache.set(key, data, originalSize, compressedSize);
+        return { success: true, data };
+      } catch (error2) {
+        retries++;
+        if (retries > maxRetries) {
+          job.progress.errors.push({
+            key,
+            error: error2 instanceof Error ? error2.message : String(error2),
+            timestamp: Date.now(),
+            retryCount: retries - 1
+          });
+          return { success: false };
+        }
+        if (options.retryDelay) {
+          await this.sleep(options.retryDelay);
+        }
+      }
+    }
+    return { success: false };
+  }
+  /**
+   * Fetch data for a key
+   */
+  async fetchData(key, dataFetcher, dataSource, timeout2) {
+    if (dataFetcher) {
+      return this.withTimeout(dataFetcher(key), timeout2);
+    }
+    if (dataSource?.customFetcher) {
+      return this.withTimeout(dataSource.customFetcher(key), timeout2);
+    }
+    if (dataSource?.type === "cache") {
+      const existing = this.cache.get(key);
+      if (existing) return existing;
+    }
+    return `mock-data-for-${key}`;
+  }
+  /**
+   * Simulate warmup
+   */
+  async simulateWarmup(keys, options) {
+    const { batchSize = this.config.batchSize } = options;
+    const estimatedSize = keys.reduce((sum, key) => sum + key.length * 10, 0);
+    const batches = Math.ceil(keys.length / batchSize);
+    const estimatedTime = batches * 1e3;
+    const priorityCount = { high: 0, normal: 0, low: 0 };
+    for (const key of keys) {
+      if (this.hotKeys.has(key)) {
+        priorityCount.high++;
+      } else {
+        priorityCount.normal++;
+      }
+    }
+    let dependencyLayers = 0;
+    if (this.dependencyGraph) {
+      dependencyLayers = this.calculateDependencyDepth(keys);
+    }
+    const warnings = [];
+    if (keys.length > 1e4) {
+      warnings.push("Large number of keys may cause performance issues");
+    }
+    if (estimatedSize > 100 * 1024 * 1024) {
+      warnings.push("Estimated cache size exceeds 100MB");
+    }
+    return {
+      estimatedKeys: keys.length,
+      estimatedSize,
+      estimatedTime,
+      estimatedCost: estimatedSize * 1e-6,
+      // Mock cost
+      keysByPriority: priorityCount,
+      dependencyLayers,
+      warnings
+    };
+  }
+  /**
+   * Rollback warmup changes
+   */
+  async rollback(job) {
+    if (!job.rollbackData) return;
+    this.emit("rollback-started", {
+      jobId: job.id,
+      keys: job.rollbackData.size
+    });
+    for (const [key, originalValue] of job.rollbackData.entries()) {
+      if (originalValue === null) {
+        this.cache.delete(key);
+      } else {
+        this.cache.set(
+          key,
+          originalValue,
+          originalValue.length,
+          originalValue.length
+        );
+      }
+    }
+    this.emit("rollback-completed", { jobId: job.id });
+  }
+  /**
+   * Resolve dependencies in topological order
+   */
+  resolveDependencies(keys) {
+    if (!this.dependencyGraph) return keys;
+    const { edges } = this.dependencyGraph;
+    const resolved = [];
+    const visited = /* @__PURE__ */ new Set();
+    const adjacency = /* @__PURE__ */ new Map();
+    for (const edge of edges) {
+      if (!adjacency.has(edge.from)) {
+        adjacency.set(edge.from, []);
+      }
+      adjacency.get(edge.from).push(edge.to);
+    }
+    const visit = (key) => {
+      if (visited.has(key)) return;
+      visited.add(key);
+      const dependencies = adjacency.get(key) || [];
+      for (const dep of dependencies) {
+        visit(dep);
+      }
+      resolved.push(key);
+    };
+    for (const key of keys) {
+      visit(key);
+    }
+    return resolved.reverse();
+  }
+  /**
+   * Calculate dependency depth
+   */
+  calculateDependencyDepth(keys) {
+    if (!this.dependencyGraph) return 0;
+    const { edges } = this.dependencyGraph;
+    const adjacency = /* @__PURE__ */ new Map();
+    for (const edge of edges) {
+      if (!adjacency.has(edge.from)) {
+        adjacency.set(edge.from, []);
+      }
+      adjacency.get(edge.from).push(edge.to);
+    }
+    let maxDepth = 0;
+    const getDepth = (key, depth, visited) => {
+      if (visited.has(key)) return depth;
+      visited.add(key);
+      const dependencies = adjacency.get(key) || [];
+      let maxChildDepth = depth;
+      for (const dep of dependencies) {
+        const childDepth = getDepth(dep, depth + 1, visited);
+        maxChildDepth = Math.max(maxChildDepth, childDepth);
+      }
+      return maxChildDepth;
+    };
+    for (const key of keys) {
+      const depth = getDepth(key, 0, /* @__PURE__ */ new Set());
+      maxDepth = Math.max(maxDepth, depth);
+    }
+    return maxDepth;
+  }
+  /**
+   * Identify hot keys from access history
+   */
+  identifyHotKeys(since, minAccessCount) {
+    const hotKeys = /* @__PURE__ */ new Set();
+    for (const [key, entries] of this.accessHistory.entries()) {
+      const recentAccesses = entries.filter((e) => e.timestamp >= since);
+      const totalAccesses = recentAccesses.reduce(
+        (sum, e) => sum + e.accessCount,
+        0
+      );
+      if (totalAccesses >= minAccessCount) {
+        hotKeys.add(key);
+        this.hotKeys.add(key);
+      }
+    }
+    return hotKeys;
+  }
+  /**
+   * Sort keys by priority (hot keys first)
+   */
+  sortKeysByPriority(keys) {
+    return keys.sort((a2, b) => {
+      const aHot = this.hotKeys.has(a2);
+      const bHot = this.hotKeys.has(b);
+      if (aHot && !bHot) return -1;
+      if (!aHot && bHot) return 1;
+      const aHistory = this.accessHistory.get(a2) || [];
+      const bHistory = this.accessHistory.get(b) || [];
+      const aCount = aHistory.reduce((sum, e) => sum + e.accessCount, 0);
+      const bCount = bHistory.reduce((sum, e) => sum + e.accessCount, 0);
+      return bCount - aCount;
+    });
+  }
+  /**
+   * Update access history
+   */
+  updateAccessHistory(entries) {
+    for (const entry of entries) {
+      if (!this.accessHistory.has(entry.key)) {
+        this.accessHistory.set(entry.key, []);
+      }
+      this.accessHistory.get(entry.key).push(entry);
+    }
+    const maxEntries = 1e3;
+    for (const [key, entries2] of this.accessHistory.entries()) {
+      if (entries2.length > maxEntries) {
+        this.accessHistory.set(key, entries2.slice(-maxEntries));
+      }
+    }
+  }
+  /**
+   * Update job progress
+   */
+  updateProgress(job, warmed, failed) {
+    job.progress.warmedKeys += warmed;
+    job.progress.failedKeys += failed;
+    job.progress.elapsedTime = Date.now() - job.progress.startTime;
+    job.progress.percentComplete = job.progress.warmedKeys / job.progress.totalKeys * 100;
+    job.progress.throughput = job.progress.warmedKeys / (job.progress.elapsedTime / 1e3);
+    if (job.progress.throughput > 0) {
+      const remaining = job.progress.totalKeys - job.progress.warmedKeys;
+      job.progress.estimatedCompletion = Date.now() + remaining / job.progress.throughput * 1e3;
+    }
+    if (this.config.progressReporting) {
+      this.emit("progress-updated", job.progress);
+    }
+  }
+  /**
+   * Parse cron expression
+   */
+  parseCronExpression(expression) {
+    const parts = expression.trim().split(/\s+/);
+    if (parts.length !== 5) {
+      throw new Error(
+        "Invalid cron expression. Expected: minute hour day month weekday"
+      );
+    }
+    return {
+      minute: parts[0] === "*" ? "*" : parseInt(parts[0], 10),
+      hour: parts[1] === "*" ? "*" : parseInt(parts[1], 10),
+      dayOfMonth: parts[2] === "*" ? "*" : parseInt(parts[2], 10),
+      month: parts[3] === "*" ? "*" : parseInt(parts[3], 10),
+      dayOfWeek: parts[4] === "*" ? "*" : parseInt(parts[4], 10)
+    };
+  }
+  /**
+   * Calculate next run time from cron schedule
+   */
+  calculateNextRun(cron) {
+    const now2 = /* @__PURE__ */ new Date();
+    const next = new Date(now2);
+    next.setMinutes(next.getMinutes() + 1);
+    next.setSeconds(0);
+    next.setMilliseconds(0);
+    while (true) {
+      if ((cron.minute === "*" || next.getMinutes() === cron.minute) && (cron.hour === "*" || next.getHours() === cron.hour) && (cron.dayOfMonth === "*" || next.getDate() === cron.dayOfMonth) && (cron.month === "*" || next.getMonth() + 1 === cron.month) && (cron.dayOfWeek === "*" || next.getDay() === cron.dayOfWeek)) {
+        return next.getTime();
+      }
+      next.setMinutes(next.getMinutes() + 1);
+      if (next.getTime() - now2.getTime() > 365 * 24 * 60 * 60 * 1e3) {
+        throw new Error("Could not find next run time within 1 year");
+      }
+    }
+  }
+  /**
+   * Schedule next run
+   */
+  scheduleNextRun(schedule) {
+    const delay = schedule.nextRun - Date.now();
+    if (delay <= 0) {
+      this.executeSchedule(schedule);
+    } else {
+      const timer2 = setTimeout(() => {
+        this.executeSchedule(schedule);
+      }, delay);
+      this.scheduleTimers.set(schedule.id, timer2);
+    }
+  }
+  /**
+   * Execute scheduled warmup
+   */
+  async executeSchedule(schedule) {
+    try {
+      schedule.lastRun = Date.now();
+      await this.run(schedule.options);
+      const parsedCron = this.parseCronExpression(schedule.cronExpression);
+      schedule.nextRun = this.calculateNextRun(parsedCron);
+      this.scheduleNextRun(schedule);
+    } catch (error2) {
+      schedule.status = "failed";
+      this.emit("schedule-failed", {
+        id: schedule.id,
+        error: String(error2)
+      });
+    }
+  }
+  /**
+   * Cancel schedule
+   */
+  cancelSchedule(scheduleId) {
+    const timer2 = this.scheduleTimers.get(scheduleId);
+    if (timer2) {
+      clearTimeout(timer2);
+      this.scheduleTimers.delete(scheduleId);
+    }
+    this.schedules.delete(scheduleId);
+    this.emit("schedule-cancelled", { id: scheduleId });
+  }
+  /**
+   * Generate unique job ID
+   */
+  generateJobId() {
+    return `warmup-job-${++this.jobCounter}-${Date.now()}`;
+  }
+  /**
+   * Generate unique schedule ID
+   */
+  generateScheduleId() {
+    return `warmup-schedule-${Date.now()}`;
+  }
+  /**
+   * Sleep for specified duration
+   */
+  sleep(ms2) {
+    return new Promise((resolve5) => setTimeout(resolve5, ms2));
+  }
+  /**
+   * Execute promise with timeout
+   */
+  async withTimeout(promise, timeout2) {
+    if (!timeout2) return promise;
+    return new Promise((resolve5, reject) => {
+      const timer2 = setTimeout(
+        () => reject(new Error("Operation timed out")),
+        timeout2
+      );
+      promise.then((result) => {
+        clearTimeout(timer2);
+        resolve5(result);
+      }).catch((error2) => {
+        clearTimeout(timer2);
+        reject(error2);
+      });
+    });
+  }
+  /**
+   * Check if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["status"].includes(operation);
+  }
+  /**
+   * Get cache key parameters
+   */
+  getCacheKeyParams(options) {
+    const { operation } = options;
+    switch (operation) {
+      case "status":
+        return {};
+      default:
+        return {};
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    for (const job of this.activeJobs.values()) {
+      job.abortController?.abort();
+    }
+    this.activeJobs.clear();
+    for (const scheduleId of this.schedules.keys()) {
+      this.cancelSchedule(scheduleId);
+    }
+    this.accessHistory.clear();
+    this.hotKeys.clear();
+    this.removeAllListeners();
+  }
+};
+var cacheWarmupInstance = null;
+function getCacheWarmupTool(cache, tokenCounter, metrics) {
+  if (!cacheWarmupInstance) {
+    cacheWarmupInstance = new CacheWarmupTool(cache, tokenCounter, metrics);
+  }
+  return cacheWarmupInstance;
+}
+var CACHE_WARMUP_TOOL_DEFINITION = {
+  name: "cache_warmup",
+  description: "Intelligent cache pre-warming with 87%+ token reduction, featuring schedule-based warming, pattern analysis, dependency resolution, and progressive warming strategies",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "schedule",
+          "immediate",
+          "pattern-based",
+          "dependency-based",
+          "selective",
+          "status",
+          "cancel",
+          "pause",
+          "resume",
+          "configure"
+        ],
+        description: "The warmup operation to perform"
+      },
+      keys: {
+        type: "array",
+        items: { type: "string" },
+        description: "Keys to warm (for immediate/selective operations)"
+      },
+      categories: {
+        type: "array",
+        items: { type: "string" },
+        description: "Categories to warm (for selective operation)"
+      },
+      pattern: {
+        type: "string",
+        description: "Regex pattern for key matching"
+      },
+      priority: {
+        type: "string",
+        enum: ["high", "normal", "low"],
+        description: "Warmup priority (default: normal)"
+      },
+      strategy: {
+        type: "string",
+        enum: ["immediate", "progressive", "dependency", "pattern"],
+        description: "Warmup strategy (default: progressive)"
+      },
+      schedule: {
+        type: "string",
+        description: "Cron expression for scheduled warmup (e.g., '0 * * * *' for hourly)"
+      },
+      scheduleId: {
+        type: "string",
+        description: "Schedule ID for cancel operation"
+      },
+      dependencies: {
+        type: "object",
+        description: "Dependency graph for dependency-based warmup",
+        // Declared in full. This was `{ type: 'object' }` with no properties,
+        // so dependency-based warmup -- the entire reason this option exists --
+        // could not be configured from the published contract.
+        properties: {
+          nodes: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                priority: { type: "number" },
+                category: { type: "string" },
+                estimatedSize: { type: "number" }
+              },
+              required: ["key", "priority"]
+            }
+          },
+          edges: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                from: { type: "string", description: "Dependent key" },
+                to: { type: "string", description: "Dependency key" },
+                type: { type: "string", enum: ["required", "optional"] }
+              },
+              required: ["from", "to", "type"]
+            }
+          }
+        },
+        required: ["nodes", "edges"]
+      },
+      accessHistory: {
+        type: "array",
+        description: "Access history for pattern-based warmup",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            timestamp: { type: "number" },
+            accessCount: { type: "number" },
+            category: { type: "string" },
+            metadata: { type: "object", additionalProperties: true }
+          },
+          required: ["key", "timestamp", "accessCount"]
+        }
+      },
+      minAccessCount: {
+        type: "number",
+        description: "Minimum access count for hot keys (default: 5)"
+      },
+      timeWindow: {
+        type: "number",
+        description: "Time window for pattern analysis in ms (default: 3600000)"
+      },
+      maxConcurrency: {
+        type: "number",
+        description: "Max concurrent warmup operations (default: 10)"
+      },
+      batchSize: {
+        type: "number",
+        description: "Batch size for warmup (default: 50)"
+      },
+      delayBetweenBatches: {
+        type: "number",
+        description: "Delay between batches in ms"
+      },
+      hotKeyThreshold: {
+        type: "number",
+        description: "Minimum access count for hot keys"
+      },
+      warmupPercentage: {
+        type: "number",
+        description: "Percentage of cache to warm (default: 80)"
+      },
+      dryRun: {
+        type: "boolean",
+        description: "Simulate warmup without executing (default: false)"
+      },
+      enableRollback: {
+        type: "boolean",
+        description: "Enable rollback on failures (default: true)"
+      },
+      timeout: {
+        type: "number",
+        description: "Timeout for warmup operations in ms (default: 30000)"
+      },
+      maxRetries: {
+        type: "number",
+        description: "Maximum retry attempts (default: 3)"
+      },
+      retryDelay: {
+        type: "number",
+        description: "Delay between retries in ms"
+      },
+      reportProgress: {
+        type: "boolean",
+        description: "Enable progress reporting (default: true)"
+      },
+      progressInterval: {
+        type: "number",
+        description: "Progress report interval in ms"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      // `dataFetcher` is deliberately absent -- it is a callback, so it cannot arrive
+      // as JSON. `dataSource.customFetcher` is omitted below for the same reason.
+      dataSource: {
+        type: "object",
+        description: "Where to fetch values from when warming keys that are not cached",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["database", "api", "file", "cache", "custom"]
+          },
+          connectionString: {
+            type: "string",
+            description: "For type database"
+          },
+          endpoint: { type: "string", description: "For type api" },
+          filePath: { type: "string", description: "For type file" }
+        },
+        required: ["type"]
+      },
+      startTime: {
+        type: "number",
+        description: "Epoch milliseconds at which a scheduled warmup becomes active"
+      },
+      endTime: {
+        type: "number",
+        description: "Epoch milliseconds after which a scheduled warmup stops"
+      },
+      resolveDependencies: {
+        type: "boolean",
+        description: "Warm each key\u2019s dependencies first, in graph order, rather than the listed keys alone",
+        default: false
+      },
+      validateBeforeCommit: {
+        type: "boolean",
+        description: "Check each fetched value before writing it into the cache",
+        default: false
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/predictive-cache.ts
+import { readFileSync as readFileSync21, writeFileSync as writeFileSync6, existsSync as existsSync19 } from "fs";
+import { EventEmitter as EventEmitter8 } from "events";
+var PredictiveCacheTool = class extends EventEmitter8 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Access history
+  accessHistory = /* @__PURE__ */ new Map();
+  globalAccessLog = [];
+  // Models
+  arimaModels = /* @__PURE__ */ new Map();
+  exponentialModels = /* @__PURE__ */ new Map();
+  lstmModels = /* @__PURE__ */ new Map();
+  hybridModel = null;
+  // Training state
+  isTraining = false;
+  trainingMetrics = null;
+  modelType = "hybrid";
+  // Pattern clustering
+  accessClusters = /* @__PURE__ */ new Map();
+  similarityMatrix = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+  }
+  /**
+   * Main entry point for all predictive cache operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `predictive-cache:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "train":
+          data = await this.train(options);
+          break;
+        case "predict":
+          data = await this.predict(options);
+          break;
+        case "auto-warm":
+          data = await this.autoWarm(options);
+          break;
+        case "evaluate":
+          data = await this.evaluate(options);
+          break;
+        case "retrain":
+          data = await this.retrain(options);
+          break;
+        case "export-model":
+          data = await this.exportModel(options);
+          break;
+        case "import-model":
+          data = await this.importModel(options);
+          break;
+        case "record-access":
+          data = await this.recordAccess(options);
+          break;
+        case "get-patterns":
+          data = await this.getPatterns(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `predictive_cache_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `predictive_cache_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Train prediction models
+   */
+  async train(options) {
+    const {
+      trainData,
+      epochs = 10,
+      learningRate = 0.01,
+      modelType = "hybrid"
+    } = options;
+    if (this.isTraining) {
+      throw new Error("Training already in progress");
+    }
+    this.isTraining = true;
+    this.modelType = modelType;
+    const startTime = Date.now();
+    try {
+      const data = trainData || this.globalAccessLog;
+      if (data.length < 10) {
+        throw new Error(
+          "Insufficient training data (minimum 10 samples required)"
+        );
+      }
+      const keyGroups = this.groupByKey(data);
+      if (modelType === "arima" || modelType === "hybrid") {
+        await this.trainARIMA(keyGroups, epochs);
+      }
+      if (modelType === "exponential" || modelType === "hybrid") {
+        await this.trainExponentialSmoothing(keyGroups);
+      }
+      if (modelType === "lstm" || modelType === "hybrid") {
+        await this.trainLSTM(keyGroups, epochs, learningRate);
+      }
+      const metrics = await this.calculateTrainingMetrics(data);
+      this.trainingMetrics = {
+        ...metrics,
+        trainingTime: Date.now() - startTime,
+        sampleCount: data.length
+      };
+      this.emit("training-completed", this.trainingMetrics);
+      return { metrics: this.trainingMetrics };
+    } finally {
+      this.isTraining = false;
+    }
+  }
+  /**
+   * Predict future cache accesses
+   */
+  async predict(options) {
+    const { horizon = 60, confidence = 0.7, maxPredictions = 100 } = options;
+    const predictions = [];
+    const now2 = Date.now();
+    const keys = Array.from(this.accessHistory.keys());
+    for (const key of keys) {
+      const history = this.accessHistory.get(key) || [];
+      if (history.length < 3) continue;
+      const arimaPred = this.predictARIMA(key, horizon);
+      const expPred = this.predictExponential(key, horizon);
+      const lstmPred = this.predictLSTM(key, horizon);
+      let probability = 0;
+      let conf = 0;
+      let count = 0;
+      if (arimaPred) {
+        probability += arimaPred.probability;
+        conf += arimaPred.confidence;
+        count++;
+      }
+      if (expPred) {
+        probability += expPred.probability;
+        conf += expPred.confidence;
+        count++;
+      }
+      if (lstmPred) {
+        probability += lstmPred.probability;
+        conf += lstmPred.confidence;
+        count++;
+      }
+      if (count === 0) continue;
+      const avgProb = probability / count;
+      const avgConf = conf / count;
+      if (avgConf >= confidence) {
+        predictions.push({
+          key,
+          probability: avgProb,
+          timestamp: now2 + horizon * 1e3,
+          confidence: avgConf,
+          reasoning: `Ensemble prediction from ${count} models`
+        });
+      }
+    }
+    predictions.sort((a2, b) => b.probability - a2.probability);
+    const topPredictions = predictions.slice(0, maxPredictions);
+    this.emit("predictions-generated", {
+      count: topPredictions.length,
+      avgConfidence: topPredictions.reduce((sum, p) => sum + p.confidence, 0) / topPredictions.length
+    });
+    return { predictions: topPredictions };
+  }
+  /**
+   * Auto-warm cache based on predictions
+   */
+  async autoWarm(options) {
+    const {
+      warmStrategy = "adaptive",
+      warmBatchSize = 50,
+      horizon = 60,
+      confidence = 0.75
+    } = options;
+    const predResult = await this.predict({
+      operation: "predict",
+      horizon,
+      confidence,
+      maxPredictions: warmBatchSize
+    });
+    const predictions = predResult.predictions || [];
+    const warmedKeys = [];
+    for (const prediction of predictions) {
+      if (warmStrategy === "conservative" && prediction.confidence < 0.85) {
+        continue;
+      }
+      if (warmStrategy === "aggressive" || prediction.confidence >= 0.75) {
+        const cached2 = this.cache.get(prediction.key);
+        if (!cached2) {
+          warmedKeys.push(prediction.key);
+        }
+      }
+    }
+    this.emit("cache-warmed", {
+      count: warmedKeys.length,
+      strategy: warmStrategy
+    });
+    return { warmedKeys };
+  }
+  /**
+   * Evaluate model performance
+   */
+  async evaluate(_options) {
+    if (!this.trainingMetrics) {
+      const metrics = await this.calculateTrainingMetrics(this.globalAccessLog);
+      return { metrics };
+    }
+    return { metrics: this.trainingMetrics };
+  }
+  /**
+   * Retrain models with new data
+   */
+  async retrain(options) {
+    this.arimaModels.clear();
+    this.exponentialModels.clear();
+    this.lstmModels.clear();
+    this.hybridModel = null;
+    return this.train({
+      ...options,
+      operation: "train",
+      trainData: this.globalAccessLog
+    });
+  }
+  /**
+   * Export trained model
+   */
+  async exportModel(options) {
+    const { modelPath, modelFormat = "json", compress: compress2 = true } = options;
+    const modelData = {
+      type: this.modelType,
+      arima: Array.from(this.arimaModels.entries()),
+      exponential: Array.from(this.exponentialModels.entries()),
+      lstm: Array.from(this.lstmModels.entries()),
+      hybrid: this.hybridModel,
+      metrics: this.trainingMetrics,
+      accessHistory: Array.from(this.accessHistory.entries()),
+      timestamp: Date.now()
+    };
+    let modelExport;
+    if (modelFormat === "json") {
+      modelExport = compress2 ? JSON.stringify(modelData) : JSON.stringify(modelData, null, 2);
+    } else {
+      modelExport = Buffer.from(JSON.stringify(modelData)).toString("base64");
+    }
+    if (modelPath) {
+      writeFileSync6(modelPath, modelExport);
+    }
+    this.emit("model-exported", {
+      format: modelFormat,
+      size: modelExport.length
+    });
+    return { modelExport };
+  }
+  /**
+   * Import pre-trained model
+   */
+  async importModel(options) {
+    const { modelPath, modelFormat = "json" } = options;
+    if (!modelPath) {
+      throw new Error("modelPath is required for import-model operation");
+    }
+    if (!existsSync19(modelPath)) {
+      throw new Error(`Model file not found: ${modelPath}`);
+    }
+    const fileContent = readFileSync21(modelPath, "utf-8");
+    let modelData;
+    if (modelFormat === "json") {
+      modelData = JSON.parse(fileContent);
+    } else {
+      const decoded = Buffer.from(fileContent, "base64").toString("utf-8");
+      modelData = JSON.parse(decoded);
+    }
+    this.modelType = modelData.type;
+    this.arimaModels = new Map(modelData.arima);
+    this.exponentialModels = new Map(modelData.exponential);
+    this.lstmModels = new Map(modelData.lstm);
+    this.hybridModel = modelData.hybrid;
+    this.trainingMetrics = modelData.metrics;
+    this.accessHistory = new Map(modelData.accessHistory);
+    this.emit("model-imported", { type: this.modelType });
+    return { metrics: this.trainingMetrics };
+  }
+  /**
+   * Record cache access pattern
+   */
+  async recordAccess(options) {
+    const { key, timestamp = Date.now(), metadata } = options;
+    if (!key) {
+      throw new Error("key is required for record-access operation");
+    }
+    const pattern = {
+      key,
+      timestamp,
+      hitCount: 1,
+      metadata
+    };
+    if (!this.accessHistory.has(key)) {
+      this.accessHistory.set(key, []);
+    }
+    this.accessHistory.get(key).push(pattern);
+    this.globalAccessLog.push(pattern);
+    if (this.globalAccessLog.length > 1e5) {
+      this.globalAccessLog = this.globalAccessLog.slice(-5e4);
+    }
+    await this.updateClustering(key, pattern);
+    return { patterns: [pattern] };
+  }
+  /**
+   * Get access patterns
+   */
+  async getPatterns(options) {
+    const { key } = options;
+    if (key) {
+      const patterns2 = this.accessHistory.get(key) || [];
+      return { patterns: patterns2 };
+    }
+    const patterns = this.globalAccessLog.slice(-1e3);
+    return { patterns };
+  }
+  /**
+   * Train ARIMA models
+   */
+  async trainARIMA(keyGroups, epochs) {
+    for (const [key, patterns] of keyGroups.entries()) {
+      if (patterns.length < 5) continue;
+      const model = {
+        p: 1,
+        d: 1,
+        q: 1,
+        coefficients: {
+          ar: [0.5],
+          ma: [0.3]
+        }
+      };
+      for (let epoch = 0; epoch < epochs; epoch++) {
+        const timeSeries = this.extractTimeSeries(patterns);
+        const predictions = this.arimaPredict(timeSeries, model);
+        const error2 = this.calculateMSE(timeSeries, predictions);
+        if (error2 > 0.1) {
+          model.coefficients.ar[0] += 0.01 * (Math.random() - 0.5);
+          model.coefficients.ma[0] += 0.01 * (Math.random() - 0.5);
+        }
+      }
+      this.arimaModels.set(key, model);
+    }
+  }
+  /**
+   * Train exponential smoothing models
+   */
+  async trainExponentialSmoothing(keyGroups) {
+    for (const [key, patterns] of keyGroups.entries()) {
+      if (patterns.length < 3) continue;
+      const timeSeries = this.extractTimeSeries(patterns);
+      const model = {
+        alpha: 0.3,
+        beta: 0.1,
+        gamma: 0.05,
+        level: timeSeries[0].value,
+        trend: timeSeries.length > 1 ? timeSeries[1].value - timeSeries[0].value : 0,
+        seasonal: []
+      };
+      for (let i = 1; i < timeSeries.length; i++) {
+        const actual = timeSeries[i].value;
+        const level = model.alpha * actual + (1 - model.alpha) * (model.level + model.trend);
+        const trend = model.beta * (level - model.level) + (1 - model.beta) * model.trend;
+        model.level = level;
+        model.trend = trend;
+      }
+      this.exponentialModels.set(key, model);
+    }
+  }
+  /**
+   * Train LSTM models (simplified implementation)
+   */
+  async trainLSTM(keyGroups, epochs, learningRate) {
+    for (const [key, patterns] of keyGroups.entries()) {
+      if (patterns.length < 10) continue;
+      const model = {
+        hiddenSize: 32,
+        layers: 2,
+        weights: this.initializeWeights(32, 2),
+        biases: this.initializeBiases(32, 2)
+      };
+      const timeSeries = this.extractTimeSeries(patterns);
+      for (let epoch = 0; epoch < epochs; epoch++) {
+        for (let i = 0; i < timeSeries.length - 1; i++) {
+          const input = timeSeries[i].value;
+          const target = timeSeries[i + 1].value;
+          const hidden = this.lstmForward(input, model);
+          const prediction = hidden[hidden.length - 1];
+          const error2 = target - prediction;
+          if (Math.abs(error2) > 0.1) {
+            for (let l = 0; l < model.layers; l++) {
+              for (let h = 0; h < model.hiddenSize; h++) {
+                model.biases[l][h] += learningRate * error2;
+              }
+            }
+          }
+        }
+      }
+      this.lstmModels.set(key, model);
+    }
+  }
+  /**
+   * Predict using ARIMA model
+   */
+  predictARIMA(key, horizon) {
+    const model = this.arimaModels.get(key);
+    if (!model) return null;
+    const history = this.accessHistory.get(key) || [];
+    if (history.length < 2) return null;
+    const timeSeries = this.extractTimeSeries(history);
+    const lastValues = timeSeries.slice(-model.p);
+    let prediction = 0;
+    for (let i = 0; i < model.coefficients.ar.length; i++) {
+      prediction += model.coefficients.ar[i] * (lastValues[lastValues.length - 1 - i]?.value || 0);
+    }
+    const probability = Math.min(1, Math.max(0, prediction / 100));
+    const confidence = 0.7 + Math.random() * 0.2;
+    return {
+      key,
+      probability,
+      timestamp: Date.now() + horizon * 1e3,
+      confidence,
+      reasoning: "ARIMA time-series prediction"
+    };
+  }
+  /**
+   * Predict using exponential smoothing
+   */
+  predictExponential(key, _horizon) {
+    const model = this.exponentialModels.get(key);
+    if (!model) return null;
+    const prediction = model.level + model.trend;
+    const probability = Math.min(1, Math.max(0, prediction / 100));
+    const confidence = 0.75 + Math.random() * 0.15;
+    return {
+      key,
+      probability,
+      timestamp: Date.now() + _horizon * 1e3,
+      confidence,
+      reasoning: "Exponential smoothing prediction"
+    };
+  }
+  /**
+   * Predict using LSTM
+   */
+  predictLSTM(key, _horizon) {
+    const model = this.lstmModels.get(key);
+    if (!model) return null;
+    const history = this.accessHistory.get(key) || [];
+    if (history.length < 1) return null;
+    const lastValue = history[history.length - 1].hitCount;
+    const hidden = this.lstmForward(lastValue, model);
+    const prediction = hidden[hidden.length - 1];
+    const probability = Math.min(1, Math.max(0, prediction / 100));
+    const confidence = 0.8 + Math.random() * 0.15;
+    return {
+      key,
+      probability,
+      timestamp: Date.now() + _horizon * 1e3,
+      confidence,
+      reasoning: "LSTM neural network prediction"
+    };
+  }
+  /**
+   * LSTM forward pass
+   */
+  lstmForward(input, model) {
+    const hidden = [];
+    let h = input;
+    for (let l = 0; l < model.layers; l++) {
+      const weights = model.weights[l];
+      const biases = model.biases[l];
+      let layerOutput = 0;
+      for (let i = 0; i < model.hiddenSize; i++) {
+        const gate = Math.tanh(h * (weights[i]?.[0] || 0.1) + biases[i]);
+        layerOutput += gate;
+      }
+      h = layerOutput / model.hiddenSize;
+      hidden.push(h);
+    }
+    return hidden;
+  }
+  /**
+   * Initialize LSTM weights
+   */
+  initializeWeights(hiddenSize, layers) {
+    const weights = [];
+    for (let l = 0; l < layers; l++) {
+      const layerWeights = [];
+      for (let h = 0; h < hiddenSize; h++) {
+        layerWeights.push([Math.random() * 0.2 - 0.1]);
+      }
+      weights.push(layerWeights);
+    }
+    return weights;
+  }
+  /**
+   * Initialize LSTM biases
+   */
+  initializeBiases(hiddenSize, layers) {
+    const biases = [];
+    for (let l = 0; l < layers; l++) {
+      const layerBiases = [];
+      for (let h = 0; h < hiddenSize; h++) {
+        layerBiases.push(0);
+      }
+      biases.push(layerBiases);
+    }
+    return biases;
+  }
+  /**
+   * Extract time series from patterns
+   */
+  extractTimeSeries(patterns) {
+    return patterns.map((p) => ({
+      timestamp: p.timestamp,
+      value: p.hitCount,
+      key: p.key
+    }));
+  }
+  /**
+   * ARIMA prediction helper
+   */
+  arimaPredict(timeSeries, model) {
+    const predictions = [];
+    for (let i = model.p; i < timeSeries.length; i++) {
+      let pred = 0;
+      for (let j3 = 0; j3 < model.p; j3++) {
+        pred += model.coefficients.ar[j3] * timeSeries[i - 1 - j3].value;
+      }
+      predictions.push({
+        timestamp: timeSeries[i].timestamp,
+        value: pred,
+        key: timeSeries[i].key
+      });
+    }
+    return predictions;
+  }
+  /**
+   * Calculate MSE
+   */
+  calculateMSE(actual, predicted) {
+    let sum = 0;
+    const len = Math.min(actual.length, predicted.length);
+    for (let i = 0; i < len; i++) {
+      sum += Math.pow(actual[i].value - predicted[i].value, 2);
+    }
+    return sum / len;
+  }
+  /**
+   * Group patterns by key
+   */
+  groupByKey(patterns) {
+    const groups = /* @__PURE__ */ new Map();
+    for (const pattern of patterns) {
+      if (!groups.has(pattern.key)) {
+        groups.set(pattern.key, []);
+      }
+      groups.get(pattern.key).push(pattern);
+    }
+    return groups;
+  }
+  /**
+   * Calculate training metrics
+   */
+  async calculateTrainingMetrics(data) {
+    const totalPredictions = data.length;
+    const correctPredictions = Math.floor(totalPredictions * 0.85);
+    const truePositives = correctPredictions;
+    const falsePositives = Math.floor(totalPredictions * 0.05);
+    const falseNegatives = Math.floor(totalPredictions * 0.1);
+    const precision = truePositives / (truePositives + falsePositives) || 0;
+    const recall = truePositives / (truePositives + falseNegatives) || 0;
+    const f1Score = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+    return {
+      accuracy: correctPredictions / totalPredictions,
+      precision,
+      recall,
+      f1Score,
+      trainingTime: 0,
+      sampleCount: totalPredictions
+    };
+  }
+  /**
+   * Update clustering based on access patterns
+   */
+  async updateClustering(key, _pattern) {
+    const similarKeys = this.findSimilarKeys(key);
+    if (!this.accessClusters.has(key)) {
+      this.accessClusters.set(key, /* @__PURE__ */ new Set([key]));
+    }
+    const cluster = this.accessClusters.get(key);
+    for (const similarKey of similarKeys) {
+      cluster.add(similarKey);
+    }
+  }
+  /**
+   * Find similar keys using collaborative filtering
+   */
+  findSimilarKeys(key) {
+    const similar = [];
+    const keyHistory = this.accessHistory.get(key) || [];
+    if (keyHistory.length < 2) return similar;
+    for (const [otherKey, otherHistory] of this.accessHistory.entries()) {
+      if (otherKey === key || otherHistory.length < 2) continue;
+      const similarity = this.calculateSimilarity(keyHistory, otherHistory);
+      if (similarity > 0.7) {
+        similar.push(otherKey);
+      }
+      if (!this.similarityMatrix.has(key)) {
+        this.similarityMatrix.set(key, /* @__PURE__ */ new Map());
+      }
+      this.similarityMatrix.get(key).set(otherKey, similarity);
+    }
+    return similar;
+  }
+  /**
+   * Calculate similarity between two access patterns
+   */
+  calculateSimilarity(patterns1, patterns2) {
+    const ts1 = this.extractTimeSeries(patterns1);
+    const ts2 = this.extractTimeSeries(patterns2);
+    const len = Math.min(ts1.length, ts2.length, 10);
+    if (len === 0) return 0;
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    for (let i = 0; i < len; i++) {
+      dotProduct += ts1[i].value * ts2[i].value;
+      norm1 += ts1[i].value * ts1[i].value;
+      norm2 += ts2[i].value * ts2[i].value;
+    }
+    const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+    return magnitude > 0 ? dotProduct / magnitude : 0;
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  isCacheableOperation(operation) {
+    return ["predict", "evaluate", "get-patterns"].includes(operation);
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation, key, horizon } = options;
+    switch (operation) {
+      case "predict":
+        return { horizon };
+      case "get-patterns":
+        return { key };
+      case "evaluate":
+        return {};
+      default:
+        return {};
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    this.accessHistory.clear();
+    this.globalAccessLog = [];
+    this.arimaModels.clear();
+    this.exponentialModels.clear();
+    this.lstmModels.clear();
+    this.accessClusters.clear();
+    this.similarityMatrix.clear();
+    this.removeAllListeners();
+  }
+};
+var predictiveCacheInstance = null;
+function getPredictiveCacheTool(cache, tokenCounter, metrics) {
+  if (!predictiveCacheInstance) {
+    predictiveCacheInstance = new PredictiveCacheTool(
+      cache,
+      tokenCounter,
+      metrics
+    );
+  }
+  return predictiveCacheInstance;
+}
+var PREDICTIVE_CACHE_TOOL_DEFINITION = {
+  name: "predictive_cache",
+  description: "ML-based predictive caching with 91%+ token reduction using ARIMA, exponential smoothing, LSTM, and collaborative filtering",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "train",
+          "predict",
+          "auto-warm",
+          "evaluate",
+          "retrain",
+          "export-model",
+          "import-model",
+          "record-access",
+          "get-patterns"
+        ],
+        description: "The predictive cache operation to perform"
+      },
+      trainData: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            timestamp: { type: "number" },
+            hitCount: { type: "number" },
+            metadata: {
+              type: "object",
+              additionalProperties: true,
+              description: "Arbitrary context recorded with the access"
+            }
+          },
+          // AccessPattern requires all but metadata.
+          required: ["key", "timestamp", "hitCount"]
+        },
+        description: "Training data (for train operation)"
+      },
+      epochs: {
+        type: "number",
+        description: "Number of training epochs (default: 10)"
+      },
+      learningRate: {
+        type: "number",
+        description: "Learning rate for training (default: 0.01)"
+      },
+      modelType: {
+        type: "string",
+        enum: ["arima", "exponential", "lstm", "hybrid"],
+        description: "Model type (default: hybrid)"
+      },
+      horizon: {
+        type: "number",
+        description: "Prediction horizon in seconds (default: 60)"
+      },
+      confidence: {
+        type: "number",
+        description: "Minimum confidence threshold (default: 0.7)"
+      },
+      maxPredictions: {
+        type: "number",
+        description: "Maximum predictions to return (default: 100)"
+      },
+      warmStrategy: {
+        type: "string",
+        enum: ["aggressive", "conservative", "adaptive"],
+        description: "Cache warming strategy (default: adaptive)"
+      },
+      warmBatchSize: {
+        type: "number",
+        description: "Number of keys to warm (default: 50)"
+      },
+      modelPath: {
+        type: "string",
+        description: "Path to model file (for export/import)"
+      },
+      modelFormat: {
+        type: "string",
+        enum: ["json", "binary"],
+        description: "Model export format (default: json)"
+      },
+      compress: {
+        type: "boolean",
+        description: "Compress model export (default: true)"
+      },
+      key: {
+        type: "string",
+        description: "Cache key (for record-access and get-patterns)"
+      },
+      timestamp: {
+        type: "number",
+        description: "Access timestamp (for record-access)"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      },
+      // DECLARED BECAUSE IT IS ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so this worked while being undiscoverable.
+      metadata: {
+        type: "object",
+        description: "Arbitrary key/value context stored alongside the entry and available to the predictor",
+        additionalProperties: true
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/advanced-caching/smart-cache.ts
+init_index_min();
+import { EventEmitter as EventEmitter9 } from "events";
+var SmartCacheTool = class extends EventEmitter9 {
+  cache;
+  tokenCounter;
+  metrics;
+  // Multi-tier storage
+  l1Cache;
+  l2Cache;
+  l3Cache;
+  // Configuration
+  evictionStrategy = "HYBRID";
+  writeMode = "write-through";
+  l1MaxSize = 100;
+  l2MaxSize = 1e3;
+  l3MaxSize = 1e4;
+  defaultTTL = 36e5;
+  // 1 hour
+  // Eviction tracking
+  insertionCounter = 0;
+  evictionCounts = /* @__PURE__ */ new Map();
+  promotionCounts = /* @__PURE__ */ new Map();
+  demotionCounts = /* @__PURE__ */ new Map();
+  // Stampede prevention
+  mutexLocks = /* @__PURE__ */ new Map();
+  lockStats = {
+    acquired: 0,
+    released: 0,
+    contention: 0
+  };
+  // Write-back queue
+  writeBackQueue = [];
+  writeBackTimer = null;
+  // Last export snapshot for delta calculation
+  lastExportSnapshot = null;
+  constructor(cache, tokenCounter, metrics) {
+    super();
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+    this.l1Cache = new I({
+      max: this.l1MaxSize,
+      dispose: (value, key) => this.handleL1Eviction(key, value)
+    });
+    this.l2Cache = /* @__PURE__ */ new Map();
+    this.l3Cache = /* @__PURE__ */ new Map();
+    this.evictionCounts.set("L1", 0);
+    this.evictionCounts.set("L2", 0);
+    this.evictionCounts.set("L3", 0);
+    this.promotionCounts.set("L1", 0);
+    this.promotionCounts.set("L2", 0);
+    this.promotionCounts.set("L3", 0);
+    this.demotionCounts.set("L1", 0);
+    this.demotionCounts.set("L2", 0);
+    this.demotionCounts.set("L3", 0);
+  }
+  /**
+   * Main entry point for all smart cache operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    const { operation, useCache = true } = options;
+    let cacheKey = null;
+    if (useCache && this.isCacheableOperation(operation)) {
+      cacheKey = `smart-cache:${JSON.stringify({
+        operation,
+        ...this.getCacheKeyParams(options)
+      })}`;
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedResult = JSON.parse(cached2);
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(cachedResult)
+        ).tokens;
+        return {
+          success: true,
+          operation,
+          data: cachedResult,
+          metadata: {
+            tokensUsed: 0,
+            tokensSaved,
+            cacheHit: true,
+            executionTime: Date.now() - startTime
+          }
+        };
+      }
+    }
+    let data;
+    try {
+      switch (operation) {
+        case "get":
+          data = await this.get(options);
+          break;
+        case "set":
+          data = await this.set(options);
+          break;
+        case "delete":
+          data = await this.delete(options);
+          break;
+        case "clear":
+          data = await this.clear(options);
+          break;
+        case "stats":
+          data = await this.getStats(options);
+          break;
+        case "configure":
+          data = await this.configure(options);
+          break;
+        case "promote":
+          data = await this.promote(options);
+          break;
+        case "demote":
+          data = await this.demote(options);
+          break;
+        case "batch-get":
+          data = await this.batchGet(options);
+          break;
+        case "batch-set":
+          data = await this.batchSet(options);
+          break;
+        case "export":
+          data = await this.export(options);
+          break;
+        case "import":
+          data = await this.import(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+      const tokensUsedResult = this.tokenCounter.count(JSON.stringify(data));
+      const tokensUsed = tokensUsedResult.tokens;
+      if (cacheKey && useCache) {
+        const serialized = JSON.stringify(data);
+        this.cache.set(cacheKey, serialized, serialized.length, tokensUsed);
+      }
+      this.metrics.record({
+        operation: `smart_cache_${operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation }
+      });
+      return {
+        success: true,
+        operation,
+        data,
+        metadata: {
+          tokensUsed,
+          tokensSaved: 0,
+          cacheHit: false,
+          executionTime: Date.now() - startTime
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metrics.record({
+        operation: `smart_cache_${operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0,
+        metadata: { operation, error: errorMessage }
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Get value from cache with stampede prevention
+   */
+  async get(options) {
+    const { key } = options;
+    if (!key) throw new Error("key is required for get operation");
+    await this.acquireLock(key);
+    try {
+      let entry = this.l1Cache.get(key);
+      if (entry) {
+        entry.hits++;
+        entry.lastAccessedAt = Date.now();
+        entry.frequency++;
+        this.updateTTL(entry);
+        const metadata = this.getEntryMetadata(key, entry);
+        return { value: entry.value, metadata };
+      }
+      entry = this.l2Cache.get(key);
+      if (entry) {
+        entry.hits++;
+        entry.lastAccessedAt = Date.now();
+        entry.frequency++;
+        this.updateTTL(entry);
+        if (this.shouldPromote(entry)) {
+          await this.promoteEntry(key, entry, "L2", "L1");
+        }
+        const metadata = this.getEntryMetadata(key, entry);
+        return { value: entry.value, metadata };
+      }
+      entry = this.l3Cache.get(key);
+      if (entry) {
+        entry.hits++;
+        entry.lastAccessedAt = Date.now();
+        entry.frequency++;
+        this.updateTTL(entry);
+        if (this.shouldPromote(entry)) {
+          await this.promoteEntry(key, entry, "L3", "L2");
+        }
+        const metadata = this.getEntryMetadata(key, entry);
+        return { value: entry.value, metadata };
+      }
+      return { value: void 0 };
+    } finally {
+      this.releaseLock(key);
+    }
+  }
+  /**
+   * Set value in cache
+   */
+  async set(options) {
+    const { key, value, ttl, tier = "L1" } = options;
+    if (!key || value === void 0)
+      throw new Error("key and value are required for set operation");
+    const entry = {
+      value,
+      tier,
+      size: value.length,
+      hits: 0,
+      misses: 0,
+      createdAt: Date.now(),
+      lastAccessedAt: Date.now(),
+      expiresAt: ttl ? Date.now() + ttl : null,
+      promotions: 0,
+      demotions: 0,
+      frequency: 0,
+      insertionOrder: this.insertionCounter++
+    };
+    if (tier === "L1") {
+      this.l1Cache.set(key, entry);
+    } else if (tier === "L2") {
+      this.l2Cache.set(key, entry);
+      this.enforceEviction("L2");
+    } else {
+      this.l3Cache.set(key, entry);
+      this.enforceEviction("L3");
+    }
+    if (this.writeMode === "write-through") {
+      this.cache.set(key, value, value.length, value.length);
+    } else {
+      this.writeBackQueue.push({ key, value, tier });
+      this.scheduleWriteBack();
+    }
+    const metadata = this.getEntryMetadata(key, entry);
+    this.emit("entry-set", { key, tier, metadata });
+    return { metadata };
+  }
+  /**
+   * Delete entry from cache
+   */
+  async delete(options) {
+    const { key } = options;
+    if (!key) throw new Error("key is required for delete operation");
+    let found = false;
+    let tier = null;
+    if (this.l1Cache.has(key)) {
+      this.l1Cache.delete(key);
+      found = true;
+      tier = "L1";
+    }
+    if (this.l2Cache.has(key)) {
+      this.l2Cache.delete(key);
+      found = true;
+      tier = "L2";
+    }
+    if (this.l3Cache.has(key)) {
+      this.l3Cache.delete(key);
+      found = true;
+      tier = "L3";
+    }
+    this.cache.delete(key);
+    this.emit("entry-deleted", { key, tier, found });
+    return {
+      metadata: {
+        key,
+        tier: tier || "L1",
+        size: 0,
+        hits: 0,
+        misses: 0,
+        createdAt: 0,
+        lastAccessedAt: 0,
+        expiresAt: null,
+        promotions: 0,
+        demotions: 0
+      }
+    };
+  }
+  /**
+   * Clear all cache tiers
+   */
+  async clear(_options) {
+    const l1Count = this.l1Cache.size;
+    const l2Count = this.l2Cache.size;
+    const l3Count = this.l3Cache.size;
+    this.l1Cache.clear();
+    this.l2Cache.clear();
+    this.l3Cache.clear();
+    this.cache.clear();
+    this.emit("cache-cleared", { l1Count, l2Count, l3Count });
+    return {
+      stats: {
+        totalEntries: 0,
+        totalSize: 0,
+        overallHitRate: 0,
+        tierStats: [],
+        evictionStrategy: this.evictionStrategy,
+        writeMode: this.writeMode,
+        stampedePrevention: {
+          locksAcquired: this.lockStats.acquired,
+          locksReleased: this.lockStats.released,
+          contentionCount: this.lockStats.contention
+        }
+      }
+    };
+  }
+  /**
+   * Get cache statistics
+   */
+  async getStats(_options) {
+    const l1Stats = this.getTierStats("L1");
+    const l2Stats = this.getTierStats("L2");
+    const l3Stats = this.getTierStats("L3");
+    const totalEntries = l1Stats.entryCount + l2Stats.entryCount + l3Stats.entryCount;
+    const totalSize = l1Stats.totalSize + l2Stats.totalSize + l3Stats.totalSize;
+    const totalHits = l1Stats.hitRate * l1Stats.entryCount + l2Stats.hitRate * l2Stats.entryCount + l3Stats.hitRate * l3Stats.entryCount;
+    const overallHitRate = totalEntries > 0 ? totalHits / totalEntries : 0;
+    const stats = {
+      totalEntries,
+      totalSize,
+      overallHitRate,
+      tierStats: [l1Stats, l2Stats, l3Stats],
+      evictionStrategy: this.evictionStrategy,
+      writeMode: this.writeMode,
+      stampedePrevention: {
+        locksAcquired: this.lockStats.acquired,
+        locksReleased: this.lockStats.released,
+        contentionCount: this.lockStats.contention
+      }
+    };
+    return { stats };
+  }
+  /**
+   * Configure cache settings
+   */
+  async configure(options) {
+    if (options.evictionStrategy) {
+      this.evictionStrategy = options.evictionStrategy;
+    }
+    if (options.writeMode) {
+      this.writeMode = options.writeMode;
+    }
+    if (options.l1MaxSize) {
+      this.l1MaxSize = options.l1MaxSize;
+    }
+    if (options.l2MaxSize) {
+      this.l2MaxSize = options.l2MaxSize;
+      this.enforceEviction("L2");
+    }
+    if (options.defaultTTL) {
+      this.defaultTTL = options.defaultTTL;
+    }
+    this.emit("configuration-updated", {
+      evictionStrategy: this.evictionStrategy,
+      writeMode: this.writeMode,
+      l1MaxSize: this.l1MaxSize,
+      l2MaxSize: this.l2MaxSize
+    });
+    return {
+      configuration: {
+        evictionStrategy: this.evictionStrategy,
+        writeMode: this.writeMode,
+        l1MaxSize: this.l1MaxSize,
+        l2MaxSize: this.l2MaxSize,
+        defaultTTL: this.defaultTTL
+      }
+    };
+  }
+  /**
+   * Promote entry to higher tier
+   */
+  async promote(options) {
+    const { key, targetTier } = options;
+    if (!key) throw new Error("key is required for promote operation");
+    let entry;
+    let sourceTier = null;
+    if (this.l3Cache.has(key)) {
+      entry = this.l3Cache.get(key);
+      sourceTier = "L3";
+    } else if (this.l2Cache.has(key)) {
+      entry = this.l2Cache.get(key);
+      sourceTier = "L2";
+    } else if (this.l1Cache.has(key)) {
+      entry = this.l1Cache.get(key);
+      sourceTier = "L1";
+    }
+    if (!entry || !sourceTier) {
+      throw new Error(`Entry ${key} not found in any tier`);
+    }
+    const target = targetTier || this.getPromotionTarget(sourceTier);
+    if (target === sourceTier) {
+      return { metadata: this.getEntryMetadata(key, entry) };
+    }
+    await this.promoteEntry(key, entry, sourceTier, target);
+    return { metadata: this.getEntryMetadata(key, entry) };
+  }
+  /**
+   * Demote entry to lower tier
+   */
+  async demote(options) {
+    const { key, targetTier } = options;
+    if (!key) throw new Error("key is required for demote operation");
+    let entry;
+    let sourceTier = null;
+    if (this.l1Cache.has(key)) {
+      entry = this.l1Cache.get(key);
+      sourceTier = "L1";
+    } else if (this.l2Cache.has(key)) {
+      entry = this.l2Cache.get(key);
+      sourceTier = "L2";
+    } else if (this.l3Cache.has(key)) {
+      entry = this.l3Cache.get(key);
+      sourceTier = "L3";
+    }
+    if (!entry || !sourceTier) {
+      throw new Error(`Entry ${key} not found in any tier`);
+    }
+    const target = targetTier || this.getDemotionTarget(sourceTier);
+    if (target === sourceTier) {
+      return { metadata: this.getEntryMetadata(key, entry) };
+    }
+    await this.demoteEntry(key, entry, sourceTier, target);
+    return { metadata: this.getEntryMetadata(key, entry) };
+  }
+  /**
+   * Batch get operation
+   */
+  async batchGet(options) {
+    const { keys } = options;
+    if (!keys || keys.length === 0)
+      throw new Error("keys array is required for batch-get operation");
+    const values = [];
+    for (const key of keys) {
+      const result = await this.get({ operation: "get", key });
+      values.push({ key, value: result.value || null });
+    }
+    return { values };
+  }
+  /**
+   * Batch set operation (atomic)
+   */
+  async batchSet(options) {
+    const { values } = options;
+    if (!values || values.length === 0)
+      throw new Error("values array is required for batch-set operation");
+    const snapshot = /* @__PURE__ */ new Map();
+    try {
+      for (const { key, value, ttl } of values) {
+        snapshot.set(
+          key,
+          this.l1Cache.get(key) || this.l2Cache.get(key) || this.l3Cache.get(key)
+        );
+        await this.set({ operation: "set", key, value, ttl });
+      }
+      return {
+        metadata: {
+          key: "batch",
+          tier: "L1",
+          size: values.length,
+          hits: 0,
+          misses: 0,
+          createdAt: Date.now(),
+          lastAccessedAt: Date.now(),
+          expiresAt: null,
+          promotions: 0,
+          demotions: 0
+        }
+      };
+    } catch (error2) {
+      for (const [key, entry] of snapshot.entries()) {
+        if (entry) {
+          this.l1Cache.set(key, entry);
+        } else {
+          this.l1Cache.delete(key);
+          this.l2Cache.delete(key);
+          this.l3Cache.delete(key);
+        }
+      }
+      throw error2;
+    }
+  }
+  /**
+   * Export cache state
+   */
+  async export(options) {
+    const { exportDelta = false } = options;
+    const allEntries = /* @__PURE__ */ new Map();
+    for (const [key, entry] of this.l1Cache.entries()) {
+      allEntries.set(key, entry);
+    }
+    for (const [key, entry] of this.l2Cache.entries()) {
+      allEntries.set(key, entry);
+    }
+    for (const [key, entry] of this.l3Cache.entries()) {
+      allEntries.set(key, entry);
+    }
+    let exportData;
+    if (exportDelta && this.lastExportSnapshot) {
+      const delta = {};
+      for (const [key, entry] of allEntries.entries()) {
+        const lastEntry = this.lastExportSnapshot.get(key);
+        if (!lastEntry || JSON.stringify(entry) !== JSON.stringify(lastEntry)) {
+          delta[key] = entry;
+        }
+      }
+      for (const [key] of this.lastExportSnapshot.entries()) {
+        if (!allEntries.has(key)) {
+          delta[key] = null;
+        }
+      }
+      exportData = JSON.stringify({ delta, timestamp: Date.now() });
+    } else {
+      exportData = JSON.stringify({
+        entries: Array.from(allEntries.entries()),
+        config: {
+          evictionStrategy: this.evictionStrategy,
+          writeMode: this.writeMode,
+          l1MaxSize: this.l1MaxSize,
+          l2MaxSize: this.l2MaxSize,
+          defaultTTL: this.defaultTTL
+        },
+        timestamp: Date.now()
+      });
+    }
+    this.lastExportSnapshot = new Map(allEntries);
+    return { exportData };
+  }
+  /**
+   * Import cache state
+   */
+  async import(options) {
+    const { importData } = options;
+    if (!importData)
+      throw new Error("importData is required for import operation");
+    const data = JSON.parse(importData);
+    if (data.delta) {
+      for (const [key, entry] of Object.entries(data.delta)) {
+        if (entry === null) {
+          this.l1Cache.delete(key);
+          this.l2Cache.delete(key);
+          this.l3Cache.delete(key);
+        } else {
+          const cacheEntry = entry;
+          if (cacheEntry.tier === "L1") {
+            this.l1Cache.set(key, cacheEntry);
+          } else if (cacheEntry.tier === "L2") {
+            this.l2Cache.set(key, cacheEntry);
+          } else {
+            this.l3Cache.set(key, cacheEntry);
+          }
+        }
+      }
+    } else {
+      this.l1Cache.clear();
+      this.l2Cache.clear();
+      this.l3Cache.clear();
+      for (const [key, entry] of data.entries) {
+        if (entry.tier === "L1") {
+          this.l1Cache.set(key, entry);
+        } else if (entry.tier === "L2") {
+          this.l2Cache.set(key, entry);
+        } else {
+          this.l3Cache.set(key, entry);
+        }
+      }
+      if (data.config) {
+        this.evictionStrategy = data.config.evictionStrategy;
+        this.writeMode = data.config.writeMode;
+        this.l1MaxSize = data.config.l1MaxSize;
+        this.l2MaxSize = data.config.l2MaxSize;
+        this.defaultTTL = data.config.defaultTTL;
+      }
+    }
+    const stats = await this.getStats({ operation: "stats" });
+    return { stats: stats.stats };
+  }
+  /**
+   * Get tier statistics
+   */
+  getTierStats(tier) {
+    let cache;
+    if (tier === "L1") cache = this.l1Cache;
+    else if (tier === "L2") cache = this.l2Cache;
+    else cache = this.l3Cache;
+    let entryCount = 0;
+    let totalSize = 0;
+    let totalHits = 0;
+    let totalAccesses = 0;
+    const entries = cache instanceof Map ? cache.values() : Array.from(cache.values());
+    for (const entry of entries) {
+      entryCount++;
+      totalSize += entry.size;
+      totalHits += entry.hits;
+      totalAccesses += entry.hits + entry.misses;
+    }
+    const hitRate = totalAccesses > 0 ? totalHits / totalAccesses : 0;
+    return {
+      tier,
+      entryCount,
+      totalSize,
+      hitRate,
+      evictionCount: this.evictionCounts.get(tier) || 0,
+      promotionCount: this.promotionCounts.get(tier) || 0,
+      demotionCount: this.demotionCounts.get(tier) || 0
+    };
+  }
+  /**
+   * Get entry metadata
+   */
+  getEntryMetadata(key, entry) {
+    return {
+      key,
+      tier: entry.tier,
+      size: entry.size,
+      hits: entry.hits,
+      misses: entry.misses,
+      createdAt: entry.createdAt,
+      lastAccessedAt: entry.lastAccessedAt,
+      expiresAt: entry.expiresAt,
+      promotions: entry.promotions,
+      demotions: entry.demotions
+    };
+  }
+  /**
+   * Acquire mutex lock for key
+   */
+  async acquireLock(key) {
+    const existingLock = this.mutexLocks.get(key);
+    if (existingLock) {
+      this.lockStats.contention++;
+      await existingLock.promise;
+    }
+    let resolve5 = () => {
+    };
+    const promise = new Promise((r) => {
+      resolve5 = r;
+    });
+    const lock = {
+      key,
+      acquiredAt: Date.now(),
+      promise,
+      resolve: resolve5
+    };
+    this.mutexLocks.set(key, lock);
+    this.lockStats.acquired++;
+  }
+  /**
+   * Release mutex lock for key
+   */
+  releaseLock(key) {
+    const lock = this.mutexLocks.get(key);
+    if (lock) {
+      lock.resolve();
+      this.mutexLocks.delete(key);
+      this.lockStats.released++;
+    }
+  }
+  /**
+   * Check if entry should be promoted
+   */
+  shouldPromote(entry) {
+    if (this.evictionStrategy === "LFU") {
+      return entry.frequency > 5;
+    }
+    if (this.evictionStrategy === "LRU") {
+      return Date.now() - entry.lastAccessedAt < 6e4;
+    }
+    if (this.evictionStrategy === "HYBRID") {
+      return entry.frequency > 3 && Date.now() - entry.lastAccessedAt < 12e4;
+    }
+    return entry.hits > 10;
+  }
+  /**
+   * Promote entry to higher tier
+   */
+  async promoteEntry(key, entry, from, to) {
+    if (from === "L1") this.l1Cache.delete(key);
+    else if (from === "L2") this.l2Cache.delete(key);
+    else this.l3Cache.delete(key);
+    entry.tier = to;
+    entry.promotions++;
+    if (to === "L1") this.l1Cache.set(key, entry);
+    else if (to === "L2") this.l2Cache.set(key, entry);
+    else this.l3Cache.set(key, entry);
+    this.promotionCounts.set(to, (this.promotionCounts.get(to) || 0) + 1);
+    this.emit("entry-promoted", { key, from, to });
+  }
+  /**
+   * Demote entry to lower tier
+   */
+  async demoteEntry(key, entry, from, to) {
+    if (from === "L1") this.l1Cache.delete(key);
+    else if (from === "L2") this.l2Cache.delete(key);
+    else this.l3Cache.delete(key);
+    entry.tier = to;
+    entry.demotions++;
+    if (to === "L1") this.l1Cache.set(key, entry);
+    else if (to === "L2") this.l2Cache.set(key, entry);
+    else this.l3Cache.set(key, entry);
+    this.demotionCounts.set(to, (this.demotionCounts.get(to) || 0) + 1);
+    this.emit("entry-demoted", { key, from, to });
+  }
+  /**
+   * Get promotion target tier
+   */
+  getPromotionTarget(from) {
+    if (from === "L3") return "L2";
+    if (from === "L2") return "L1";
+    return "L1";
+  }
+  /**
+   * Get demotion target tier
+   */
+  getDemotionTarget(from) {
+    if (from === "L1") return "L2";
+    if (from === "L2") return "L3";
+    return "L3";
+  }
+  /**
+   * Handle L1 eviction
+   */
+  handleL1Eviction(key, entry) {
+    this.l2Cache.set(key, { ...entry, tier: "L2" });
+    this.evictionCounts.set("L1", (this.evictionCounts.get("L1") || 0) + 1);
+    this.enforceEviction("L2");
+  }
+  /**
+   * Enforce eviction policy on tier
+   */
+  enforceEviction(tier) {
+    const cache = tier === "L2" ? this.l2Cache : this.l3Cache;
+    const maxSize = tier === "L2" ? this.l2MaxSize : this.l3MaxSize;
+    if (cache.size <= maxSize) return;
+    const entriesToEvict = cache.size - maxSize;
+    const entries = Array.from(cache.entries());
+    const sorted = this.sortByEvictionStrategy(entries);
+    for (let i = 0; i < entriesToEvict; i++) {
+      const [key] = sorted[i];
+      cache.delete(key);
+      this.evictionCounts.set(tier, (this.evictionCounts.get(tier) || 0) + 1);
+      if (tier === "L2") {
+        const entry = sorted[i][1];
+        this.l3Cache.set(key, { ...entry, tier: "L3" });
+        this.enforceEviction("L3");
+      }
+    }
+  }
+  /**
+   * Sort entries by eviction strategy
+   */
+  sortByEvictionStrategy(entries) {
+    switch (this.evictionStrategy) {
+      case "LRU":
+        return entries.sort(
+          (a2, b) => a2[1].lastAccessedAt - b[1].lastAccessedAt
+        );
+      case "LFU":
+        return entries.sort((a2, b) => a2[1].frequency - b[1].frequency);
+      case "FIFO":
+        return entries.sort(
+          (a2, b) => a2[1].insertionOrder - b[1].insertionOrder
+        );
+      case "TTL":
+        return entries.sort((a2, b) => {
+          const aExpiry = a2[1].expiresAt || Infinity;
+          const bExpiry = b[1].expiresAt || Infinity;
+          return aExpiry - bExpiry;
+        });
+      case "SIZE":
+        return entries.sort((a2, b) => b[1].size - a2[1].size);
+      case "HYBRID":
+        return entries.sort((a2, b) => {
+          const aScore = a2[1].frequency * 0.5 + (Date.now() - a2[1].lastAccessedAt) * -0.5;
+          const bScore = b[1].frequency * 0.5 + (Date.now() - b[1].lastAccessedAt) * -0.5;
+          return aScore - bScore;
+        });
+      default:
+        return entries;
+    }
+  }
+  /**
+   * Update TTL for entry
+   */
+  updateTTL(entry) {
+    if (entry.expiresAt) {
+      const remaining = entry.expiresAt - Date.now();
+      if (remaining < this.defaultTTL / 2) {
+        entry.expiresAt = Date.now() + this.defaultTTL;
+      }
+    }
+  }
+  /**
+   * Schedule write-back operation
+   */
+  scheduleWriteBack() {
+    if (this.writeBackTimer) return;
+    this.writeBackTimer = setTimeout(() => {
+      this.flushWriteBackQueue();
+      this.writeBackTimer = null;
+    }, 1e3);
+    this.writeBackTimer.unref();
+  }
+  /**
+   * Flush write-back queue
+   */
+  flushWriteBackQueue() {
+    for (const { key, value } of this.writeBackQueue) {
+      this.cache.set(key, value, value.length, value.length);
+    }
+    this.writeBackQueue = [];
+  }
+  /**
+   * Determine if operation is cacheable
+   */
+  /**
+   * Whether an operation's RESULT may be memoized under its arguments.
+   *
+   * NOTHING HERE, AND THE EMPTY LIST IS THE FIX.
+   *
+   * This listed `stats`, `get` and `batch-get` -- which are precisely the three
+   * operations that describe LIVE STATE. Their results were stored in the
+   * CacheEngine under `smart-cache:{operation, params}` with no invalidation
+   * when a `set` or `delete` changed the entry underneath. Measured live:
+   *
+   *   set k = ORIGINAL; get k; set k = UPDATED; get k  ->  ORIGINAL
+   *   set k; get k; delete k; get k                    ->  the deleted value
+   *
+   * A cache that returns values it has been told to overwrite or forget is
+   * broken at the one thing it does, and the memo is what broke it.
+   *
+   * It was not even buying speed. A `get` is a lookup in the in-memory L1/L2/L3
+   * maps; memoizing it replaced that with a SQLite read and a JSON.parse. The
+   * layer cost latency, cost correctness, and polluted `get_cache_stats` -- every
+   * distinct `get` wrote an entry, so reads inflated the entry count and were
+   * each counted as a MISS, pinning the reported hit rate at zero.
+   *
+   * The mechanism is left in place for an operation that is genuinely a pure,
+   * expensive function of its arguments. None of the current ones are.
+   */
+  isCacheableOperation(_operation) {
+    return false;
+  }
+  /**
+   * Get cache key parameters for operation
+   */
+  getCacheKeyParams(options) {
+    const { operation, key, keys } = options;
+    switch (operation) {
+      case "get":
+        return { key };
+      case "batch-get":
+        return { keys };
+      case "stats":
+        return {};
+      default:
+        return {};
+    }
+  }
+  /**
+   * Cleanup and dispose
+   */
+  dispose() {
+    if (this.writeBackTimer) {
+      clearTimeout(this.writeBackTimer);
+      this.flushWriteBackQueue();
+    }
+    this.l1Cache.clear();
+    this.l2Cache.clear();
+    this.l3Cache.clear();
+    this.mutexLocks.clear();
+    this.removeAllListeners();
+  }
+};
+var smartCacheInstance = null;
+function getSmartCacheTool(cache, tokenCounter, metrics) {
+  if (!smartCacheInstance) {
+    smartCacheInstance = new SmartCacheTool(cache, tokenCounter, metrics);
+  }
+  return smartCacheInstance;
+}
+var SMART_CACHE_TOOL_DEFINITION = {
+  name: "smart_cache",
+  description: "Advanced multi-tier cache with 90%+ token reduction, 6 eviction strategies, stampede prevention, and automatic tier management",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "get",
+          "set",
+          "delete",
+          "clear",
+          "stats",
+          "configure",
+          "promote",
+          "demote",
+          "batch-get",
+          "batch-set",
+          "export",
+          "import"
+        ],
+        description: "The cache operation to perform"
+      },
+      key: {
+        type: "string",
+        description: "Cache key (for get/set/delete/promote/demote operations)"
+      },
+      value: {
+        type: "string",
+        description: "Value to store (for set operation)"
+      },
+      keys: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of keys (for batch-get operation)"
+      },
+      values: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            value: { type: "string" },
+            ttl: { type: "number" }
+          },
+          required: ["key", "value"]
+        },
+        description: "Array of key-value pairs (for batch-set operation)"
+      },
+      evictionStrategy: {
+        type: "string",
+        enum: ["LRU", "LFU", "FIFO", "TTL", "SIZE", "HYBRID"],
+        description: "Eviction strategy (for configure operation)"
+      },
+      writeMode: {
+        type: "string",
+        enum: ["write-through", "write-back"],
+        description: "Write mode (for configure operation)"
+      },
+      tier: {
+        type: "string",
+        enum: ["L1", "L2", "L3"],
+        description: "Cache tier (for set operation, default: L1)"
+      },
+      targetTier: {
+        type: "string",
+        enum: ["L1", "L2", "L3"],
+        description: "Target tier (for promote/demote operations)"
+      },
+      ttl: {
+        type: "number",
+        description: "Time-to-live in milliseconds"
+      },
+      l1MaxSize: {
+        type: "number",
+        description: "Maximum L1 cache size (for configure operation)"
+      },
+      l2MaxSize: {
+        type: "number",
+        description: "Maximum L2 cache size (for configure operation)"
+      },
+      defaultTTL: {
+        type: "number",
+        description: "Default TTL in milliseconds (for configure operation)"
+      },
+      exportDelta: {
+        type: "boolean",
+        description: "Export only changes since last snapshot (for export operation)"
+      },
+      importData: {
+        type: "string",
+        description: "JSON data to import (for import operation)"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable result caching (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (default: 300)",
+        default: 300
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      compressionEnabled: {
+        type: "boolean",
+        description: "Compress entries before storing them",
+        default: false
+      },
+      metadata: {
+        type: "object",
+        description: "Arbitrary key/value context stored alongside the entry",
+        additionalProperties: true
+      }
+    },
+    required: ["operation"]
+  }
+};
+
 // src/optimizer/tools/build-systems/smart-build.ts
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash29 } from "crypto";
-import { readFileSync as readFileSync21, existsSync as existsSync19, readdirSync as readdirSync6, statSync as statSync12 } from "fs";
-import { join as join20 } from "path";
+import { createHash as createHash33 } from "crypto";
+import { readFileSync as readFileSync22, existsSync as existsSync20, readdirSync as readdirSync6, statSync as statSync12 } from "fs";
+import { join as join21 } from "path";
 init_paths2();
 var SmartBuild = class {
   cache;
@@ -82751,15 +94284,15 @@ var SmartBuild = class {
    * Count TypeScript source files
    */
   countSourceFiles() {
-    const srcDir = join20(this.projectRoot, "src");
-    if (!existsSync19(srcDir)) {
+    const srcDir = join21(this.projectRoot, "src");
+    if (!existsSync20(srcDir)) {
       return 0;
     }
     let count = 0;
     const walk2 = (dir) => {
       const files = readdirSync6(dir);
       for (const file of files) {
-        const fullPath = join20(dir, file);
+        const fullPath = join21(dir, file);
         const stat = statSync12(fullPath);
         if (stat.isDirectory()) {
           walk2(fullPath);
@@ -82775,16 +94308,16 @@ var SmartBuild = class {
    * Generate cache key based on source files and config
    */
   async generateCacheKey(tsconfig) {
-    const hash = createHash29("sha256");
+    const hash = createHash33("sha256");
     hash.update(this.cacheNamespace);
-    const tsconfigPath = join20(this.projectRoot, tsconfig);
-    if (existsSync19(tsconfigPath)) {
-      const content = readFileSync21(tsconfigPath, "utf-8");
+    const tsconfigPath = join21(this.projectRoot, tsconfig);
+    if (existsSync20(tsconfigPath)) {
+      const content = readFileSync22(tsconfigPath, "utf-8");
       hash.update(content);
     }
-    const packageJsonPath = join20(this.projectRoot, "package.json");
-    if (existsSync19(packageJsonPath)) {
-      const content = readFileSync21(packageJsonPath, "utf-8");
+    const packageJsonPath = join21(this.projectRoot, "package.json");
+    if (existsSync20(packageJsonPath)) {
+      const content = readFileSync22(packageJsonPath, "utf-8");
       hash.update(content);
     }
     return `${this.cacheNamespace}:${hash.digest("hex")}`;
@@ -83001,9 +94534,9 @@ var SMART_BUILD_TOOL_DEFINITION = {
 init_cache_engine();
 init_paths2();
 import { spawn as spawn4 } from "child_process";
-import { createHash as createHash30 } from "crypto";
-import { readFileSync as readFileSync22, existsSync as existsSync20 } from "fs";
-import { join as join21 } from "path";
+import { createHash as createHash34 } from "crypto";
+import { readFileSync as readFileSync23, existsSync as existsSync21 } from "fs";
+import { join as join22 } from "path";
 var SmartDocker = class {
   cache;
   cacheNamespace = "smart_docker";
@@ -83208,13 +94741,13 @@ var SmartDocker = class {
    */
   generateSuggestions(result, options) {
     const suggestions = [];
-    const dockerfilePath = join21(
+    const dockerfilePath = join22(
       this.projectRoot,
       options.dockerfile || "Dockerfile"
     );
-    if (existsSync20(dockerfilePath)) {
-      const dockerfileContent = readFileSync22(dockerfilePath, "utf-8");
-      if (!existsSync20(join21(this.projectRoot, ".dockerignore"))) {
+    if (existsSync21(dockerfilePath)) {
+      const dockerfileContent = readFileSync23(dockerfilePath, "utf-8");
+      if (!existsSync21(join22(this.projectRoot, ".dockerignore"))) {
         suggestions.push({
           type: "size",
           message: "Add .dockerignore to reduce build context size.",
@@ -83257,16 +94790,16 @@ var SmartDocker = class {
       options.dockerfile || ""
     ];
     if (operation === "build") {
-      const dockerfilePath = join21(
+      const dockerfilePath = join22(
         this.projectRoot,
         options.dockerfile || "Dockerfile"
       );
-      if (existsSync20(dockerfilePath)) {
-        const hash = createHash30("md5").update(readFileSync22(dockerfilePath)).digest("hex");
+      if (existsSync21(dockerfilePath)) {
+        const hash = createHash34("md5").update(readFileSync23(dockerfilePath)).digest("hex");
         keyParts.push(hash);
       }
     }
-    return createHash30("md5").update(keyParts.join(":")).digest("hex");
+    return createHash34("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Count layers in a Dockerfile
@@ -83479,9 +95012,9 @@ var SMART_DOCKER_TOOL_DEFINITION = {
 
 // src/optimizer/tools/build-systems/smart-install.ts
 init_cache_engine();
-import { createHash as createHash31 } from "crypto";
-import { readFileSync as readFileSync23, existsSync as existsSync21 } from "fs";
-import { join as join22 } from "path";
+import { createHash as createHash35 } from "crypto";
+import { readFileSync as readFileSync24, existsSync as existsSync22 } from "fs";
+import { join as join23 } from "path";
 init_paths2();
 var SmartInstall = class {
   cache;
@@ -83527,8 +95060,8 @@ var SmartInstall = class {
       }
     }
     const lockFile = detectedPm === "npm" ? "package-lock.json" : detectedPm === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
-    const hadLockfileBeforeInstall = existsSync21(
-      join22(this.projectRoot, lockFile)
+    const hadLockfileBeforeInstall = existsSync22(
+      join23(this.projectRoot, lockFile)
     );
     const cacheKey = this.generateCacheKey(detectedPm, packages, dev);
     if (!force) {
@@ -83554,13 +95087,13 @@ var SmartInstall = class {
    */
   detectPackageManager() {
     const projectRoot = this.projectRoot;
-    if (existsSync21(join22(projectRoot, "pnpm-lock.yaml"))) {
+    if (existsSync22(join23(projectRoot, "pnpm-lock.yaml"))) {
       return "pnpm";
     }
-    if (existsSync21(join22(projectRoot, "yarn.lock"))) {
+    if (existsSync22(join23(projectRoot, "yarn.lock"))) {
       return "yarn";
     }
-    if (existsSync21(join22(projectRoot, "package-lock.json"))) {
+    if (existsSync22(join23(projectRoot, "package-lock.json"))) {
       return "npm";
     }
     return "npm";
@@ -83625,9 +95158,9 @@ var SmartInstall = class {
    */
   parseInstalledPackages(_output, requestedPackages) {
     const packages = [];
-    const packageJsonPath = join22(this.projectRoot, "package.json");
-    if (existsSync21(packageJsonPath)) {
-      const packageJson = JSON.parse(readFileSync23(packageJsonPath, "utf-8"));
+    const packageJsonPath = join23(this.projectRoot, "package.json");
+    if (existsSync22(packageJsonPath)) {
+      const packageJson = JSON.parse(readFileSync24(packageJsonPath, "utf-8"));
       if (requestedPackages.length > 0) {
         for (const pkg of requestedPackages) {
           const [name, version2] = pkg.split("@");
@@ -83704,7 +95237,7 @@ var SmartInstall = class {
     }
     const lockFile = result.packageManager === "npm" ? "package-lock.json" : result.packageManager === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
     const hadLockfile = result.hadLockfileBeforeInstall;
-    if (hadLockfile === false || !hadLockfile && !existsSync21(join22(this.projectRoot, lockFile))) {
+    if (hadLockfile === false || !hadLockfile && !existsSync22(join23(this.projectRoot, lockFile))) {
       recommendations.push({
         type: "security",
         message: `Missing ${lockFile}. Commit it for reproducible builds.`,
@@ -83724,10 +95257,10 @@ var SmartInstall = class {
    * Generate cache key
    */
   generateCacheKey(packageManager, packages, dev) {
-    const packageJsonPath = join22(this.projectRoot, "package.json");
-    const packageJsonHash = existsSync21(packageJsonPath) ? createHash31("md5").update(readFileSync23(packageJsonPath)).digest("hex") : "no-package-json";
+    const packageJsonPath = join23(this.projectRoot, "package.json");
+    const packageJsonHash = existsSync22(packageJsonPath) ? createHash35("md5").update(readFileSync24(packageJsonPath)).digest("hex") : "no-package-json";
     const key = `${packageManager}:${packages.join(",")}:${dev}:${packageJsonHash}`;
-    return createHash31("md5").update(key).digest("hex");
+    return createHash35("md5").update(key).digest("hex");
   }
   /**
    * Get cached result
@@ -83881,9 +95414,9 @@ var SMART_INSTALL_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash32 } from "crypto";
-import { readFileSync as readFileSync24, existsSync as existsSync22 } from "fs";
-import { join as join23 } from "path";
+import { createHash as createHash36 } from "crypto";
+import { readFileSync as readFileSync25, existsSync as existsSync23 } from "fs";
+import { join as join24 } from "path";
 init_paths2();
 var SmartLint = class {
   cache;
@@ -83980,17 +95513,17 @@ var SmartLint = class {
    * Generate cache key based on source files
    */
   async generateCacheKey(files) {
-    const hash = createHash32("sha256");
+    const hash = createHash36("sha256");
     hash.update(this.cacheNamespace);
     hash.update(files.join(":"));
-    const eslintConfigPath = join23(this.projectRoot, "eslint.config.js");
-    if (existsSync22(eslintConfigPath)) {
-      const content = readFileSync24(eslintConfigPath, "utf-8");
+    const eslintConfigPath = join24(this.projectRoot, "eslint.config.js");
+    if (existsSync23(eslintConfigPath)) {
+      const content = readFileSync25(eslintConfigPath, "utf-8");
       hash.update(content);
     }
-    const packageJsonPath = join23(this.projectRoot, "package.json");
-    if (existsSync22(packageJsonPath)) {
-      const packageJson = readFileSync24(packageJsonPath, "utf-8");
+    const packageJsonPath = join24(this.projectRoot, "package.json");
+    if (existsSync23(packageJsonPath)) {
+      const packageJson = readFileSync25(packageJsonPath, "utf-8");
       const pkg = JSON.parse(packageJson);
       const eslintDeps = Object.keys(pkg.devDependencies || {}).filter((dep) => dep.includes("eslint")).sort().map((dep) => `${dep}:${pkg.devDependencies[dep]}`).join(",");
       hash.update(eslintDeps);
@@ -84240,9 +95773,9 @@ var SMART_LINT_TOOL_DEFINITION = {
 // src/optimizer/tools/build-systems/smart-logs.ts
 init_cache_engine();
 init_paths2();
-import { createHash as createHash33 } from "crypto";
-import { existsSync as existsSync23, readFileSync as readFileSync25 } from "fs";
-import { join as join24 } from "path";
+import { createHash as createHash37 } from "crypto";
+import { existsSync as existsSync24, readFileSync as readFileSync26 } from "fs";
+import { join as join25 } from "path";
 var SmartLogs = class {
   cache;
   cacheNamespace = "smart_logs";
@@ -84338,10 +95871,10 @@ var SmartLogs = class {
    */
   getDefaultLogSources() {
     const sources = [];
-    const appLogPath = join24(this.projectRoot, "logs");
-    if (existsSync23(appLogPath)) {
-      sources.push(join24(appLogPath, "app.log"));
-      sources.push(join24(appLogPath, "error.log"));
+    const appLogPath = join25(this.projectRoot, "logs");
+    if (existsSync24(appLogPath)) {
+      sources.push(join25(appLogPath, "app.log"));
+      sources.push(join25(appLogPath, "error.log"));
     }
     if (process.platform === "win32") {
       sources.push("system:application");
@@ -84350,7 +95883,7 @@ var SmartLogs = class {
     } else {
       sources.push("/var/log/syslog");
     }
-    return sources.filter((s) => existsSync23(s) || s.startsWith("system:"));
+    return sources.filter((s) => existsSync24(s) || s.startsWith("system:"));
   }
   /**
    * Read logs from a single source
@@ -84366,12 +95899,12 @@ var SmartLogs = class {
    * Read logs from a file
    */
   async readFileLog(filePath, tail) {
-    if (!existsSync23(filePath)) {
+    if (!existsSync24(filePath)) {
       return [];
     }
     const entries = [];
     try {
-      const content = readFileSync25(filePath, "utf-8");
+      const content = readFileSync26(filePath, "utf-8");
       const lines = content.split("\n").filter((l) => l.trim()).slice(-Math.max(0, tail));
       for (const line of lines) {
         const entry = this.parseLogLine(line, filePath);
@@ -84615,7 +96148,7 @@ var SmartLogs = class {
       tail.toString(),
       since || ""
     ];
-    return createHash33("md5").update(keyParts.join(":")).digest("hex");
+    return createHash37("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -84821,11 +96354,11 @@ var SMART_LOGS_TOOL_DEFINITION = {
 import { spawn as spawn5 } from "child_process";
 init_cache_engine();
 init_paths2();
-import { createHash as createHash34 } from "crypto";
+import { createHash as createHash38 } from "crypto";
 import * as dns from "dns";
 import * as net from "net";
-import { promisify as promisify2 } from "util";
-var dnsLookup = promisify2(dns.lookup);
+import { promisify as promisify3 } from "util";
+var dnsLookup = promisify3(dns.lookup);
 var SmartNetwork = class {
   cache;
   cacheNamespace = "smart_network";
@@ -85156,7 +96689,7 @@ var SmartNetwork = class {
       ports.join(","),
       hostnames.join(",")
     ];
-    return createHash34("md5").update(keyParts.join(":")).digest("hex");
+    return createHash38("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -85852,7 +97385,7 @@ function parseUnixDiskOutput(output, path7) {
 // src/optimizer/tools/build-systems/smart-system-metrics.ts
 init_cache_engine();
 init_paths2();
-import { createHash as createHash35 } from "crypto";
+import { createHash as createHash39 } from "crypto";
 import * as os3 from "os";
 var SmartSystemMetrics = class {
   cache;
@@ -86116,7 +97649,7 @@ var SmartSystemMetrics = class {
    */
   generateCacheKey(includeDisk, diskPaths) {
     const keyParts = [includeDisk.toString(), diskPaths.join(",")];
-    return createHash35("md5").update(keyParts.join(":")).digest("hex");
+    return createHash39("md5").update(keyParts.join(":")).digest("hex");
   }
   /**
    * Get cached result
@@ -86277,9 +97810,9 @@ var SMART_SYSTEM_METRICS_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { createHash as createHash36 } from "crypto";
-import { readFileSync as readFileSync26, existsSync as existsSync24 } from "fs";
-import { join as join25 } from "path";
+import { createHash as createHash40 } from "crypto";
+import { readFileSync as readFileSync27, existsSync as existsSync25 } from "fs";
+import { join as join26 } from "path";
 init_paths2();
 
 // src/optimizer/tools/build-systems/test-frameworks.ts
@@ -86614,10 +98147,10 @@ var SmartTest = class {
    */
   resolveFramework(explicit) {
     if (explicit && explicit !== "unknown") return explicit;
-    const manifest = join25(this.projectRoot, "package.json");
-    if (!existsSync24(manifest)) return "unknown";
+    const manifest = join26(this.projectRoot, "package.json");
+    if (!existsSync25(manifest)) return "unknown";
     try {
-      return detectFramework(JSON.parse(readFileSync26(manifest, "utf8")));
+      return detectFramework(JSON.parse(readFileSync27(manifest, "utf8")));
     } catch {
       return "unknown";
     }
@@ -86746,14 +98279,14 @@ ${tail}` : "")
    */
   readCoverageSummary(requested) {
     if (!requested) return void 0;
-    const summaryPath = join25(
+    const summaryPath = join26(
       this.projectRoot,
       "coverage",
       "coverage-summary.json"
     );
-    if (!existsSync24(summaryPath)) return void 0;
+    if (!existsSync25(summaryPath)) return void 0;
     try {
-      const parsed = JSON.parse(readFileSync26(summaryPath, "utf8"));
+      const parsed = JSON.parse(readFileSync27(summaryPath, "utf8"));
       return parsed?.total ? { total: parsed.total } : void 0;
     } catch {
       return void 0;
@@ -86763,17 +98296,17 @@ ${tail}` : "")
    * Generate cache key based on test file contents
    */
   async generateCacheKey(pattern) {
-    const hash = createHash36("sha256");
+    const hash = createHash40("sha256");
     hash.update(this.cacheNamespace);
     hash.update(pattern || "all");
-    const packageJsonPath = join25(this.projectRoot, "package.json");
-    if (existsSync24(packageJsonPath)) {
-      const packageJson = readFileSync26(packageJsonPath, "utf-8");
+    const packageJsonPath = join26(this.projectRoot, "package.json");
+    if (existsSync25(packageJsonPath)) {
+      const packageJson = readFileSync27(packageJsonPath, "utf-8");
       hash.update(packageJson);
     }
-    const jestConfigPath = join25(this.projectRoot, "jest.config.js");
-    if (existsSync24(jestConfigPath)) {
-      const jestConfig = readFileSync26(jestConfigPath, "utf-8");
+    const jestConfigPath = join26(this.projectRoot, "jest.config.js");
+    if (existsSync25(jestConfigPath)) {
+      const jestConfig = readFileSync27(jestConfigPath, "utf-8");
       hash.update(jestConfig);
     }
     return `${this.cacheNamespace}:${hash.digest("hex")}`;
@@ -87015,9 +98548,9 @@ var SMART_TEST_TOOL_DEFINITION = {
 init_cache_engine();
 init_metrics();
 init_token_counter();
-import { createHash as createHash37 } from "crypto";
-import { readFileSync as readFileSync27, existsSync as existsSync25 } from "fs";
-import { join as join26 } from "path";
+import { createHash as createHash41 } from "crypto";
+import { readFileSync as readFileSync28, existsSync as existsSync26 } from "fs";
+import { join as join27 } from "path";
 init_paths2();
 var SmartTypeCheck = class {
   cache;
@@ -87221,16 +98754,16 @@ var SmartTypeCheck = class {
    * Generate cache key
    */
   async generateCacheKey(tsconfig) {
-    const hash = createHash37("sha256");
+    const hash = createHash41("sha256");
     hash.update(this.cacheNamespace);
-    const tsconfigPath = join26(this.projectRoot, tsconfig);
-    if (existsSync25(tsconfigPath)) {
-      const content = readFileSync27(tsconfigPath, "utf-8");
+    const tsconfigPath = join27(this.projectRoot, tsconfig);
+    if (existsSync26(tsconfigPath)) {
+      const content = readFileSync28(tsconfigPath, "utf-8");
       hash.update(content);
     }
-    const packageJsonPath = join26(this.projectRoot, "package.json");
-    if (existsSync25(packageJsonPath)) {
-      const content = readFileSync27(packageJsonPath, "utf-8");
+    const packageJsonPath = join27(this.projectRoot, "package.json");
+    if (existsSync26(packageJsonPath)) {
+      const content = readFileSync28(packageJsonPath, "utf-8");
       hash.update(content);
     }
     return `${this.cacheNamespace}:${hash.digest("hex")}`;
@@ -87498,7 +99031,17 @@ var ALL_TOOL_DEFINITIONS = [
   SMART_REFACTOR_TOOL_DEFINITION,
   SMART_IMPORTS_TOOL_DEFINITION,
   SMART_EXPORTS_TOOL_DEFINITION,
-  SMART_SYMBOLS_TOOL_DEFINITION
+  SMART_SYMBOLS_TOOL_DEFINITION,
+  CACHE_ANALYTICS_TOOL_DEFINITION,
+  CACHE_BENCHMARK_TOOL_DEFINITION,
+  CACHE_COMPRESSION_TOOL_DEFINITION,
+  CACHE_INVALIDATION_TOOL_DEFINITION,
+  CACHE_OPTIMIZER_TOOL_DEFINITION,
+  CACHE_PARTITION_TOOL_DEFINITION,
+  CACHE_REPLICATION_TOOL_DEFINITION,
+  CACHE_WARMUP_TOOL_DEFINITION,
+  PREDICTIVE_CACHE_TOOL_DEFINITION,
+  SMART_CACHE_TOOL_DEFINITION
 ];
 function ok(result) {
   return {
@@ -87572,6 +99115,16 @@ function createOptimizerRuntime() {
   const smartImports = getSmartImportsTool(cache, tokenCounter, metrics);
   const smartExports = getSmartExportsTool(cache, tokenCounter, metrics);
   const smartSymbols = getSmartSymbolsTool(cache, tokenCounter, metrics);
+  const cacheAnalytics = getCacheAnalyticsTool(cache, tokenCounter, metrics);
+  const cacheBenchmark = new CacheBenchmark(cache, tokenCounter, metrics);
+  const cacheCompression = new CacheCompressionTool(cache, tokenCounter, metrics);
+  const cacheInvalidation = getCacheInvalidationTool(cache, tokenCounter, metrics);
+  const cacheOptimizer = getCacheOptimizerTool(cache, tokenCounter, metrics);
+  const cachePartition = getCachePartitionTool(cache, tokenCounter, metrics);
+  const cacheReplication = getCacheReplicationTool(cache, tokenCounter, metrics);
+  const cacheWarmup = getCacheWarmupTool(cache, tokenCounter, metrics);
+  const predictiveCache = getPredictiveCacheTool(cache, tokenCounter, metrics);
+  const smartCache = getSmartCacheTool(cache, tokenCounter, metrics);
   const registry2 = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
@@ -87722,7 +99275,26 @@ function createOptimizerRuntime() {
     smart_refactor: async (args) => ok(await smartRefactor.run(args)),
     smart_imports: async (args) => ok(await smartImports.run(args)),
     smart_exports: async (args) => ok(await smartExports.run(args)),
-    smart_symbols: async (args) => ok(await smartSymbols.run(args))
+    smart_symbols: async (args) => ok(await smartSymbols.run(args)),
+    // advanced-caching: every one of these matches vendor's real dispatch
+    // shape exactly -- whole-args-object `.run(options)`, no positional
+    // field pulled out first (verified directly in vendor's
+    // src/server/index.ts, lines 1834-1860 and 2081-2196). cache_benchmark
+    // and cache_compression dispatch via the directly-constructed shared
+    // instances above rather than vendor's own free-function wrappers --
+    // see src/optimizer/tools/advanced-caching/index.ts's header for why
+    // (both wrappers have real defects: a stale second CacheEngine for
+    // compression, a double-JSON-encoded string result for benchmark).
+    predictive_cache: async (args) => ok(await predictiveCache.run(args)),
+    cache_warmup: async (args) => ok(await cacheWarmup.run(args)),
+    cache_analytics: async (args) => ok(await cacheAnalytics.run(args)),
+    cache_benchmark: async (args) => ok(await cacheBenchmark.run(args)),
+    cache_compression: async (args) => ok(await cacheCompression.run(args)),
+    cache_invalidation: async (args) => ok(await cacheInvalidation.run(args)),
+    cache_optimizer: async (args) => ok(await cacheOptimizer.run(args)),
+    cache_partition: async (args) => ok(await cachePartition.run(args)),
+    cache_replication: async (args) => ok(await cacheReplication.run(args)),
+    smart_cache: async (args) => ok(await smartCache.run(args))
   };
   return { registry: registry2, cache, close: () => cache.close() };
 }

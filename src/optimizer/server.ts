@@ -48,9 +48,27 @@
 // improvement now (vendor's `runSmartSymbols` returns a pre-formatted
 // report string that vendor's own dispatch re-JSON.stringifies; this
 // dispatches via the shared instance's `.run(args)` instead, a real result
-// object). Still-deferred categories (advanced-caching, analytics tools —
-// blocked on the separate src/analytics/ persistence merge —,
-// dashboard-monitoring) have no tools copied or wired yet. It replaces
+// object). advanced-caching (this checkpoint) is now FULLY wired — all 10
+// real tools (smart_cache/predictive_cache/cache_warmup/cache_analytics/
+// cache_benchmark/cache_compression/cache_invalidation/cache_optimizer/
+// cache_partition/cache_replication), zero deferrals — see
+// src/optimizer/tools/advanced-caching/index.ts's header for: the
+// dual-signal dispatch verification (vendor's own category index.ts
+// under-reports this one exactly like it did for build-systems, exporting
+// only 2 of the 10 real tools), why nothing here needed an
+// architectural-mismatch deferral (no real network/distributed backend
+// despite the replication/partition vocabulary — pure in-process
+// simulation over the shared CacheEngine), the one new paths.ts helper this
+// category genuinely needed (getOptimizerReportsDir, for
+// cache-benchmark.ts's report-file output), the six cross-file type-name
+// collisions resolved via aliased re-exports, and the two vendor
+// dispatch-shape defects (cache_compression's module-singleton stale
+// CacheEngine; cache_benchmark's double-JSON-encoded string result) not
+// replicated here, matching the same "dispatch via a directly-constructed
+// shared instance instead" fix already applied to smart_symbols. Still-
+// deferred categories (analytics tools — blocked on the separate
+// src/analytics/ persistence merge —, dashboard-monitoring) have no tools
+// copied or wired yet. It replaces
 // token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
@@ -134,6 +152,25 @@ import { getSmartImportsTool, SMART_IMPORTS_TOOL_DEFINITION } from "./tools/code
 import { getSmartExportsTool, SMART_EXPORTS_TOOL_DEFINITION } from "./tools/code-analysis/smart-exports.js";
 import { getSmartSymbolsTool, SMART_SYMBOLS_TOOL_DEFINITION } from "./tools/code-analysis/smart-symbols.js";
 
+// advanced-caching: all 10 real tools wired -- see
+// src/optimizer/tools/advanced-caching/index.ts's header for the full
+// dual-signal dispatch verification (vendor's own category index.ts
+// under-reports this one just like build-systems did), the zero-deferral
+// finding (no projectRoot bug class, no live-network/distributed-backend
+// mismatch), the one genuinely new paths.ts helper this category needed
+// (getOptimizerReportsDir), and the six cross-file type-name collisions
+// resolved via aliased re-exports.
+import { getCacheAnalyticsTool, CACHE_ANALYTICS_TOOL_DEFINITION } from "./tools/advanced-caching/cache-analytics.js";
+import { CacheBenchmark, CACHE_BENCHMARK_TOOL_DEFINITION } from "./tools/advanced-caching/cache-benchmark.js";
+import { CacheCompressionTool, CACHE_COMPRESSION_TOOL_DEFINITION } from "./tools/advanced-caching/cache-compression.js";
+import { getCacheInvalidationTool, CACHE_INVALIDATION_TOOL_DEFINITION } from "./tools/advanced-caching/cache-invalidation.js";
+import { getCacheOptimizerTool, CACHE_OPTIMIZER_TOOL_DEFINITION } from "./tools/advanced-caching/cache-optimizer.js";
+import { getCachePartitionTool, CACHE_PARTITION_TOOL_DEFINITION } from "./tools/advanced-caching/cache-partition.js";
+import { getCacheReplicationTool, CACHE_REPLICATION_TOOL_DEFINITION } from "./tools/advanced-caching/cache-replication.js";
+import { getCacheWarmupTool, CACHE_WARMUP_TOOL_DEFINITION } from "./tools/advanced-caching/cache-warmup.js";
+import { getPredictiveCacheTool, PREDICTIVE_CACHE_TOOL_DEFINITION } from "./tools/advanced-caching/predictive-cache.js";
+import { getSmartCacheTool, SMART_CACHE_TOOL_DEFINITION } from "./tools/advanced-caching/smart-cache.js";
+
 import { getSmartBuildTool, SMART_BUILD_TOOL_DEFINITION } from "./tools/build-systems/smart-build.js";
 import { getSmartDocker, SMART_DOCKER_TOOL_DEFINITION } from "./tools/build-systems/smart-docker.js";
 import { getSmartInstall, SMART_INSTALL_TOOL_DEFINITION } from "./tools/build-systems/smart-install.js";
@@ -199,6 +236,16 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_IMPORTS_TOOL_DEFINITION,
   SMART_EXPORTS_TOOL_DEFINITION,
   SMART_SYMBOLS_TOOL_DEFINITION,
+  CACHE_ANALYTICS_TOOL_DEFINITION,
+  CACHE_BENCHMARK_TOOL_DEFINITION,
+  CACHE_COMPRESSION_TOOL_DEFINITION,
+  CACHE_INVALIDATION_TOOL_DEFINITION,
+  CACHE_OPTIMIZER_TOOL_DEFINITION,
+  CACHE_PARTITION_TOOL_DEFINITION,
+  CACHE_REPLICATION_TOOL_DEFINITION,
+  CACHE_WARMUP_TOOL_DEFINITION,
+  PREDICTIVE_CACHE_TOOL_DEFINITION,
+  SMART_CACHE_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -323,6 +370,28 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const smartImports = getSmartImportsTool(cache, tokenCounter, metrics);
   const smartExports = getSmartExportsTool(cache, tokenCounter, metrics);
   const smartSymbols = getSmartSymbolsTool(cache, tokenCounter, metrics);
+
+  // advanced-caching: 8 of 10 instantiated with vendor's own real factory
+  // signature -- `getCacheInvalidationTool`/`getCacheReplicationTool` both
+  // accept an optional 4th `nodeId?: string` param, but vendor's own
+  // dispatch construction calls them with only 3 args (verified directly in
+  // vendor's src/server/index.ts), so no nodeId is passed here either. The
+  // other 2 (cache_benchmark, cache_compression) are constructed directly
+  // via `new` rather than through a vendor-provided factory/free-function
+  // singleton -- see src/optimizer/tools/advanced-caching/index.ts's header
+  // for exactly which two real defects that avoids (a stale
+  // uncoordinated second CacheEngine for compression; a double-JSON-encoded
+  // string result for benchmark).
+  const cacheAnalytics = getCacheAnalyticsTool(cache, tokenCounter, metrics);
+  const cacheBenchmark = new CacheBenchmark(cache, tokenCounter, metrics);
+  const cacheCompression = new CacheCompressionTool(cache, tokenCounter, metrics);
+  const cacheInvalidation = getCacheInvalidationTool(cache, tokenCounter, metrics);
+  const cacheOptimizer = getCacheOptimizerTool(cache, tokenCounter, metrics);
+  const cachePartition = getCachePartitionTool(cache, tokenCounter, metrics);
+  const cacheReplication = getCacheReplicationTool(cache, tokenCounter, metrics);
+  const cacheWarmup = getCacheWarmupTool(cache, tokenCounter, metrics);
+  const predictiveCache = getPredictiveCacheTool(cache, tokenCounter, metrics);
+  const smartCache = getSmartCacheTool(cache, tokenCounter, metrics);
 
   const registry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
@@ -486,6 +555,26 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     smart_imports: async (args) => ok(await smartImports.run(args as any)),
     smart_exports: async (args) => ok(await smartExports.run(args as any)),
     smart_symbols: async (args) => ok(await smartSymbols.run(args as any)),
+
+    // advanced-caching: every one of these matches vendor's real dispatch
+    // shape exactly -- whole-args-object `.run(options)`, no positional
+    // field pulled out first (verified directly in vendor's
+    // src/server/index.ts, lines 1834-1860 and 2081-2196). cache_benchmark
+    // and cache_compression dispatch via the directly-constructed shared
+    // instances above rather than vendor's own free-function wrappers --
+    // see src/optimizer/tools/advanced-caching/index.ts's header for why
+    // (both wrappers have real defects: a stale second CacheEngine for
+    // compression, a double-JSON-encoded string result for benchmark).
+    predictive_cache: async (args) => ok(await predictiveCache.run(args as any)),
+    cache_warmup: async (args) => ok(await cacheWarmup.run(args as any)),
+    cache_analytics: async (args) => ok(await cacheAnalytics.run(args as any)),
+    cache_benchmark: async (args) => ok(await cacheBenchmark.run(args as any)),
+    cache_compression: async (args) => ok(await cacheCompression.run(args as any)),
+    cache_invalidation: async (args) => ok(await cacheInvalidation.run(args as any)),
+    cache_optimizer: async (args) => ok(await cacheOptimizer.run(args as any)),
+    cache_partition: async (args) => ok(await cachePartition.run(args as any)),
+    cache_replication: async (args) => ok(await cacheReplication.run(args as any)),
+    smart_cache: async (args) => ok(await smartCache.run(args as any)),
   };
 
   return { registry, cache, close: () => cache.close() };
