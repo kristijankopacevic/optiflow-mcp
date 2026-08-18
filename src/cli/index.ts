@@ -12,6 +12,7 @@ import { registerUninstallCommand } from "./commands/uninstall.js";
 import { registerStatuslineCommand } from "./commands/statusline.js";
 import { registerChopCommand } from "./commands/chop.js";
 import { registerInitCommand } from "./commands/init.js";
+import { registerCcrRetrieveCommand } from "./commands/ccr-retrieve.js";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -39,6 +40,7 @@ export function buildProgram(): Command {
   registerStatuslineCommand(program);
   registerChopCommand(program);
   registerInitCommand(program);
+  registerCcrRetrieveCommand(program);
 
   return program;
 }
