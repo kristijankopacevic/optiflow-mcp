@@ -1,0 +1,11 @@
+{
+  "session_id": "sess-optimizer-grep-1",
+  "transcript_path": "/home/user/.claude/projects/optiflow-mcp/sess-optimizer-grep-1.jsonl",
+  "cwd": "/PLACEHOLDER/PROJECT",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Grep",
+  "tool_input": {
+    "pattern": "TODO",
+    "path": "src"
+  }
+}
