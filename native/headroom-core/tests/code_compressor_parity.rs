@@ -82,8 +82,16 @@ fn config_from_fixture(config: &Value) -> CodeCompressorConfig {
 
 #[test]
 fn code_compressor_matches_python_fixtures_byte_for_byte() {
+    // Path adjusted for this standalone fork's layout: originally
+    // "../../tests/parity/fixtures/..." reached the headroom workspace
+    // root's shared Python/Rust parity fixtures from crates/headroom-core/
+    // (two levels up: crates/headroom-core -> crates -> workspace root).
+    // This fork copies the same fixtures to tests/fixtures/parity/ directly
+    // under this crate (one level up from tests/, not two), matching the
+    // same fix already applied to rollout.rs's shared_python_rust_policy_vectors
+    // fixture for the identical reason (no workspace root to reach here).
     let fixtures_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/parity/fixtures/code_aware_compressor");
+        .join("tests/fixtures/parity/code_aware_compressor");
     assert!(
         fixtures_dir.exists(),
         "fixtures dir {} missing — run scripts/record_code_compressor_fixtures.py",
