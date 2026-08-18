@@ -81,6 +81,13 @@ const hookEntries = [
   { in: "src/handoff/precompact-hook.ts", out: "precompact-handoff" },
   { in: "src/handoff/sessionend-hook.ts", out: "sessionend-handoff" },
   { in: "src/handoff/activity-hook.ts", out: "pretooluse-activity" },
+  // v2 Phase 5b: token-optimizer's ported enforcement layer. Imports only
+  // sibling ./lib/*.ts files plus src/optimizer/paths.ts and
+  // src/core/hook-io.ts — no better-sqlite3/tiktoken in this closure, so
+  // this bundles the same way as the other hook entries above (no
+  // `external: nativeExternals` needed, unlike src/optimizer/server.ts).
+  { in: "src/optimizer/hooks/pretooluse.ts", out: "pretooluse-optimizer" },
+  { in: "src/optimizer/hooks/precompact.ts", out: "precompact-optimizer" },
 ];
 
 /**

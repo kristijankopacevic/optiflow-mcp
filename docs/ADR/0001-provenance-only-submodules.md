@@ -2,7 +2,16 @@
 
 ## Status
 
-Accepted (Phase 0/1 scaffold, 2026-08-17).
+**Superseded by [ADR 0002](0002-real-merge-not-orchestration.md)** (v2,
+2026-08-18) — the user explicitly rejected the orchestration-wrapper
+architecture this ADR describes. token-optimizer-mcp's source is now merged
+directly into `src/optimizer/` (no `npx`) and headroom's compression core is
+forked into `native/headroom-core/` and compiled to WebAssembly (no `headroom`
+binary on PATH). This document is kept for historical record of why v1 made
+the choice it did — the reasoning below was sound given what was known at the
+time (see ADR 0002 for what new evidence changed the decision).
+
+Originally accepted (Phase 0/1 scaffold, 2026-08-17).
 
 ## Context
 

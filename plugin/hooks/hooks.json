@@ -18,6 +18,15 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-activity.mjs\""
           }
         ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Edit|MultiEdit|Write|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-optimizer.mjs\""
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -37,6 +46,10 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/precompact-handoff.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/precompact-optimizer.mjs\""
           }
         ]
       }
