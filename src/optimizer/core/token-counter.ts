@@ -1,7 +1,49 @@
-import { encoding_for_model, Tiktoken } from 'tiktoken';
+import { createRequire } from 'node:module';
+import type { Tiktoken } from 'tiktoken';
 import { TokenizerFactory } from './tokenizers/tokenizer-factory.js';
 import { ITokenizer } from './tokenizers/i-tokenizer.js';
 import { TiktokenTokenizer } from './tokenizers/tiktoken-tokenizer.js';
+
+/**
+ * `count()`/`truncate()` below are a synchronous, widely-relied-on API (55+
+ * call sites across the tool surface), so tiktoken can't be loaded via an
+ * awaited dynamic `import()` without an invasive async refactor of every
+ * caller. Node CommonJS modules are still resolvable synchronously via
+ * `require()`, though -- and unlike a static top-level `import`, a
+ * `require()` call deferred to first real use (below) is NOT resolved by the
+ * ESM loader ahead of time, so tiktoken's absence (a real possibility in a
+ * marketplace install -- see esbuild.config.mjs's `nativeExternals` doc
+ * comment) can be caught here instead of failing the entire module graph at
+ * process start. `count()`/`truncate()` already have a null-encoder fallback
+ * path (character-ratio estimation) below; this just makes that path
+ * reachable again instead of unconditionally loading tiktoken.
+ */
+type TiktokenModuleShape = typeof import('tiktoken');
+
+let tiktokenModule: TiktokenModuleShape | null | undefined; // undefined = not attempted yet
+let warnedTiktokenUnavailable = false;
+
+function loadTiktokenSync(): TiktokenModuleShape | null {
+  if (tiktokenModule !== undefined) {
+    return tiktokenModule;
+  }
+  try {
+    const require = createRequire(import.meta.url);
+    tiktokenModule = require('tiktoken') as TiktokenModuleShape;
+  } catch (err) {
+    if (!warnedTiktokenUnavailable) {
+      warnedTiktokenUnavailable = true;
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[optiflow] tiktoken is unavailable (${message}) -- TokenCounter falling back to ` +
+          `character-ratio estimation. This is expected in a marketplace install without a ` +
+          `manual "npm install tiktoken".`
+      );
+    }
+    tiktokenModule = null;
+  }
+  return tiktokenModule;
+}
 
 export interface TokenCountResult {
   tokens: number;
@@ -58,9 +100,32 @@ export class TokenCounter {
     // encoder is always available; there was never a reason to divide by four.
     // A neighbouring model's tokenizer is wrong by a few percent. Length over
     // four is wrong by more than double.
-    this.encoder = encoding_for_model(
-      TiktokenTokenizer.mapToTiktokenModel(this.model)
-    );
+    //
+    // ...unless tiktoken itself can't be loaded (see loadTiktokenSync above),
+    // in which case this falls back to the pre-existing null-encoder path
+    // (character-ratio estimation) rather than throwing.
+    const tiktoken = loadTiktokenSync();
+    this.encoder = tiktoken
+      ? this.tryCreateEncoder(tiktoken)
+      : null;
+  }
+
+  private tryCreateEncoder(tiktoken: TiktokenModuleShape): Tiktoken | null {
+    try {
+      return tiktoken.encoding_for_model(
+        TiktokenTokenizer.mapToTiktokenModel(this.model)
+      );
+    } catch (err) {
+      if (!warnedTiktokenUnavailable) {
+        warnedTiktokenUnavailable = true;
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[optiflow] tiktoken encoder init failed (${message}) -- TokenCounter falling back to ` +
+            `character-ratio estimation.`
+        );
+      }
+      return null;
+    }
   }
 
   /**

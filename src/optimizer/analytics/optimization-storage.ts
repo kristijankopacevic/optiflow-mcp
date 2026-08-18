@@ -21,12 +21,64 @@
 // header for dashboard-monitoring/UCR/wiki) and to satisfy
 // `core/compression-engine.ts`'s only real dependent, but not constructed or
 // exposed anywhere in `createOptimizerRuntime()`.
+//
+// LAZY/OPTIONAL better-sqlite3: same rationale as `core/cache-engine.ts`'s
+// header comment (native `.node` addon, not guaranteed present in a
+// marketplace install). This class's public API (`initializeDatabase`/
+// `save`/`get`/`close`) is fully synchronous and not reachable from
+// `createOptimizerRuntime()` today, but the same `require()`-via-
+// `createRequire` deferred-load pattern is applied for consistency with the
+// other four call sites and in case something constructs this class
+// directly (e.g. a future wiring, or a test) without going through the
+// server's own graceful-degradation path. On failure it falls back to an
+// in-memory `Map` keyed by `originalTextHash` -- this class is
+// content-addressed by hash already, the same shape `CacheEngine`'s own
+// fallback uses, not an append-only log like `analytics-storage.ts`.
 
-import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
+import type Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { CompressionEngine } from '../core/compression-engine.js';
 import { getOptimizerOptimizationDbPath } from '../paths.js';
+
+type SqliteDatabase = Database.Database;
+// See core/cache-engine.ts's equivalent comment: better-sqlite3's
+// `.d.ts` doesn't export its `DatabaseConstructor` type directly, and
+// `require()` (used here, not an awaited `import()`) returns the raw
+// CommonJS `module.exports` value -- the constructor itself.
+type BetterSqlite3Ctor = new (
+  filename?: string,
+  options?: Database.Options
+) => Database.Database;
+
+let betterSqlite3Ctor: BetterSqlite3Ctor | null | undefined; // undefined = not attempted yet
+
+function loadBetterSqlite3Sync(): BetterSqlite3Ctor | null {
+  if (betterSqlite3Ctor !== undefined) {
+    return betterSqlite3Ctor;
+  }
+  try {
+    const require = createRequire(import.meta.url);
+    betterSqlite3Ctor = require('better-sqlite3') as BetterSqlite3Ctor;
+  } catch {
+    betterSqlite3Ctor = null;
+  }
+  return betterSqlite3Ctor;
+}
+
+let warnedOptimizationFallback = false;
+
+function warnOptimizationFallbackOnce(err: unknown): void {
+  if (warnedOptimizationFallback) return;
+  warnedOptimizationFallback = true;
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[optiflow] Persistent SQLite optimization storage unavailable (${message}) -- falling back ` +
+      `to an in-memory cache for this process. This is expected in a marketplace install without ` +
+      `a manual "npm install better-sqlite3".`
+  );
+}
 
 export interface OptimizationResult {
   originalTextHash: string;
@@ -40,8 +92,17 @@ export function getDefaultOptimizationDbPath(): string {
   return getOptimizerOptimizationDbPath();
 }
 
+interface MemoryRecord {
+  compressed: Buffer;
+  algorithm: string;
+  originalTokens: number;
+  optimizedTokens: number;
+  tokensSaved: number;
+}
+
 export class SqliteOptimizationStorage {
-  private db: Database.Database | null = null;
+  private db: SqliteDatabase | null = null;
+  private memory: Map<string, MemoryRecord> | null = null;
   private readonly dbPath: string;
   private readonly compressionEngine: CompressionEngine;
 
@@ -51,13 +112,18 @@ export class SqliteOptimizationStorage {
   }
 
   public initializeDatabase(): void {
-    const dir = dirname(this.dbPath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-    this.db = new Database(this.dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.exec(`
+    try {
+      const Ctor = loadBetterSqlite3Sync();
+      if (!Ctor) {
+        throw new Error('better-sqlite3 native module could not be loaded');
+      }
+      const dir = dirname(this.dbPath);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      const db = new Ctor(this.dbPath);
+      db.pragma('journal_mode = WAL');
+      db.exec(`
             CREATE TABLE IF NOT EXISTS optimization_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 original_text_hash TEXT NOT NULL UNIQUE,
@@ -71,22 +137,39 @@ export class SqliteOptimizationStorage {
             CREATE INDEX IF NOT EXISTS idx_optimization_hash
                 ON optimization_results(original_text_hash);
         `);
+      this.db = db;
+      this.memory = null;
+    } catch (err) {
+      warnOptimizationFallbackOnce(err);
+      this.db = null;
+      this.memory = new Map();
+    }
   }
 
-  private requireDb(): Database.Database {
-    if (!this.db) {
+  private requireBackendReady(): void {
+    if (!this.db && !this.memory) {
       throw new Error(
         'Optimization storage database is not initialized. Call initializeDatabase() first.'
       );
     }
-    return this.db;
   }
 
   public save(entry: OptimizationResult): void {
-    const db = this.requireDb();
+    this.requireBackendReady();
     const compressed = this.compressionEngine.compress(entry.optimizedText);
 
-    db.prepare(
+    if (this.memory) {
+      this.memory.set(entry.originalTextHash, {
+        compressed: compressed.compressed,
+        algorithm: SqliteOptimizationStorage.COMPRESSION_ALGORITHM,
+        originalTokens: entry.originalTokens,
+        optimizedTokens: entry.optimizedTokens,
+        tokensSaved: entry.tokensSaved,
+      });
+      return;
+    }
+
+    this.db!.prepare(
       `INSERT OR REPLACE INTO optimization_results
              (original_text_hash, optimized_text_compressed, compression_algorithm,
               original_tokens, optimized_tokens, tokens_saved)
@@ -102,8 +185,21 @@ export class SqliteOptimizationStorage {
   }
 
   public get(originalTextHash: string): OptimizationResult | null {
-    const db = this.requireDb();
-    const row = db
+    this.requireBackendReady();
+
+    if (this.memory) {
+      const row = this.memory.get(originalTextHash);
+      if (!row) return null;
+      return {
+        originalTextHash,
+        optimizedText: this.decodePayload(row.compressed, row.algorithm),
+        originalTokens: row.originalTokens,
+        optimizedTokens: row.optimizedTokens,
+        tokensSaved: row.tokensSaved,
+      };
+    }
+
+    const row = this.db!
       .prepare(
         `SELECT optimized_text_compressed, compression_algorithm,
                     original_tokens, optimized_tokens, tokens_saved
@@ -171,5 +267,6 @@ export class SqliteOptimizationStorage {
       this.db.close();
       this.db = null;
     }
+    this.memory = null;
   }
 }

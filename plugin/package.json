@@ -1,0 +1,5 @@
+{
+  "name": "optiflow-plugin-runtime",
+  "private": true,
+  "type": "module"
+}

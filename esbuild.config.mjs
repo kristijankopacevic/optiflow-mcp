@@ -63,6 +63,33 @@ const plannedEntries = [
  * resolves at runtime (including the copy `@huggingface/transformers`
  * vendors as its own nested dependency), and fails the build outright
  * rather than silently producing a broken bundle.
+ *
+ * UPDATED RATIONALE (post native-dependency-hardening pass): none of these
+ * four packages, nor `better-sqlite3`, is guaranteed to be present in a real
+ * marketplace install — Claude Code's automatic `npm ci --ignore-scripts`
+ * dependency install always skips install scripts (breaking any package
+ * that needs one to produce a working native binary) and doesn't ship at
+ * all unless `plugin/package.json` declares a `dependencies` field, which
+ * it deliberately doesn't (see that file). So every one of
+ * `src/optimizer/core/tokenizers/tiktoken-tokenizer.ts`,
+ * `src/optimizer/core/token-counter.ts`, `src/optimizer/core/cache-engine.ts`,
+ * `src/optimizer/analytics/analytics-storage.ts`,
+ * `src/optimizer/analytics/optimization-storage.ts`, and
+ * `src/native/kompress.ts` now treats these as LAZY, OPTIONAL ACCELERATORS:
+ * loaded via a deferred `require()`/dynamic `import()` at first real use,
+ * wrapped in try/catch, falling back to a pure-JS/in-memory/JSONL
+ * implementation with the exact same public API on any failure (missing
+ * package, wrong ABI, unsupported Node version, etc.) — see each of those
+ * files' own header comments for the specifics. Staying `external` here is
+ * STILL required regardless of that change: esbuild has no loader for a
+ * native `.node` addon or a `.wasm`-relative-path loader whether it's
+ * resolved statically or dynamically, so these packages can't be inlined
+ * either way. What changed is the FAILURE MODE on their absence: graceful,
+ * per-feature degradation instead of the whole server (all 76 `smart_*`
+ * tools) crashing at process start, because a static top-level `import` of
+ * any of these — even in a file whose functionality most tool calls never
+ * touch — poisons Node's entire ESM module-graph resolution before any code
+ * runs.
  * @type {string[]}
  */
 const nativeExternals = [

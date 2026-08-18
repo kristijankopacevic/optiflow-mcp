@@ -13,6 +13,7 @@
     "build": "node esbuild.config.mjs",
     "build:wasm": "wasm-pack build --target nodejs native/headroom-wasm && node -e \"require('fs').rmSync('native/headroom-wasm/pkg/.gitignore',{force:true})\"",
     "test": "vitest run",
+    "test:plugin-install": "node esbuild.config.mjs && vitest run --config vitest.plugin-install.config.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -7574,9 +7574,29 @@ var init_paths2 = __esm({
 });
 
 // src/optimizer/core/cache-engine.ts
-import Database from "better-sqlite3";
+import { createRequire } from "node:module";
 import path3 from "path";
 import fs2 from "fs";
+function loadBetterSqlite3Sync() {
+  if (betterSqlite3Ctor !== void 0) {
+    return betterSqlite3Ctor;
+  }
+  try {
+    const require2 = createRequire(import.meta.url);
+    betterSqlite3Ctor = require2("better-sqlite3");
+  } catch {
+    betterSqlite3Ctor = null;
+  }
+  return betterSqlite3Ctor;
+}
+function warnCacheFallbackOnce(err2) {
+  if (warnedCacheFallback) return;
+  warnedCacheFallback = true;
+  const message = err2 instanceof Error ? err2.message : String(err2);
+  console.warn(
+    `[optiflow] Persistent SQLite cache unavailable (${message}) -- falling back to an in-memory cache for this process. Cache entries will NOT persist across restarts. This is expected in a marketplace install without a manual "npm install better-sqlite3" (or on Node <22, which better-sqlite3 requires).`
+  );
+}
 function isCorruptDatabaseError(err2) {
   if (!err2) return false;
   const code = err2.code ?? "";
@@ -7585,14 +7605,265 @@ function isCorruptDatabaseError(err2) {
     message
   );
 }
-var CacheEngine;
+function createSqliteBackend(finalDbPath) {
+  const Database = loadBetterSqlite3Sync();
+  if (!Database) {
+    throw new Error(
+      "better-sqlite3 native module could not be loaded (not installed, wrong ABI, or unsupported Node version -- better-sqlite3 requires Node >=22)."
+    );
+  }
+  let lastError = null;
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let db;
+    try {
+      if (attempt > 1 && isCorruptDatabaseError(lastError)) {
+        for (const p of [
+          finalDbPath,
+          `${finalDbPath}-wal`,
+          `${finalDbPath}-shm`
+        ]) {
+          try {
+            if (fs2.existsSync(p)) fs2.unlinkSync(p);
+          } catch {
+          }
+        }
+      }
+      db = new Database(finalDbPath);
+      db.pragma("journal_mode = WAL");
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cache (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          compressed_size INTEGER NOT NULL,
+          original_size INTEGER NOT NULL,
+          hit_count INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          last_accessed_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_last_accessed ON cache(last_accessed_at);
+        CREATE INDEX IF NOT EXISTS idx_hit_count ON cache(hit_count);
+      `);
+      return new SqliteCacheBackend(db);
+    } catch (error51) {
+      lastError = error51 instanceof Error ? error51 : new Error(String(error51));
+      try {
+        if (db) db.close();
+      } catch {
+      }
+      if (attempt < maxAttempts) {
+        console.warn(
+          `Cache database initialization attempt ${attempt}/${maxAttempts} failed:`,
+          error51
+        );
+        console.warn(`Retrying... (attempt ${attempt + 1}/${maxAttempts})`);
+      }
+    }
+  }
+  throw new Error(
+    `Failed to initialize persistent cache database after ${maxAttempts} attempts. Last error: ${lastError?.message || "Unknown error"}. Attempted path: ${finalDbPath}.`
+  );
+}
+var betterSqlite3Ctor, warnedCacheFallback, SqliteCacheBackend, MemoryCacheBackend, CacheEngine;
 var init_cache_engine = __esm({
   "src/optimizer/core/cache-engine.ts"() {
     "use strict";
     init_index_min();
     init_paths2();
-    CacheEngine = class {
+    warnedCacheFallback = false;
+    SqliteCacheBackend = class {
+      constructor(db) {
+        this.db = db;
+      }
       db;
+      getRow(key) {
+        const stmt = this.db.prepare(`
+      SELECT value, compressed_size FROM cache WHERE key = ?
+    `);
+        const row = stmt.get(key);
+        if (!row) return void 0;
+        return { value: row.value, compressedSize: row.compressed_size };
+      }
+      upsert(key, value, originalSize, compressedSize) {
+        const now2 = Date.now();
+        const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO cache
+      (key, value, compressed_size, original_size, hit_count, created_at, last_accessed_at)
+      VALUES (?, ?, ?, ?,
+        COALESCE((SELECT hit_count FROM cache WHERE key = ?), 0),
+        COALESCE((SELECT created_at FROM cache WHERE key = ?), ?),
+        ?)
+    `);
+        stmt.run(key, value, compressedSize, originalSize, key, key, now2, now2);
+      }
+      touch(key) {
+        const stmt = this.db.prepare(`
+      UPDATE cache
+      SET hit_count = hit_count + 1, last_accessed_at = ?
+      WHERE key = ?
+    `);
+        stmt.run(Date.now(), key);
+      }
+      deleteRow(key) {
+        const stmt = this.db.prepare("DELETE FROM cache WHERE key = ?");
+        const result = stmt.run(key);
+        return result.changes > 0;
+      }
+      deleteAll() {
+        this.db.exec("DELETE FROM cache");
+      }
+      stats() {
+        const stmt = this.db.prepare(`
+      SELECT
+        COUNT(*) as total_entries,
+        SUM(hit_count) as total_hits,
+        SUM(compressed_size) as total_compressed,
+        SUM(original_size) as total_original
+      FROM cache
+    `);
+        const row = stmt.get();
+        return {
+          totalEntries: row.total_entries,
+          totalHits: row.total_hits ?? 0,
+          totalCompressed: row.total_compressed ?? 0,
+          totalOriginal: row.total_original ?? 0
+        };
+      }
+      evictLRU(maxSizeBytes) {
+        const keysToKeep = this.db.prepare(
+          `
+      WITH ranked AS (
+        SELECT
+          key,
+          compressed_size,
+          SUM(compressed_size) OVER (ORDER BY last_accessed_at DESC, key ASC) as running_total
+        FROM cache
+      )
+      SELECT key FROM ranked
+      WHERE running_total <= ?
+    `
+        ).all(maxSizeBytes);
+        if (keysToKeep.length === 0) {
+          const result2 = this.db.prepare("DELETE FROM cache").run();
+          return { deletedCount: result2.changes, survivingKeys: [] };
+        }
+        const placeholders = keysToKeep.map(() => "?").join(",");
+        const stmt = this.db.prepare(`
+      DELETE FROM cache WHERE key NOT IN (${placeholders})
+    `);
+        const result = stmt.run(...keysToKeep.map((k3) => k3.key));
+        return {
+          deletedCount: result.changes,
+          survivingKeys: keysToKeep.map((k3) => k3.key)
+        };
+      }
+      allEntries() {
+        const stmt = this.db.prepare(`
+      SELECT
+        key,
+        value,
+        compressed_size as compressedSize,
+        original_size as originalSize,
+        hit_count as hitCount,
+        created_at as createdAt,
+        last_accessed_at as lastAccessedAt
+      FROM cache
+      ORDER BY hit_count DESC, last_accessed_at DESC
+    `);
+        return stmt.all();
+      }
+      close() {
+        this.db.close();
+      }
+    };
+    MemoryCacheBackend = class {
+      rows = /* @__PURE__ */ new Map();
+      getRow(key) {
+        const row = this.rows.get(key);
+        if (!row) return void 0;
+        return { value: row.value, compressedSize: row.compressedSize };
+      }
+      upsert(key, value, originalSize, compressedSize) {
+        const now2 = Date.now();
+        const existing = this.rows.get(key);
+        this.rows.set(key, {
+          key,
+          value,
+          compressedSize,
+          originalSize,
+          hitCount: existing?.hitCount ?? 0,
+          createdAt: existing?.createdAt ?? now2,
+          lastAccessedAt: now2
+        });
+      }
+      touch(key) {
+        const row = this.rows.get(key);
+        if (row) {
+          row.hitCount += 1;
+          row.lastAccessedAt = Date.now();
+        }
+      }
+      deleteRow(key) {
+        return this.rows.delete(key);
+      }
+      deleteAll() {
+        this.rows.clear();
+      }
+      stats() {
+        let totalHits = 0;
+        let totalCompressed = 0;
+        let totalOriginal = 0;
+        for (const row of this.rows.values()) {
+          totalHits += row.hitCount;
+          totalCompressed += row.compressedSize;
+          totalOriginal += row.originalSize;
+        }
+        return {
+          totalEntries: this.rows.size,
+          totalHits,
+          totalCompressed,
+          totalOriginal
+        };
+      }
+      evictLRU(maxSizeBytes) {
+        const ordered = [...this.rows.values()].sort((a2, b) => {
+          if (b.lastAccessedAt !== a2.lastAccessedAt) {
+            return b.lastAccessedAt - a2.lastAccessedAt;
+          }
+          return a2.key < b.key ? -1 : a2.key > b.key ? 1 : 0;
+        });
+        const survivingKeys = [];
+        let runningTotal = 0;
+        for (const row of ordered) {
+          runningTotal += row.compressedSize;
+          if (runningTotal <= maxSizeBytes) {
+            survivingKeys.push(row.key);
+          } else {
+            break;
+          }
+        }
+        const keep = new Set(survivingKeys);
+        let deletedCount = 0;
+        for (const key of Array.from(this.rows.keys())) {
+          if (!keep.has(key)) {
+            this.rows.delete(key);
+            deletedCount += 1;
+          }
+        }
+        return { deletedCount, survivingKeys };
+      }
+      allEntries() {
+        return [...this.rows.values()].sort((a2, b) => {
+          if (b.hitCount !== a2.hitCount) return b.hitCount - a2.hitCount;
+          return b.lastAccessedAt - a2.lastAccessedAt;
+        });
+      }
+      close() {
+      }
+    };
+    CacheEngine = class {
+      backend;
       memoryCache;
       dbPath;
       stats = {
@@ -7636,65 +7907,13 @@ var init_cache_engine = __esm({
         } else {
           fs2.mkdirSync(cacheDir, { recursive: true });
         }
-        let lastError = null;
-        const maxAttempts = 3;
-        let dbInitialized = false;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            const dbPathToUse = finalDbPath;
-            if (attempt > 1 && isCorruptDatabaseError(lastError)) {
-              for (const p of [
-                finalDbPath,
-                `${finalDbPath}-wal`,
-                `${finalDbPath}-shm`
-              ]) {
-                try {
-                  if (fs2.existsSync(p)) fs2.unlinkSync(p);
-                } catch {
-                }
-              }
-            }
-            this.db = new Database(dbPathToUse);
-            this.db.pragma("journal_mode = WAL");
-            this.db.exec(`
-          CREATE TABLE IF NOT EXISTS cache (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            compressed_size INTEGER NOT NULL,
-            original_size INTEGER NOT NULL,
-            hit_count INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            last_accessed_at INTEGER NOT NULL
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_last_accessed ON cache(last_accessed_at);
-          CREATE INDEX IF NOT EXISTS idx_hit_count ON cache(hit_count);
-        `);
-            this.dbPath = dbPathToUse;
-            dbInitialized = true;
-            break;
-          } catch (error51) {
-            lastError = error51 instanceof Error ? error51 : new Error(String(error51));
-            try {
-              if (this.db) {
-                this.db.close();
-              }
-            } catch {
-            }
-            if (attempt < maxAttempts) {
-              console.warn(
-                `Cache database initialization attempt ${attempt}/${maxAttempts} failed:`,
-                error51
-              );
-              console.warn(`Retrying... (attempt ${attempt + 1}/${maxAttempts})`);
-            }
-          }
+        try {
+          this.backend = createSqliteBackend(finalDbPath);
+        } catch (err2) {
+          warnCacheFallbackOnce(err2);
+          this.backend = new MemoryCacheBackend();
         }
-        if (!dbInitialized) {
-          throw new Error(
-            `CRITICAL: Failed to initialize persistent cache database after ${maxAttempts} attempts. Last error: ${lastError?.message || "Unknown error"}. Attempted path: ${finalDbPath}. PHASE 1 FIX: Removed tmpdir fallback to prevent 0% cache hit rate. Action required: Check disk space, file permissions, and ensure directory exists. Cache WILL NOT persist without fixing this issue.`
-          );
-        }
+        this.dbPath = finalDbPath;
         this.memoryCache = new I({
           max: maxMemoryItems,
           ttl: 1e3 * 60 * 60
@@ -7750,19 +7969,16 @@ var init_cache_engine = __esm({
         const memValue = this.memoryCache.get(key);
         if (memValue !== void 0) {
           this.stats.hits++;
-          this.updateHitCount(key);
+          this.backend.touch(key);
           return memValue.content;
         }
-        const stmt = this.db.prepare(`
-      SELECT value, compressed_size FROM cache WHERE key = ?
-    `);
-        const row = stmt.get(key);
+        const row = this.backend.getRow(key);
         if (row) {
           this.stats.hits++;
-          this.updateHitCount(key);
+          this.backend.touch(key);
           this.memoryCache.set(key, {
             content: row.value,
-            compressedSize: row.compressed_size
+            compressedSize: row.compressedSize
           });
           return row.value;
         }
@@ -7801,23 +8017,20 @@ var init_cache_engine = __esm({
         const memValue = this.memoryCache.get(key);
         if (memValue !== void 0) {
           this.stats.hits++;
-          this.updateHitCount(key);
+          this.backend.touch(key);
           return memValue;
         }
-        const stmt = this.db.prepare(`
-      SELECT value, compressed_size FROM cache WHERE key = ?
-    `);
-        const row = stmt.get(key);
+        const row = this.backend.getRow(key);
         if (row) {
           this.stats.hits++;
-          this.updateHitCount(key);
+          this.backend.touch(key);
           this.memoryCache.set(key, {
             content: row.value,
-            compressedSize: row.compressed_size
+            compressedSize: row.compressedSize
           });
           return {
             content: row.value,
-            compressedSize: row.compressed_size
+            compressedSize: row.compressedSize
           };
         }
         this.stats.misses++;
@@ -7828,16 +8041,7 @@ var init_cache_engine = __esm({
        * For backward compatibility
        */
       set(key, value, originalSize, compressedSize) {
-        const now2 = Date.now();
-        const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO cache
-      (key, value, compressed_size, original_size, hit_count, created_at, last_accessed_at)
-      VALUES (?, ?, ?, ?,
-        COALESCE((SELECT hit_count FROM cache WHERE key = ?), 0),
-        COALESCE((SELECT created_at FROM cache WHERE key = ?), ?),
-        ?)
-    `);
-        stmt.run(key, value, compressedSize, originalSize, key, key, now2, now2);
+        this.backend.upsert(key, value, originalSize, compressedSize);
         this.memoryCache.set(key, { content: value, compressedSize });
       }
       /**
@@ -7863,9 +8067,7 @@ var init_cache_engine = __esm({
        */
       delete(key) {
         this.memoryCache.delete(key);
-        const stmt = this.db.prepare("DELETE FROM cache WHERE key = ?");
-        const result = stmt.run(key);
-        return result.changes > 0;
+        return this.backend.deleteRow(key);
       }
       /**
        * Delete a value from cache with semantic embedding removal
@@ -7887,7 +8089,7 @@ var init_cache_engine = __esm({
        */
       clear() {
         this.memoryCache.clear();
-        this.db.exec("DELETE FROM cache");
+        this.backend.deleteAll();
         this.stats.hits = 0;
         this.stats.misses = 0;
         this.stats.semanticHits = 0;
@@ -7910,27 +8112,19 @@ var init_cache_engine = __esm({
        * Get cache statistics
        */
       getStats() {
-        const stmt = this.db.prepare(`
-      SELECT
-        COUNT(*) as total_entries,
-        SUM(hit_count) as total_hits,
-        SUM(compressed_size) as total_compressed,
-        SUM(original_size) as total_original
-      FROM cache
-    `);
-        const row = stmt.get();
+        const backendStats = this.backend.stats();
         const totalRequests = this.stats.hits + this.stats.misses;
         const hitRate = totalRequests > 0 ? this.stats.hits / totalRequests : 0;
-        const compressionRatio = row.total_original > 0 ? row.total_compressed / row.total_original : 0;
+        const compressionRatio = backendStats.totalOriginal > 0 ? backendStats.totalCompressed / backendStats.totalOriginal : 0;
         const totalHits = this.stats.hits + this.stats.semanticHits;
         const semanticHitRate = totalHits > 0 ? this.stats.semanticHits / totalHits : 0;
         return {
-          totalEntries: row.total_entries,
-          totalHits: row.total_hits || 0,
+          totalEntries: backendStats.totalEntries,
+          totalHits: backendStats.totalHits,
           totalMisses: this.stats.misses,
           hitRate,
-          totalCompressedSize: row.total_compressed || 0,
-          totalOriginalSize: row.total_original || 0,
+          totalCompressedSize: backendStats.totalCompressed,
+          totalOriginalSize: backendStats.totalOriginal,
           compressionRatio,
           semanticHits: this.stats.semanticHits,
           semanticHitRate
@@ -7940,64 +8134,26 @@ var init_cache_engine = __esm({
        * Evict least recently used entries to stay under size limit
        */
       evictLRU(maxSizeBytes) {
-        const keysToKeep = this.db.prepare(
-          `
-      WITH ranked AS (
-        SELECT
-          key,
-          compressed_size,
-          SUM(compressed_size) OVER (ORDER BY last_accessed_at DESC, key ASC) as running_total
-        FROM cache
-      )
-      SELECT key FROM ranked
-      WHERE running_total <= ?
-    `
-        ).all(maxSizeBytes);
-        if (keysToKeep.length === 0) {
-          const result2 = this.db.prepare("DELETE FROM cache").run();
+        const { deletedCount, survivingKeys } = this.backend.evictLRU(
+          maxSizeBytes
+        );
+        if (survivingKeys.length === 0) {
           this.memoryCache.clear();
-          return result2.changes;
-        }
-        const placeholders = keysToKeep.map(() => "?").join(",");
-        const stmt = this.db.prepare(`
-      DELETE FROM cache WHERE key NOT IN (${placeholders})
-    `);
-        const result = stmt.run(...keysToKeep.map((k3) => k3.key));
-        for (const key of Array.from(this.memoryCache.keys())) {
-          if (!keysToKeep.some((k3) => k3.key === key)) {
-            this.memoryCache.delete(key);
+        } else {
+          const keep = new Set(survivingKeys);
+          for (const key of Array.from(this.memoryCache.keys())) {
+            if (!keep.has(key)) {
+              this.memoryCache.delete(key);
+            }
           }
         }
-        return result.changes;
+        return deletedCount;
       }
       /**
        * Get all cache entries (for debugging/monitoring)
        */
       getAllEntries() {
-        const stmt = this.db.prepare(`
-      SELECT
-        key,
-        value,
-        compressed_size as compressedSize,
-        original_size as originalSize,
-        hit_count as hitCount,
-        created_at as createdAt,
-        last_accessed_at as lastAccessedAt
-      FROM cache
-      ORDER BY hit_count DESC, last_accessed_at DESC
-    `);
-        return stmt.all();
-      }
-      /**
-       * Update hit count and last accessed time
-       */
-      updateHitCount(key) {
-        const stmt = this.db.prepare(`
-      UPDATE cache
-      SET hit_count = hit_count + 1, last_accessed_at = ?
-      WHERE key = ?
-    `);
-        stmt.run(Date.now(), key);
+        return this.backend.allEntries();
       }
       /**
        * Get the database path currently in use
@@ -8009,7 +8165,7 @@ var init_cache_engine = __esm({
        * Close database connection
        */
       close() {
-        this.db.close();
+        this.backend.close();
       }
     };
   }
@@ -8124,94 +8280,22 @@ var init_lru_cache = __esm({
   }
 });
 
-// src/optimizer/core/tokenizers/tiktoken-tokenizer.ts
+// src/optimizer/core/tokenizers/heuristic-tokenizer.ts
 import { createHash } from "crypto";
-import { encoding_for_model } from "tiktoken";
 function cacheKeyFor(text) {
   if (text.length <= KEY_HASH_THRESHOLD_CHARS) {
     return text;
   }
   return createHash("sha256").update(text).digest("hex");
 }
-var DEFAULT_CACHE_SIZE, DEFAULT_CACHE_TTL_MS, KEY_HASH_THRESHOLD_CHARS, SUPPORTED_TIKTOKEN_MODELS, TiktokenTokenizer;
-var init_tiktoken_tokenizer = __esm({
-  "src/optimizer/core/tokenizers/tiktoken-tokenizer.ts"() {
+var DEFAULT_CACHE_SIZE, DEFAULT_CACHE_TTL_MS, KEY_HASH_THRESHOLD_CHARS, CHARS_PER_TOKEN, CODE_PATTERN, JSON_PATTERN, MARKDOWN_PATTERN, HeuristicTokenizer;
+var init_heuristic_tokenizer = __esm({
+  "src/optimizer/core/tokenizers/heuristic-tokenizer.ts"() {
     "use strict";
     init_lru_cache();
     DEFAULT_CACHE_SIZE = 500;
     DEFAULT_CACHE_TTL_MS = 30 * 60 * 1e3;
     KEY_HASH_THRESHOLD_CHARS = 256;
-    SUPPORTED_TIKTOKEN_MODELS = [
-      "gpt-4",
-      "gpt-3.5-turbo"
-    ];
-    TiktokenTokenizer = class _TiktokenTokenizer {
-      modelName;
-      encoder;
-      cache;
-      constructor(modelName, cache) {
-        this.modelName = modelName;
-        this.cache = cache ?? new LruCache(DEFAULT_CACHE_SIZE, DEFAULT_CACHE_TTL_MS);
-        const tiktokenModel = _TiktokenTokenizer.mapToTiktokenModel(modelName);
-        this.encoder = encoding_for_model(tiktokenModel);
-      }
-      async countTokens(text) {
-        const key = cacheKeyFor(text);
-        const cached2 = this.cache.get(key);
-        if (cached2 !== void 0) {
-          return cached2;
-        }
-        const count = this.encoder.encode(text).length;
-        this.cache.set(key, count);
-        return count;
-      }
-      free() {
-        this.encoder.free();
-      }
-      static supports(modelName) {
-        const mapped = _TiktokenTokenizer.tryMap(modelName);
-        return mapped !== null;
-      }
-      static mapToTiktokenModel(modelName) {
-        const mapped = _TiktokenTokenizer.tryMap(modelName);
-        if (mapped === null) {
-          return "gpt-4";
-        }
-        return mapped;
-      }
-      static tryMap(modelName) {
-        const lower = modelName.toLowerCase();
-        if (lower.includes("claude") || lower.includes("sonnet") || lower.includes("opus") || lower.includes("haiku") || lower.includes("gpt-4")) {
-          return "gpt-4";
-        }
-        if (lower.includes("gpt-3.5") || lower.includes("gpt3.5")) {
-          return "gpt-3.5-turbo";
-        }
-        if (SUPPORTED_TIKTOKEN_MODELS.includes(lower)) {
-          return lower;
-        }
-        return null;
-      }
-    };
-  }
-});
-
-// src/optimizer/core/tokenizers/heuristic-tokenizer.ts
-import { createHash as createHash2 } from "crypto";
-function cacheKeyFor2(text) {
-  if (text.length <= KEY_HASH_THRESHOLD_CHARS2) {
-    return text;
-  }
-  return createHash2("sha256").update(text).digest("hex");
-}
-var DEFAULT_CACHE_SIZE2, DEFAULT_CACHE_TTL_MS2, KEY_HASH_THRESHOLD_CHARS2, CHARS_PER_TOKEN, CODE_PATTERN, JSON_PATTERN, MARKDOWN_PATTERN, HeuristicTokenizer;
-var init_heuristic_tokenizer = __esm({
-  "src/optimizer/core/tokenizers/heuristic-tokenizer.ts"() {
-    "use strict";
-    init_lru_cache();
-    DEFAULT_CACHE_SIZE2 = 500;
-    DEFAULT_CACHE_TTL_MS2 = 30 * 60 * 1e3;
-    KEY_HASH_THRESHOLD_CHARS2 = 256;
     CHARS_PER_TOKEN = {
       ["code" /* Code */]: 2.5,
       ["json" /* Json */]: 2.8,
@@ -8226,10 +8310,10 @@ var init_heuristic_tokenizer = __esm({
       cache;
       constructor(modelName = "heuristic", cache) {
         this.modelName = modelName;
-        this.cache = cache ?? new LruCache(DEFAULT_CACHE_SIZE2, DEFAULT_CACHE_TTL_MS2);
+        this.cache = cache ?? new LruCache(DEFAULT_CACHE_SIZE, DEFAULT_CACHE_TTL_MS);
       }
       async countTokens(text) {
-        const key = cacheKeyFor2(text);
+        const key = cacheKeyFor(text);
         const cached2 = this.cache.get(key);
         if (cached2 !== void 0) {
           return cached2;
@@ -8257,6 +8341,135 @@ var init_heuristic_tokenizer = __esm({
           return "markdown" /* Markdown */;
         }
         return "text" /* Text */;
+      }
+    };
+  }
+});
+
+// src/optimizer/core/tokenizers/tiktoken-tokenizer.ts
+import { createHash as createHash2 } from "crypto";
+function warnTiktokenUnavailableOnce(err2) {
+  if (warnedTiktokenUnavailable) return;
+  warnedTiktokenUnavailable = true;
+  const message = err2 instanceof Error ? err2.message : String(err2);
+  console.warn(
+    `[optiflow] tiktoken is unavailable (${message}) -- falling back to heuristic token counting. This is expected in a marketplace install without a manual "npm install tiktoken" and does not affect correctness of other tools.`
+  );
+}
+async function loadTiktoken() {
+  if (!tiktokenLoadPromise) {
+    tiktokenLoadPromise = import("tiktoken").catch((err2) => {
+      warnTiktokenUnavailableOnce(err2);
+      return null;
+    });
+  }
+  return tiktokenLoadPromise;
+}
+function cacheKeyFor2(text) {
+  if (text.length <= KEY_HASH_THRESHOLD_CHARS2) {
+    return text;
+  }
+  return createHash2("sha256").update(text).digest("hex");
+}
+var tiktokenLoadPromise, warnedTiktokenUnavailable, DEFAULT_CACHE_SIZE2, DEFAULT_CACHE_TTL_MS2, KEY_HASH_THRESHOLD_CHARS2, SUPPORTED_TIKTOKEN_MODELS, TiktokenTokenizer;
+var init_tiktoken_tokenizer = __esm({
+  "src/optimizer/core/tokenizers/tiktoken-tokenizer.ts"() {
+    "use strict";
+    init_heuristic_tokenizer();
+    init_lru_cache();
+    tiktokenLoadPromise = null;
+    warnedTiktokenUnavailable = false;
+    DEFAULT_CACHE_SIZE2 = 500;
+    DEFAULT_CACHE_TTL_MS2 = 30 * 60 * 1e3;
+    KEY_HASH_THRESHOLD_CHARS2 = 256;
+    SUPPORTED_TIKTOKEN_MODELS = [
+      "gpt-4",
+      "gpt-3.5-turbo"
+    ];
+    TiktokenTokenizer = class _TiktokenTokenizer {
+      modelName;
+      cache;
+      encoder = null;
+      /** Set once `ensureEncoder()` determines tiktoken can't be used. */
+      fallback = null;
+      initPromise = null;
+      constructor(modelName, cache) {
+        this.modelName = modelName;
+        this.cache = cache ?? new LruCache(DEFAULT_CACHE_SIZE2, DEFAULT_CACHE_TTL_MS2);
+      }
+      /**
+       * Lazily loads tiktoken and constructs the real encoder on first use.
+       * Idempotent and memoized (via `initPromise`) so concurrent `countTokens`
+       * calls don't race to load/construct twice. On any failure -- tiktoken
+       * missing, or `encoding_for_model` throwing for any reason -- delegates
+       * permanently to a `HeuristicTokenizer` for this instance.
+       */
+      ensureEncoder() {
+        if (!this.initPromise) {
+          this.initPromise = (async () => {
+            const tiktoken = await loadTiktoken();
+            if (!tiktoken) {
+              this.fallback = new HeuristicTokenizer(this.modelName, this.cache);
+              return;
+            }
+            try {
+              const tiktokenModel = _TiktokenTokenizer.mapToTiktokenModel(
+                this.modelName
+              );
+              this.encoder = tiktoken.encoding_for_model(tiktokenModel);
+            } catch (err2) {
+              warnTiktokenUnavailableOnce(err2);
+              this.fallback = new HeuristicTokenizer(this.modelName, this.cache);
+            }
+          })();
+        }
+        return this.initPromise;
+      }
+      async countTokens(text) {
+        await this.ensureEncoder();
+        if (this.fallback) {
+          return this.fallback.countTokens(text);
+        }
+        const key = cacheKeyFor2(text);
+        const cached2 = this.cache.get(key);
+        if (cached2 !== void 0) {
+          return cached2;
+        }
+        const count = this.encoder.encode(text).length;
+        this.cache.set(key, count);
+        return count;
+      }
+      free() {
+        if (this.encoder) {
+          try {
+            this.encoder.free();
+          } catch {
+          }
+        }
+      }
+      static supports(modelName) {
+        const mapped = _TiktokenTokenizer.tryMap(modelName);
+        return mapped !== null;
+      }
+      static mapToTiktokenModel(modelName) {
+        const mapped = _TiktokenTokenizer.tryMap(modelName);
+        if (mapped === null) {
+          return "gpt-4";
+        }
+        return mapped;
+      }
+      static tryMap(modelName) {
+        const lower = modelName.toLowerCase();
+        if (lower.includes("claude") || lower.includes("sonnet") || lower.includes("opus") || lower.includes("haiku") || lower.includes("gpt-4")) {
+          return "gpt-4";
+        }
+        if (lower.includes("gpt-3.5") || lower.includes("gpt3.5")) {
+          return "gpt-3.5-turbo";
+        }
+        if (SUPPORTED_TIKTOKEN_MODELS.includes(lower)) {
+          return lower;
+        }
+        return null;
       }
     };
   }
@@ -8391,13 +8604,33 @@ var init_tokenizer_factory = __esm({
 });
 
 // src/optimizer/core/token-counter.ts
-import { encoding_for_model as encoding_for_model2 } from "tiktoken";
-var TokenCounter;
+import { createRequire as createRequire2 } from "node:module";
+function loadTiktokenSync() {
+  if (tiktokenModule !== void 0) {
+    return tiktokenModule;
+  }
+  try {
+    const require2 = createRequire2(import.meta.url);
+    tiktokenModule = require2("tiktoken");
+  } catch (err2) {
+    if (!warnedTiktokenUnavailable2) {
+      warnedTiktokenUnavailable2 = true;
+      const message = err2 instanceof Error ? err2.message : String(err2);
+      console.warn(
+        `[optiflow] tiktoken is unavailable (${message}) -- TokenCounter falling back to character-ratio estimation. This is expected in a marketplace install without a manual "npm install tiktoken".`
+      );
+    }
+    tiktokenModule = null;
+  }
+  return tiktokenModule;
+}
+var tiktokenModule, warnedTiktokenUnavailable2, TokenCounter;
 var init_token_counter = __esm({
   "src/optimizer/core/token-counter.ts"() {
     "use strict";
     init_tokenizer_factory();
     init_tiktoken_tokenizer();
+    warnedTiktokenUnavailable2 = false;
     TokenCounter = class _TokenCounter {
       tokenizer;
       encoder;
@@ -8405,9 +8638,24 @@ var init_token_counter = __esm({
       constructor(model) {
         this.model = model || process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || process.env.OPENAI_MODEL || process.env.GOOGLE_AI_MODEL || "gpt-4";
         this.tokenizer = TokenizerFactory.create(this.model);
-        this.encoder = encoding_for_model2(
-          TiktokenTokenizer.mapToTiktokenModel(this.model)
-        );
+        const tiktoken = loadTiktokenSync();
+        this.encoder = tiktoken ? this.tryCreateEncoder(tiktoken) : null;
+      }
+      tryCreateEncoder(tiktoken) {
+        try {
+          return tiktoken.encoding_for_model(
+            TiktokenTokenizer.mapToTiktokenModel(this.model)
+          );
+        } catch (err2) {
+          if (!warnedTiktokenUnavailable2) {
+            warnedTiktokenUnavailable2 = true;
+            const message = err2 instanceof Error ? err2.message : String(err2);
+            console.warn(
+              `[optiflow] tiktoken encoder init failed (${message}) -- TokenCounter falling back to character-ratio estimation.`
+            );
+          }
+          return null;
+        }
       }
       /**
        * Longest slice handed to the tokenizer in one call.
@@ -63464,8 +63712,8 @@ function isMinified(content) {
 
 // src/native/code-compressor.ts
 var import_web_tree_sitter = __toESM(require_tree_sitter(), 1);
-import { createRequire } from "node:module";
-var nodeRequire = createRequire(import.meta.url);
+import { createRequire as createRequire3 } from "node:module";
+var nodeRequire = createRequire3(import.meta.url);
 var DEFAULT_CODE_COMPRESSOR_CONFIG = {
   preserveImports: true,
   preserveSignatures: true,
@@ -64472,10 +64720,6 @@ async function compressCode(code, opts = {}) {
   };
 }
 
-// src/native/kompress.ts
-import { AutoTokenizer } from "@huggingface/transformers";
-import { InferenceSession, Tensor } from "onnxruntime-node";
-
 // src/native/kompress-model.ts
 init_paths();
 import {
@@ -64648,6 +64892,28 @@ async function ensureModelDownloaded(options = {}) {
 }
 
 // src/native/kompress.ts
+var onnxRuntimeLoadPromise = null;
+var transformersLoadPromise = null;
+function loadOnnxRuntime() {
+  if (!onnxRuntimeLoadPromise) {
+    onnxRuntimeLoadPromise = import("onnxruntime-node").catch((err2) => {
+      onnxRuntimeLoadPromise = null;
+      throw err2;
+    });
+  }
+  return onnxRuntimeLoadPromise;
+}
+function loadTransformers() {
+  if (!transformersLoadPromise) {
+    transformersLoadPromise = import("@huggingface/transformers").catch(
+      (err2) => {
+        transformersLoadPromise = null;
+        throw err2;
+      }
+    );
+  }
+  return transformersLoadPromise;
+}
 var MUST_KEEP_RE = /\b0x[0-9A-Fa-f]+\b|(?<![\w.])\d+(?:\.\d+)?(?![\w.])|[A-Z_]{2,}|[a-z_][a-z0-9_]*\.[a-z0-9_]+|\/[a-z0-9/._-]{2,}|\.[a-z]{2,4}\b|--?[a-z][\w-]*|\b[A-Z][a-z]+[A-Z]\w*/;
 var DEFAULT_CHUNK_WORDS = 350;
 var DEFAULT_SCORE_THRESHOLD = 0.5;
@@ -64682,16 +64948,28 @@ function detectSpecialWrapping(tokenizer) {
   return { prefix: [], suffix: [] };
 }
 async function loadModelUncached(onnxPath, tokenizerDir) {
+  let onnxruntime;
+  let transformers;
+  try {
+    [onnxruntime, transformers] = await Promise.all([
+      loadOnnxRuntime(),
+      loadTransformers()
+    ]);
+  } catch (err2) {
+    return {
+      error: `Kompress dependencies unavailable (onnxruntime-node/@huggingface/transformers not installed, or failed to load): ${err2.message}`
+    };
+  }
   let session;
   try {
-    session = await InferenceSession.create(onnxPath);
+    session = await onnxruntime.InferenceSession.create(onnxPath);
   } catch (err2) {
     return { error: `Kompress ONNX session failed to load from ${onnxPath}: ${err2.message}` };
   }
   try {
     await session.run({
-      input_ids: new Tensor("int64", BigInt64Array.from([0n, 0n]), [1, 2]),
-      attention_mask: new Tensor("int64", BigInt64Array.from([1n, 1n]), [1, 2])
+      input_ids: new onnxruntime.Tensor("int64", BigInt64Array.from([0n, 0n]), [1, 2]),
+      attention_mask: new onnxruntime.Tensor("int64", BigInt64Array.from([1n, 1n]), [1, 2])
     });
   } catch (err2) {
     return {
@@ -64700,14 +64978,20 @@ async function loadModelUncached(onnxPath, tokenizerDir) {
   }
   let tokenizer;
   try {
-    tokenizer = await AutoTokenizer.from_pretrained(tokenizerDir, { local_files_only: true });
+    tokenizer = await transformers.AutoTokenizer.from_pretrained(tokenizerDir, { local_files_only: true });
   } catch (err2) {
     return {
       error: `Kompress tokenizer failed to load from ${tokenizerDir}: ${err2.message}`
     };
   }
   const { prefix, suffix } = detectSpecialWrapping(tokenizer);
-  return { session, tokenizer, specialPrefix: prefix, specialSuffix: suffix };
+  return {
+    session,
+    tokenizer,
+    specialPrefix: prefix,
+    specialSuffix: suffix,
+    Tensor: onnxruntime.Tensor
+  };
 }
 async function getLoadedModel(onnxPath, tokenizerDir) {
   const key = cacheKeyFor3(onnxPath, tokenizerDir);
@@ -64801,8 +65085,8 @@ async function compressWithKompress(text, options = {}) {
         maxLength
       );
       const feeds = {
-        input_ids: new Tensor("int64", BigInt64Array.from(inputIds.map(BigInt)), [1, inputIds.length]),
-        attention_mask: new Tensor(
+        input_ids: new loaded2.Tensor("int64", BigInt64Array.from(inputIds.map(BigInt)), [1, inputIds.length]),
+        attention_mask: new loaded2.Tensor(
           "int64",
           BigInt64Array.from(attentionMask.map(BigInt)),
           [1, attentionMask.length]
@@ -74508,9 +74792,33 @@ init_cache_engine();
 init_token_counter();
 init_metrics();
 import { readFileSync as readFileSync13, existsSync as existsSync11, statSync as statSync8 } from "fs";
-import { parse as parseYAML } from "yaml";
-import { parse as parseTOML } from "@iarna/toml";
 init_paths2();
+var yamlLoadPromise = null;
+function loadYaml() {
+  if (!yamlLoadPromise) {
+    yamlLoadPromise = import("yaml").catch((err2) => {
+      yamlLoadPromise = null;
+      const message = err2 instanceof Error ? err2.message : String(err2);
+      throw new Error(
+        `YAML parsing is unavailable: the "yaml" package could not be loaded (${message}). Install it manually ("npm install yaml" in this plugin's own directory) to parse YAML config files.`
+      );
+    });
+  }
+  return yamlLoadPromise;
+}
+var tomlLoadPromise = null;
+function loadToml() {
+  if (!tomlLoadPromise) {
+    tomlLoadPromise = import("@iarna/toml").catch((err2) => {
+      tomlLoadPromise = null;
+      const message = err2 instanceof Error ? err2.message : String(err2);
+      throw new Error(
+        `TOML parsing is unavailable: the "@iarna/toml" package could not be loaded (${message}). Install it manually ("npm install @iarna/toml" in this plugin's own directory) to parse TOML config files.`
+      );
+    });
+  }
+  return tomlLoadPromise;
+}
 var SmartConfigReadTool = class {
   cache;
   tokenCounter;
@@ -74564,7 +74872,7 @@ var SmartConfigReadTool = class {
     }
     const rawContent = readFileSync13(filePath, "utf-8");
     const parseStartTime = Date.now();
-    const parsedConfig = this.parseConfig(rawContent, detectedFormat);
+    const parsedConfig = await this.parseConfig(rawContent, detectedFormat);
     const parseTime = Date.now() - parseStartTime;
     const originalTokens = this.tokenCounter.count(
       JSON.stringify(parsedConfig, null, 2)
@@ -74731,16 +75039,20 @@ var SmartConfigReadTool = class {
         throw new Error(`Cannot auto-detect format for file: ${filePath}`);
     }
   }
-  parseConfig(content, format) {
+  async parseConfig(content, format) {
     try {
       switch (format) {
         case "json":
           return JSON.parse(content);
         case "yaml":
-        case "yml":
-          return parseYAML(content);
-        case "toml":
-          return parseTOML(content);
+        case "yml": {
+          const yamlModule = await loadYaml();
+          return yamlModule.parse(content);
+        }
+        case "toml": {
+          const tomlModule = await loadToml();
+          return tomlModule.parse(content);
+        }
         default:
           throw new Error(`Unsupported format: ${format}`);
       }
@@ -75447,8 +75759,20 @@ var SMART_TSCONFIG_TOOL_DEFINITION = {
 
 // src/optimizer/tools/configuration/smart-workflow.ts
 import { readFileSync as readFileSync14, existsSync as existsSync13, statSync as statSync9, readdirSync as readdirSync2 } from "fs";
-import { parse as parseYAML2 } from "yaml";
 import { join as join11 } from "path";
+var yamlLoadPromise2 = null;
+function loadYaml2() {
+  if (!yamlLoadPromise2) {
+    yamlLoadPromise2 = import("yaml").catch((err2) => {
+      yamlLoadPromise2 = null;
+      const message = err2 instanceof Error ? err2.message : String(err2);
+      throw new Error(
+        `YAML parsing is unavailable: the "yaml" package could not be loaded (${message}). Install it manually ("npm install yaml" in this plugin's own directory) to parse workflow files.`
+      );
+    });
+  }
+  return yamlLoadPromise2;
+}
 var SmartWorkflowTool = class {
   cache;
   tokenCounter;
@@ -75503,7 +75827,7 @@ var SmartWorkflowTool = class {
     }
     const rawContent = readFileSync14(filePath, "utf-8");
     const parseStartTime = Date.now();
-    const parsedWorkflow = this.parseWorkflow(
+    const parsedWorkflow = await this.parseWorkflow(
       rawContent,
       detectedFormat,
       fileHash
@@ -75689,9 +76013,10 @@ var SmartWorkflowTool = class {
     if (filePath.includes("azure-pipelines")) return "azure";
     return "github";
   }
-  parseWorkflow(content, format, fileHash) {
+  async parseWorkflow(content, format, fileHash) {
     try {
-      const parsed = parseYAML2(content);
+      const yamlModule = await loadYaml2();
+      const parsed = yamlModule.parse(content);
       return {
         name: parsed.name || void 0,
         format,
@@ -89680,8 +90005,8 @@ var SmartSchema = class {
   }
   async introspectSQLite(connectionString, _options) {
     const file2 = connectionString.replace(/^sqlite:(\/\/)?/i, "").replace(/^file:/i, "");
-    const { default: Database3 } = await import("better-sqlite3");
-    const db = new Database3(file2, { readonly: true, fileMustExist: true });
+    const { default: Database } = await import("better-sqlite3");
+    const db = new Database(file2, { readonly: true, fileMustExist: true });
     try {
       const version2 = db.prepare("select sqlite_version() as v").get().v;
       const tableRows = db.prepare(
@@ -108885,30 +109210,181 @@ function getOptimizationReportTool(analyticsManager) {
 
 // src/optimizer/analytics/analytics-storage.ts
 init_paths2();
-import Database2 from "better-sqlite3";
 import fs5 from "node:fs";
 import path9 from "node:path";
+var betterSqlite3LoadPromise = null;
+async function loadBetterSqlite3() {
+  if (!betterSqlite3LoadPromise) {
+    betterSqlite3LoadPromise = import("better-sqlite3").then((mod) => {
+      const ctor = mod.default;
+      if (!ctor) {
+        throw new Error(
+          "better-sqlite3 module resolved but had no default export"
+        );
+      }
+      return ctor;
+    }).catch(() => null);
+  }
+  return betterSqlite3LoadPromise;
+}
+var warnedAnalyticsFallback = false;
+function warnAnalyticsFallbackOnce(err2) {
+  if (warnedAnalyticsFallback) return;
+  warnedAnalyticsFallback = true;
+  const message = err2 instanceof Error ? err2.message : String(err2);
+  console.warn(
+    `[optiflow] Persistent SQLite analytics storage unavailable (${message}) -- falling back to an append-only JSONL log for this process (see analytics-storage.ts). This is expected in a marketplace install without a manual "npm install better-sqlite3".`
+  );
+}
+function fallbackPathFor(dbPath) {
+  const dir = path9.dirname(dbPath);
+  const base = path9.basename(dbPath, path9.extname(dbPath)) || "analytics";
+  return path9.join(dir, `${base}.fallback.jsonl`);
+}
+var JsonlAnalyticsFallback = class _JsonlAnalyticsFallback {
+  constructor(filePath) {
+    this.filePath = filePath;
+    const dir = path9.dirname(filePath);
+    try {
+      if (!fs5.existsSync(dir)) {
+        fs5.mkdirSync(dir, { recursive: true });
+      }
+    } catch {
+    }
+  }
+  filePath;
+  readAll() {
+    if (!fs5.existsSync(this.filePath)) return [];
+    let raw;
+    try {
+      raw = fs5.readFileSync(this.filePath, "utf8");
+    } catch {
+      return [];
+    }
+    const out2 = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object" && typeof parsed.timestamp === "string") {
+          out2.push(parsed);
+        }
+      } catch {
+      }
+    }
+    return out2;
+  }
+  appendOne(entry) {
+    if (entry.measurementId?.startsWith("mcp:")) {
+      const existing = this.readAll();
+      if (existing.some((e) => e.measurementId === entry.measurementId)) {
+        return;
+      }
+    }
+    try {
+      fs5.appendFileSync(this.filePath, JSON.stringify(entry) + "\n", "utf8");
+    } catch {
+    }
+  }
+  static sortDesc(entries) {
+    return [...entries].sort(
+      (a2, b) => a2.timestamp < b.timestamp ? 1 : a2.timestamp > b.timestamp ? -1 : 0
+    );
+  }
+  async save(entry) {
+    this.appendOne(entry);
+  }
+  async saveBatch(entries) {
+    for (const entry of entries) {
+      this.appendOne(entry);
+    }
+  }
+  async query(filters) {
+    let entries = this.readAll();
+    if (filters) {
+      entries = entries.filter((e) => {
+        if (filters.hookPhase && e.hookPhase !== filters.hookPhase)
+          return false;
+        if (filters.toolName && e.toolName !== filters.toolName)
+          return false;
+        if (filters.mcpServer && e.mcpServer !== filters.mcpServer)
+          return false;
+        if (filters.sessionId && e.sessionId !== filters.sessionId)
+          return false;
+        return true;
+      });
+    }
+    return _JsonlAnalyticsFallback.sortDesc(entries);
+  }
+  async queryByDateRange(startDate, endDate) {
+    const entries = this.readAll().filter(
+      (e) => e.timestamp >= startDate && e.timestamp <= endDate
+    );
+    return _JsonlAnalyticsFallback.sortDesc(entries);
+  }
+  async clear() {
+    try {
+      fs5.writeFileSync(this.filePath, "", "utf8");
+    } catch {
+    }
+  }
+  async count() {
+    return this.readAll().length;
+  }
+  close() {
+  }
+};
 var SqliteAnalyticsStorage = class {
-  db;
+  db = null;
+  fallback = null;
+  backendReadyPromise = null;
+  finalPath;
   batchQueue = [];
   batchTimer = null;
   BATCH_SIZE = 100;
   BATCH_DELAY_MS = 5e3;
   // 5 seconds
   constructor(dbPath) {
-    const finalPath = dbPath || getOptimizerAnalyticsDbPath();
-    const dir = path9.dirname(finalPath);
-    if (!fs5.existsSync(dir)) {
-      fs5.mkdirSync(dir, { recursive: true });
+    this.finalPath = dbPath || getOptimizerAnalyticsDbPath();
+  }
+  /**
+   * Lazily resolves which backend to use, memoized so concurrent calls
+   * don't race to initialize twice. On any failure -- better-sqlite3
+   * missing, or the DB open/schema-init throwing for any reason -- degrades
+   * to the JSONL fallback instead of throwing.
+   */
+  ensureBackend() {
+    if (!this.backendReadyPromise) {
+      this.backendReadyPromise = (async () => {
+        try {
+          const Ctor = await loadBetterSqlite3();
+          if (!Ctor) {
+            throw new Error("better-sqlite3 native module could not be loaded");
+          }
+          const dir = path9.dirname(this.finalPath);
+          if (!fs5.existsSync(dir)) {
+            fs5.mkdirSync(dir, { recursive: true });
+          }
+          this.db = new Ctor(this.finalPath);
+          this.initializeDatabase();
+        } catch (err2) {
+          warnAnalyticsFallbackOnce(err2);
+          this.db = null;
+          this.fallback = new JsonlAnalyticsFallback(
+            fallbackPathFor(this.finalPath)
+          );
+        }
+      })();
     }
-    this.db = new Database2(finalPath);
-    this.initializeDatabase();
+    return this.backendReadyPromise;
   }
   /**
    * Initialize database schema
    */
   initializeDatabase() {
-    this.db.exec(`
+    const db = this.db;
+    db.exec(`
       CREATE TABLE IF NOT EXISTS analytics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         hook_phase TEXT NOT NULL,
@@ -108930,7 +109406,7 @@ var SqliteAnalyticsStorage = class {
       CREATE INDEX IF NOT EXISTS idx_session_id ON analytics(session_id);
     `);
     const columns = new Set(
-      this.db.prepare("PRAGMA table_info(analytics)").all().map((column) => column.name)
+      db.prepare("PRAGMA table_info(analytics)").all().map((column) => column.name)
     );
     for (const [name2, definition] of [
       ["client", "TEXT"],
@@ -108944,9 +109420,9 @@ var SqliteAnalyticsStorage = class {
       ["savings_measured", "INTEGER NOT NULL DEFAULT 0"]
     ]) {
       if (!columns.has(name2))
-        this.db.exec(`ALTER TABLE analytics ADD COLUMN ${name2} ${definition}`);
+        db.exec(`ALTER TABLE analytics ADD COLUMN ${name2} ${definition}`);
     }
-    this.db.exec(`
+    db.exec(`
       CREATE INDEX IF NOT EXISTS idx_client ON analytics(client);
       CREATE INDEX IF NOT EXISTS idx_model ON analytics(model);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_measurement_id
@@ -108958,6 +109434,10 @@ var SqliteAnalyticsStorage = class {
    * Save a single analytics entry (batched for performance)
    */
   async save(entry) {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.save(entry);
+    }
     this.batchQueue.push(entry);
     if (this.batchQueue.length >= this.BATCH_SIZE) {
       await this.flushBatch();
@@ -108969,8 +109449,13 @@ var SqliteAnalyticsStorage = class {
    * Save multiple analytics entries in a single transaction
    */
   async saveBatch(entries) {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.saveBatch(entries);
+    }
     if (entries.length === 0) return;
-    const stmt = this.db.prepare(`
+    const db = this.db;
+    const stmt = db.prepare(`
       INSERT INTO analytics (
         hook_phase, tool_name, mcp_server,
         original_tokens, optimized_tokens, tokens_saved,
@@ -108980,7 +109465,7 @@ var SqliteAnalyticsStorage = class {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
     `);
-    const insertMany = this.db.transaction((entries2) => {
+    const insertMany = db.transaction((entries2) => {
       for (const entry of entries2) {
         stmt.run(
           entry.hookPhase,
@@ -109036,6 +109521,10 @@ var SqliteAnalyticsStorage = class {
    * Query analytics entries with optional filters
    */
   async query(filters) {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.query(filters);
+    }
     await this.flushBatch();
     let sql = "SELECT * FROM analytics WHERE 1=1";
     const params = [];
@@ -109065,6 +109554,10 @@ var SqliteAnalyticsStorage = class {
    * Get all entries within a date range
    */
   async queryByDateRange(startDate, endDate) {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.queryByDateRange(startDate, endDate);
+    }
     await this.flushBatch();
     const sql = `
       SELECT * FROM analytics
@@ -109078,6 +109571,10 @@ var SqliteAnalyticsStorage = class {
    * Clear all analytics data
    */
   async clear() {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.clear();
+    }
     await this.flushBatch();
     this.db.prepare("DELETE FROM analytics").run();
   }
@@ -109085,6 +109582,10 @@ var SqliteAnalyticsStorage = class {
    * Get total count of stored entries
    */
   async count() {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.count();
+    }
     await this.flushBatch();
     const result = this.db.prepare("SELECT COUNT(*) as count FROM analytics").get();
     return result.count;
@@ -109115,6 +109616,10 @@ var SqliteAnalyticsStorage = class {
    * Close the database connection
    */
   async close() {
+    await this.ensureBackend();
+    if (this.fallback) {
+      return this.fallback.close();
+    }
     if (this.batchQueue.length > 0) {
       await this.saveBatch(this.batchQueue);
       this.batchQueue = [];

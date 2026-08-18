@@ -46,11 +46,65 @@
 // input" (per the plan's Phase 4 gate), not exact numerical parity with the
 // Python reference.
 
-import { AutoTokenizer } from "@huggingface/transformers";
+import type { AutoTokenizer } from "@huggingface/transformers";
 import type { PreTrainedTokenizer } from "@huggingface/transformers";
-import { InferenceSession, Tensor } from "onnxruntime-node";
+import type { InferenceSession, Tensor } from "onnxruntime-node";
 import type { KompressFetch, KompressVariant } from "./kompress-model.js";
 import { ensureModelDownloaded } from "./kompress-model.js";
+
+/**
+ * `onnxruntime-node` and `@huggingface/transformers` (which itself vendors
+ * its own nested `onnxruntime-node`-shaped native binding) both hit the same
+ * class of problem as `better-sqlite3` (see `core/cache-engine.ts`'s header
+ * comment): a native `.node` addon that isn't guaranteed to be present in a
+ * real marketplace install. `compressWithKompress` below is only ever
+ * reached when `kompress.enabled === true` (defaults `false`), but a STATIC
+ * top-level `import` still poisons the whole ESM module graph regardless of
+ * that flag, since Node resolves the entire static import graph before
+ * running any code -- crashing every one of the 76 `smart_*` tools at
+ * process start, not just the ones that use Kompress.
+ *
+ * Every real call site here is already async (`compressWithKompress` and
+ * everything it calls), so both packages are loaded via a real awaited
+ * `import()`, deferred until `loadModelUncached`'s first real use, memoized
+ * (success AND failure) at module scope. A load failure surfaces as the
+ * exact same `{ error: string }` shape `loadModelUncached` already uses for
+ * an ONNX-session/tokenizer load failure -- `compressWithKompress` already
+ * turns that into `{ available: false, reason }` rather than throwing, and
+ * `smart-read.ts` already treats any Kompress failure (including a thrown
+ * exception, via its own try/catch) as "fall through to the next
+ * compression strategy" -- verified by reading that call site, not assumed.
+ */
+type OnnxRuntimeModule = typeof import("onnxruntime-node");
+type TransformersModule = typeof import("@huggingface/transformers");
+
+let onnxRuntimeLoadPromise: Promise<OnnxRuntimeModule> | null = null;
+let transformersLoadPromise: Promise<TransformersModule> | null = null;
+
+function loadOnnxRuntime(): Promise<OnnxRuntimeModule> {
+  if (!onnxRuntimeLoadPromise) {
+    onnxRuntimeLoadPromise = import("onnxruntime-node").catch((err) => {
+      // Don't memoize a failure -- a later call (e.g. after the caller
+      // installs the optional dependency) gets to retry, matching
+      // `modelCache`'s own "never cache a failed load" precedent below.
+      onnxRuntimeLoadPromise = null;
+      throw err;
+    });
+  }
+  return onnxRuntimeLoadPromise;
+}
+
+function loadTransformers(): Promise<TransformersModule> {
+  if (!transformersLoadPromise) {
+    transformersLoadPromise = import("@huggingface/transformers").catch(
+      (err) => {
+        transformersLoadPromise = null;
+        throw err;
+      }
+    );
+  }
+  return transformersLoadPromise;
+}
 
 /**
  * Mirrors `vendor/headroom/headroom/transforms/kompress_compressor.py`'s
@@ -103,6 +157,8 @@ interface LoadedModel {
   tokenizer: PreTrainedTokenizer;
   specialPrefix: number[];
   specialSuffix: number[];
+  /** The lazily-loaded module's `Tensor` constructor, for use in the main compress loop below. */
+  Tensor: OnnxRuntimeModule["Tensor"];
 }
 
 // Cached by `<onnxPath>::<tokenizerDir>` so repeated calls against the same
@@ -159,9 +215,24 @@ async function loadModelUncached(
   onnxPath: string,
   tokenizerDir: string
 ): Promise<LoadedModel | { error: string }> {
+  let onnxruntime: OnnxRuntimeModule;
+  let transformers: TransformersModule;
+  try {
+    [onnxruntime, transformers] = await Promise.all([
+      loadOnnxRuntime(),
+      loadTransformers(),
+    ]);
+  } catch (err) {
+    return {
+      error:
+        `Kompress dependencies unavailable (onnxruntime-node/@huggingface/transformers not ` +
+        `installed, or failed to load): ${(err as Error).message}`,
+    };
+  }
+
   let session: InferenceSession;
   try {
-    session = await InferenceSession.create(onnxPath);
+    session = await onnxruntime.InferenceSession.create(onnxPath);
   } catch (err) {
     return { error: `Kompress ONNX session failed to load from ${onnxPath}: ${(err as Error).message}` };
   }
@@ -176,8 +247,8 @@ async function loadModelUncached(
   // every real `compressWithKompress` call.
   try {
     await session.run({
-      input_ids: new Tensor("int64", BigInt64Array.from([0n, 0n]), [1, 2]),
-      attention_mask: new Tensor("int64", BigInt64Array.from([1n, 1n]), [1, 2]),
+      input_ids: new onnxruntime.Tensor("int64", BigInt64Array.from([0n, 0n]), [1, 2]),
+      attention_mask: new onnxruntime.Tensor("int64", BigInt64Array.from([1n, 1n]), [1, 2]),
     });
   } catch (err) {
     return {
@@ -189,7 +260,7 @@ async function loadModelUncached(
 
   let tokenizer: PreTrainedTokenizer;
   try {
-    tokenizer = await AutoTokenizer.from_pretrained(tokenizerDir, { local_files_only: true });
+    tokenizer = await transformers.AutoTokenizer.from_pretrained(tokenizerDir, { local_files_only: true });
   } catch (err) {
     return {
       error: `Kompress tokenizer failed to load from ${tokenizerDir}: ${(err as Error).message}`,
@@ -197,7 +268,13 @@ async function loadModelUncached(
   }
 
   const { prefix, suffix } = detectSpecialWrapping(tokenizer);
-  return { session, tokenizer, specialPrefix: prefix, specialSuffix: suffix };
+  return {
+    session,
+    tokenizer,
+    specialPrefix: prefix,
+    specialSuffix: suffix,
+    Tensor: onnxruntime.Tensor,
+  };
 }
 
 async function getLoadedModel(
@@ -366,8 +443,8 @@ export async function compressWithKompress(
       );
 
       const feeds = {
-        input_ids: new Tensor("int64", BigInt64Array.from(inputIds.map(BigInt)), [1, inputIds.length]),
-        attention_mask: new Tensor(
+        input_ids: new loaded.Tensor("int64", BigInt64Array.from(inputIds.map(BigInt)), [1, inputIds.length]),
+        attention_mask: new loaded.Tensor(
           "int64",
           BigInt64Array.from(attentionMask.map(BigInt)),
           [1, attentionMask.length]

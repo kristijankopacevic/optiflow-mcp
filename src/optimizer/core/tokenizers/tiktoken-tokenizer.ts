@@ -1,7 +1,44 @@
 import { createHash } from 'crypto';
-import { encoding_for_model, Tiktoken, TiktokenModel } from 'tiktoken';
+import type { Tiktoken, TiktokenModel } from 'tiktoken';
 import { ITokenizer } from './i-tokenizer.js';
+import { HeuristicTokenizer } from './heuristic-tokenizer.js';
 import { LruCache } from '../../utils/lru-cache.js';
+
+/**
+ * `tiktoken` ships a native WASM loader (see esbuild.config.mjs's
+ * `nativeExternals` doc comment) and is not guaranteed to be present in a
+ * real marketplace install (Claude Code's automatic `npm ci --ignore-scripts`
+ * never ships with a real install and can't run install scripts anyway).
+ * A static top-level `import` of it would fail Node's ESM module-graph
+ * resolution at process start for every caller of this file, even ones that
+ * never construct a `TiktokenTokenizer` -- so the load is deferred to first
+ * real use (see `loadTiktoken`/`ensureEncoder` below) and any failure
+ * degrades to `HeuristicTokenizer` rather than throwing.
+ */
+type TiktokenModuleShape = typeof import('tiktoken');
+
+let tiktokenLoadPromise: Promise<TiktokenModuleShape | null> | null = null;
+let warnedTiktokenUnavailable = false;
+
+function warnTiktokenUnavailableOnce(err: unknown): void {
+  if (warnedTiktokenUnavailable) return;
+  warnedTiktokenUnavailable = true;
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[optiflow] tiktoken is unavailable (${message}) -- falling back to heuristic token counting. ` +
+      `This is expected in a marketplace install without a manual "npm install tiktoken" and does not affect correctness of other tools.`
+  );
+}
+
+async function loadTiktoken(): Promise<TiktokenModuleShape | null> {
+  if (!tiktokenLoadPromise) {
+    tiktokenLoadPromise = import('tiktoken').catch((err: unknown) => {
+      warnTiktokenUnavailableOnce(err);
+      return null;
+    });
+  }
+  return tiktokenLoadPromise;
+}
 
 const DEFAULT_CACHE_SIZE = 500;
 const DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -27,31 +64,71 @@ const SUPPORTED_TIKTOKEN_MODELS: readonly TiktokenModel[] = [
 
 export class TiktokenTokenizer implements ITokenizer {
   public readonly modelName: string;
-  private readonly encoder: Tiktoken;
   private readonly cache: LruCache<string, number>;
+  private encoder: Tiktoken | null = null;
+  /** Set once `ensureEncoder()` determines tiktoken can't be used. */
+  private fallback: HeuristicTokenizer | null = null;
+  private initPromise: Promise<void> | null = null;
 
   constructor(modelName: string, cache?: LruCache<string, number>) {
     this.modelName = modelName;
     this.cache =
       cache ??
       new LruCache<string, number>(DEFAULT_CACHE_SIZE, DEFAULT_CACHE_TTL_MS);
-    const tiktokenModel = TiktokenTokenizer.mapToTiktokenModel(modelName);
-    this.encoder = encoding_for_model(tiktokenModel);
+  }
+
+  /**
+   * Lazily loads tiktoken and constructs the real encoder on first use.
+   * Idempotent and memoized (via `initPromise`) so concurrent `countTokens`
+   * calls don't race to load/construct twice. On any failure -- tiktoken
+   * missing, or `encoding_for_model` throwing for any reason -- delegates
+   * permanently to a `HeuristicTokenizer` for this instance.
+   */
+  private ensureEncoder(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        const tiktoken = await loadTiktoken();
+        if (!tiktoken) {
+          this.fallback = new HeuristicTokenizer(this.modelName, this.cache);
+          return;
+        }
+        try {
+          const tiktokenModel = TiktokenTokenizer.mapToTiktokenModel(
+            this.modelName
+          );
+          this.encoder = tiktoken.encoding_for_model(tiktokenModel);
+        } catch (err) {
+          warnTiktokenUnavailableOnce(err);
+          this.fallback = new HeuristicTokenizer(this.modelName, this.cache);
+        }
+      })();
+    }
+    return this.initPromise;
   }
 
   public async countTokens(text: string): Promise<number> {
+    await this.ensureEncoder();
+    if (this.fallback) {
+      return this.fallback.countTokens(text);
+    }
     const key = cacheKeyFor(text);
     const cached = this.cache.get(key);
     if (cached !== undefined) {
       return cached;
     }
-    const count = this.encoder.encode(text).length;
+    const count = this.encoder!.encode(text).length;
     this.cache.set(key, count);
     return count;
   }
 
   public free(): void {
-    this.encoder.free();
+    if (this.encoder) {
+      try {
+        this.encoder.free();
+      } catch {
+        // Best-effort cleanup only.
+      }
+    }
   }
 
   public static supports(modelName: string): boolean {

@@ -14,7 +14,6 @@
  */
 
 import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
-import { parse as parseYAML } from 'yaml';
 import { join } from 'path';
 import { CacheEngine } from '../../core/cache-engine.js';
 import { readCompressedJson } from '../../utils/cache-helper.js';
@@ -22,6 +21,36 @@ import { TokenCounter } from '../../core/token-counter.js';
 import { MetricsCollector } from '../../core/metrics.js';
 import { hashFile, generateCacheKey } from '../shared/hash-utils.js';
 import { compress } from '../shared/compression-utils.js';
+
+/**
+ * `yaml` is external (see esbuild.config.mjs's `nativeExternals` doc
+ * comment) and not guaranteed present in a real marketplace install
+ * (`plugin/package.json` declares no `dependencies`). Same rationale as
+ * `smart-config-read.ts`'s equivalent comment: no correct degraded parse
+ * exists for a missing YAML parser, so this is loaded via a deferred
+ * `await import()` (this file's `analyze()` is already async) with a clear,
+ * actionable error surfaced from `parseWorkflow` on failure -- rather than
+ * a static top-level import that would poison the whole server's module
+ * graph at process start regardless of whether `smart_workflow` is ever
+ * called.
+ */
+type YamlModule = typeof import('yaml');
+
+let yamlLoadPromise: Promise<YamlModule> | null = null;
+
+function loadYaml(): Promise<YamlModule> {
+  if (!yamlLoadPromise) {
+    yamlLoadPromise = import('yaml').catch((err: unknown) => {
+      yamlLoadPromise = null; // Don't cache a failure -- let a later call retry.
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `YAML parsing is unavailable: the "yaml" package could not be loaded (${message}). ` +
+          `Install it manually ("npm install yaml" in this plugin's own directory) to parse workflow files.`
+      );
+    });
+  }
+  return yamlLoadPromise;
+}
 
 export type WorkflowFormat =
   | 'github'
@@ -189,7 +218,7 @@ export class SmartWorkflowTool {
 
     const rawContent = readFileSync(filePath, 'utf-8');
     const parseStartTime = Date.now();
-    const parsedWorkflow = this.parseWorkflow(
+    const parsedWorkflow = await this.parseWorkflow(
       rawContent,
       detectedFormat,
       fileHash
@@ -399,13 +428,14 @@ export class SmartWorkflowTool {
     return 'github';
   }
 
-  private parseWorkflow(
+  private async parseWorkflow(
     content: string,
     format: WorkflowFormat,
     fileHash: string
-  ): ParsedWorkflow {
+  ): Promise<ParsedWorkflow> {
     try {
-      const parsed = parseYAML(content) as Record<string, unknown>;
+      const yamlModule = await loadYaml();
+      const parsed = yamlModule.parse(content) as Record<string, unknown>;
       return {
         name: (parsed.name as string) || undefined,
         format,

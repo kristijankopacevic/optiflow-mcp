@@ -11,8 +11,6 @@
  */
 
 import { readFileSync, existsSync, statSync } from 'fs';
-import { parse as parseYAML } from 'yaml';
-import { parse as parseTOML } from '@iarna/toml';
 import { CacheEngine } from '../../core/cache-engine.js';
 import { TokenCounter } from '../../core/token-counter.js';
 import { MetricsCollector } from '../../core/metrics.js';
@@ -24,6 +22,57 @@ import { getOptimizerCacheDbPath } from '../../paths.js';
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
+
+/**
+ * `yaml`/`@iarna/toml` are external (see esbuild.config.mjs's
+ * `nativeExternals` doc comment) and, like the native/heavy accelerators
+ * hardened elsewhere in this pass, are not guaranteed to be present in a
+ * real marketplace install (`plugin/package.json` has no `dependencies`
+ * field). Unlike those accelerators, though, there is no correct degraded
+ * behavior for a missing parser -- a heuristic/partial YAML or TOML parse
+ * would silently return wrong config data, which is worse than an explicit
+ * failure. So these are loaded via a deferred `await import()` (this file's
+ * `read()` is already async) and a load failure surfaces as a clear,
+ * actionable error from `parseConfig` below (caught by its own try/catch,
+ * same as any other parse failure) rather than crashing the whole server's
+ * module graph at process start -- which is the actual bug being fixed:
+ * this file's OLD static top-level imports of these two packages poisoned
+ * every one of the 76 `smart_*` tools' startup, not just this one.
+ */
+type YamlModule = typeof import('yaml');
+type TomlModule = typeof import('@iarna/toml');
+
+let yamlLoadPromise: Promise<YamlModule> | null = null;
+
+function loadYaml(): Promise<YamlModule> {
+  if (!yamlLoadPromise) {
+    yamlLoadPromise = import('yaml').catch((err: unknown) => {
+      yamlLoadPromise = null; // Don't cache a failure -- let a later call retry.
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `YAML parsing is unavailable: the "yaml" package could not be loaded (${message}). ` +
+          `Install it manually ("npm install yaml" in this plugin's own directory) to parse YAML config files.`
+      );
+    });
+  }
+  return yamlLoadPromise;
+}
+
+let tomlLoadPromise: Promise<TomlModule> | null = null;
+
+function loadToml(): Promise<TomlModule> {
+  if (!tomlLoadPromise) {
+    tomlLoadPromise = import('@iarna/toml').catch((err: unknown) => {
+      tomlLoadPromise = null; // Don't cache a failure -- let a later call retry.
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `TOML parsing is unavailable: the "@iarna/toml" package could not be loaded (${message}). ` +
+          `Install it manually ("npm install @iarna/toml" in this plugin's own directory) to parse TOML config files.`
+      );
+    });
+  }
+  return tomlLoadPromise;
+}
 
 export type ConfigFormat = 'json' | 'yaml' | 'yml' | 'toml' | 'auto';
 
@@ -189,7 +238,7 @@ export class SmartConfigReadTool {
     // Read and parse config file
     const rawContent = readFileSync(filePath, 'utf-8');
     const parseStartTime = Date.now();
-    const parsedConfig = this.parseConfig(rawContent, detectedFormat);
+    const parsedConfig = await this.parseConfig(rawContent, detectedFormat);
     const parseTime = Date.now() - parseStartTime;
 
     // Calculate original tokens
@@ -407,21 +456,28 @@ export class SmartConfigReadTool {
     }
   }
 
-  private parseConfig(
+  private async parseConfig(
     content: string,
     format: ConfigFormat
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
     try {
       switch (format) {
         case 'json':
           return JSON.parse(content) as Record<string, unknown>;
 
         case 'yaml':
-        case 'yml':
-          return parseYAML(content) as Record<string, unknown>;
+        case 'yml': {
+          const yamlModule = await loadYaml();
+          return yamlModule.parse(content) as Record<string, unknown>;
+        }
 
-        case 'toml':
-          return parseTOML(content) as unknown as Record<string, unknown>;
+        case 'toml': {
+          const tomlModule = await loadToml();
+          return tomlModule.parse(content) as unknown as Record<
+            string,
+            unknown
+          >;
+        }
 
         default:
           throw new Error(`Unsupported format: ${format}`);
