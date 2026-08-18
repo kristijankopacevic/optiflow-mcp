@@ -146,6 +146,20 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "get_mcp_server_analytics",
         "export_analytics",
         "get_optimization_report",
+        // dashboard-monitoring (9 of 10 real tools wired -- report-generator
+        // stays deferred; see src/optimizer/tools/dashboard-monitoring/
+        // index.ts's header). Two of these nine are the hyphenated
+        // 'performance-tracker'/'smart-dashboard' names, not underscored --
+        // ported as-is from each tool's own TOOL_DEFINITION, not renamed.
+        "alert_manager",
+        "custom_widget",
+        "data_visualizer",
+        "health_monitor",
+        "log_dashboard",
+        "metric_collector",
+        "monitoring_integration",
+        "performance-tracker",
+        "smart-dashboard",
       ].sort()
     );
   });
@@ -156,6 +170,17 @@ describe("ALL_TOOL_DEFINITIONS", () => {
       expect(tool.name.length).toBeGreaterThan(0);
       expect(typeof tool.description).toBe("string");
       expect(tool.inputSchema).toBeTruthy();
+    }
+  });
+
+  // Guards against the exact class of bug the hyphenated
+  // 'performance-tracker'/'smart-dashboard' names introduce this checkpoint:
+  // a TOOL_DEFINITION.name that ListTools advertises but that has no
+  // byte-identical `rawRegistry`/`registry` key would make CallTool fail
+  // with "Unknown tool" for a tool ListTools just told the caller exists.
+  it("every advertised tool name has a matching dispatch-table entry", () => {
+    for (const tool of ALL_TOOL_DEFINITIONS) {
+      expect(runtime.registry[tool.name]).toBeTypeOf("function");
     }
   });
 });
@@ -1287,6 +1312,152 @@ describe("analytics tools (real end-to-end)", () => {
     expect(parsed.summary.totalTokensSaved).toBe(0);
     expect(parsed.costEquivalentUsd).toBeNull();
     expect(typeof parsed.formatted).toBe("string");
+  });
+});
+
+describe("dashboard-monitoring tools (real end-to-end)", () => {
+  // NOTE ON TIMER SAFETY: none of this category's 9 wired tools starts a
+  // background timer from its constructor (verified by grep across all 10
+  // files -- see tools/dashboard-monitoring/index.ts's header), unlike
+  // checkpoint 7's cache-replication/cache-invalidation finding, so there's
+  // no equivalent hazard to avoid here. alert_manager's `silence` operation
+  // (an on-demand, now-unref'd cleanup timer) is still skipped below on
+  // general principle, matching advanced-caching's own test block's
+  // preference to keep this suite free of any reliance on background
+  // timing at all.
+
+  it("alert_manager lists real alerts (starts empty, not a crash)", async () => {
+    const result = await runtime.registry.alert_manager({ operation: "list-alerts" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.alerts)).toBe(true);
+  });
+
+  it("custom_widget creates a real widget then lists it back", async () => {
+    const createResult = await runtime.registry.custom_widget({
+      operation: "create",
+      widgetName: `test-widget-${Date.now()}`,
+      type: "metric",
+      config: { title: "Test Widget", metric: "cpu_usage" },
+    });
+    expect(createResult.isError).toBeFalsy();
+    const createParsed = JSON.parse(createResult.content[0].text);
+    expect(createParsed.success).toBe(true);
+    const widgetId = createParsed.data.widget.id;
+
+    const listResult = await runtime.registry.custom_widget({ operation: "list" });
+    expect(listResult.isError).toBeFalsy();
+    const listParsed = JSON.parse(listResult.content[0].text);
+    expect(listParsed.success).toBe(true);
+    expect(listParsed.data.widgets.some((w: any) => w.id === widgetId)).toBe(true);
+  });
+
+  it("data_visualizer creates a real chart from real data points", async () => {
+    const result = await runtime.registry.data_visualizer({
+      operation: "create-chart",
+      chartType: "bar",
+      data: [
+        { x: "a", y: 1 },
+        { x: "b", y: 2 },
+      ],
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.chart.type).toBe("bar");
+  });
+
+  it("health_monitor registers a real (offline, non-HTTP) check then reflects it via get-status", async () => {
+    const checkName = `test-check-${Date.now()}`;
+    const registerResult = await runtime.registry.health_monitor({
+      operation: "register-check",
+      checkName,
+      // 'command' avoids a real network call -- see this category's
+      // index.ts header on the one operation ('http') that genuinely does
+      // hit a live URL.
+      checkType: "command",
+      checkConfig: { command: "true" },
+    });
+    expect(registerResult.isError).toBeFalsy();
+    const registerParsed = JSON.parse(registerResult.content[0].text);
+    expect(registerParsed.success).toBe(true);
+    expect(registerParsed.data.check.name).toBe(checkName);
+
+    const statusResult = await runtime.registry.health_monitor({ operation: "get-status" });
+    expect(statusResult.isError).toBeFalsy();
+    const statusParsed = JSON.parse(statusResult.content[0].text);
+    expect(statusParsed.success).toBe(true);
+    expect(statusParsed.data.status).toBeTruthy();
+  });
+
+  it("log_dashboard queries real logs, gracefully returning an empty set with zero aggregated sources", async () => {
+    const result = await runtime.registry.log_dashboard({ operation: "query" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.logs)).toBe(true);
+  });
+
+  it("metric_collector lists real (initially empty) configured sources", async () => {
+    const result = await runtime.registry.metric_collector({ operation: "list-sources" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.sources)).toBe(true);
+  });
+
+  it("monitoring_integration lists real (initially empty) platform connections without ever making a live network call", async () => {
+    const result = await runtime.registry.monitoring_integration({ operation: "list-connections" });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(Array.isArray(parsed.data.connections)).toBe(true);
+  });
+
+  it("'performance-tracker' (real hyphenated tool name) tracks a real metric then queries it back", async () => {
+    const metricName = `test-metric-${Date.now()}`;
+    const trackResult = await runtime.registry["performance-tracker"]({
+      operation: "track",
+      metricName,
+      metricType: "responseTime",
+      value: 42,
+    });
+    expect(trackResult.isError).toBeFalsy();
+    expect(JSON.parse(trackResult.content[0].text).success).toBe(true);
+
+    // generateMetricId() derives the store key from name+type+tags -- the
+    // query must repeat the same metricType track used (defaulting to
+    // 'custom' here would look up a different, empty metric history).
+    const queryResult = await runtime.registry["performance-tracker"]({
+      operation: "query",
+      metricName,
+      metricType: "responseTime",
+    });
+    expect(queryResult.isError).toBeFalsy();
+    const parsed = JSON.parse(queryResult.content[0].text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.metrics.some((m: any) => m.value === 42)).toBe(true);
+  });
+
+  it("'smart-dashboard' (real hyphenated tool name, a near-clone of health_monitor's health-check subsystem) registers a real check then reflects it via get-status", async () => {
+    const checkName = `test-dashboard-check-${Date.now()}`;
+    const registerResult = await runtime.registry["smart-dashboard"]({
+      operation: "register-check",
+      checkName,
+      checkType: "command",
+      checkConfig: { command: "true" },
+    });
+    expect(registerResult.isError).toBeFalsy();
+    const registerParsed = JSON.parse(registerResult.content[0].text);
+    expect(registerParsed.success).toBe(true);
+    expect(registerParsed.data.check.name).toBe(checkName);
+
+    const statusResult = await runtime.registry["smart-dashboard"]({ operation: "get-status" });
+    expect(statusResult.isError).toBeFalsy();
+    const statusParsed = JSON.parse(statusResult.content[0].text);
+    expect(statusParsed.success).toBe(true);
+    expect(statusParsed.data.status).toBeTruthy();
   });
 });
 

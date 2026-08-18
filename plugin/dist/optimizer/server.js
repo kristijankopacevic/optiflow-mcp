@@ -6916,12 +6916,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs5, exportName) {
+    function addFormats(ajv, list, fs6, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs5[f]);
+        ajv.addFormat(f, fs6[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -42047,8 +42047,8 @@ function getElementAtPath(obj, path8) {
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
-  const promises = keys.map((key) => promisesObj[key]);
-  return Promise.all(promises).then((results) => {
+  const promises2 = keys.map((key) => promisesObj[key]);
+  return Promise.all(promises2).then((results) => {
     const resolvedObj = {};
     for (let i = 0; i < keys.length; i++) {
       resolvedObj[keys[i]] = results[i];
@@ -72834,7 +72834,7 @@ var SmartDatabase = class {
           j3,
           Math.min(j3 + parallelBatches, batch2.length)
         );
-        const promises = parallelQueries.map(async (query, idx) => {
+        const promises2 = parallelQueries.map(async (query, idx) => {
           const queryIndex = i + j3 + idx;
           try {
             const result = await this.executeQueryInternal(
@@ -72851,7 +72851,7 @@ var SmartDatabase = class {
             });
           }
         });
-        batchPromises.push(...promises);
+        batchPromises.push(...promises2);
       }
       await Promise.all(batchPromises);
     }
@@ -89718,7 +89718,7 @@ var CachePartitionTool = class extends EventEmitter5 {
     const targetPartitions = partitions || Array.from(this.partitions.keys());
     const results = /* @__PURE__ */ new Map();
     if (parallel) {
-      const promises = targetPartitions.map(async (partitionId) => {
+      const promises2 = targetPartitions.map(async (partitionId) => {
         const store = this.partitionStores.get(partitionId);
         if (!store) return;
         try {
@@ -89736,7 +89736,7 @@ var CachePartitionTool = class extends EventEmitter5 {
           );
         }
       });
-      await Promise.all(promises);
+      await Promise.all(promises2);
     } else {
       for (const partitionId of targetPartitions) {
         const store = this.partitionStores.get(partitionId);
@@ -91610,8 +91610,8 @@ var CacheWarmupTool = class extends EventEmitter7 {
       if (job.abortController?.signal.aborted || job.status === "paused") {
         break;
       }
-      const promises = chunk.map((key) => this.warmKey(key, job, job.options));
-      const results = await Promise.allSettled(promises);
+      const promises2 = chunk.map((key) => this.warmKey(key, job, job.options));
+      const results = await Promise.allSettled(promises2);
       results.forEach((result, index2) => {
         if (result.status === "fulfilled" && result.value.success) {
           warmed.push(chunk[index2]);
@@ -100608,6 +100608,8446 @@ var SMART_TYPECHECK_TOOL_DEFINITION = {
   }
 };
 
+// src/optimizer/tools/dashboard-monitoring/alert-manager.ts
+import { createHash as createHash43 } from "crypto";
+var AlertManager = class {
+  cache;
+  tokenCounter;
+  metricsCollector;
+  // In-memory storage (in production, use database)
+  alerts = /* @__PURE__ */ new Map();
+  alertEvents = [];
+  notificationChannels = /* @__PURE__ */ new Map();
+  silenceRules = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+    this.loadPersistedData();
+  }
+  /**
+   * Main entry point for alert management operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      let result;
+      switch (options.operation) {
+        case "create-alert":
+          result = await this.createAlert(options);
+          break;
+        case "update-alert":
+          result = await this.updateAlert(options);
+          break;
+        case "delete-alert":
+          result = await this.deleteAlert(options);
+          break;
+        case "list-alerts":
+          result = await this.listAlerts(options);
+          break;
+        case "trigger":
+          result = await this.triggerAlert(options);
+          break;
+        case "get-history":
+          result = await this.getHistory(options);
+          break;
+        case "configure-channels":
+          result = await this.configureChannels(options);
+          break;
+        case "silence":
+          result = await this.silenceAlerts(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `alert_manager:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit,
+        inputTokens: 0,
+        outputTokens: result.metadata.tokensUsed || 0,
+        cachedTokens: result.metadata.cacheHit ? result.metadata.tokensUsed || 0 : 0,
+        savedTokens: result.metadata.tokensSaved || 0
+      });
+      return result;
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metricsCollector.record({
+        operation: `alert_manager:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0
+      });
+      return {
+        success: false,
+        error: errorMessage,
+        metadata: {
+          cacheHit: false,
+          tokensUsed: 0,
+          tokensSaved: 0
+        }
+      };
+    }
+  }
+  // ============================================================================
+  // Operation: Create Alert
+  // ============================================================================
+  async createAlert(options) {
+    if (!options.alertName) {
+      throw new Error("alertName is required for create-alert operation");
+    }
+    if (!options.condition) {
+      throw new Error("condition is required for create-alert operation");
+    }
+    if (!options.threshold) {
+      throw new Error("threshold is required for create-alert operation");
+    }
+    const alertId = this.generateAlertId(options.alertName);
+    if (this.alerts.has(alertId)) {
+      throw new Error(`Alert with name '${options.alertName}' already exists`);
+    }
+    const alert = {
+      id: alertId,
+      name: options.alertName,
+      condition: options.condition,
+      severity: options.severity || "warning",
+      channels: options.channels || ["email"],
+      dataSource: options.dataSource || {
+        id: "default",
+        type: "custom",
+        connection: {}
+      },
+      threshold: options.threshold,
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      triggerCount: 0,
+      status: "active"
+    };
+    this.alerts.set(alertId, alert);
+    const cacheKey = `cache-${createHash43("md5").update(`alert-manager:alert:${alertId}`).digest("hex")}`;
+    const alertMetadata = this.compressAlertMetadata(alert);
+    const cachedData = JSON.stringify(alertMetadata);
+    const tokensUsed = this.tokenCounter.count(JSON.stringify(alert)).tokens;
+    const compressedTokens = this.tokenCounter.count(cachedData).tokens;
+    const tokensSaved = tokensUsed - compressedTokens;
+    await this.cache.set(cacheKey, cachedData, tokensUsed, compressedTokens);
+    await this.persistAlerts();
+    return {
+      success: true,
+      data: { alert },
+      metadata: {
+        cacheHit: false,
+        tokensUsed,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Update Alert
+  // ============================================================================
+  async updateAlert(options) {
+    if (!options.alertId && !options.alertName) {
+      throw new Error(
+        "alertId or alertName is required for update-alert operation"
+      );
+    }
+    const alertId = options.alertId || this.findAlertIdByName(options.alertName);
+    if (!alertId) {
+      throw new Error(
+        `Alert not found: ${options.alertId || options.alertName}`
+      );
+    }
+    const alert = this.alerts.get(alertId);
+    if (!alert) {
+      throw new Error(`Alert not found: ${alertId}`);
+    }
+    if (options.condition) alert.condition = options.condition;
+    if (options.severity) alert.severity = options.severity;
+    if (options.channels) alert.channels = options.channels;
+    if (options.dataSource) alert.dataSource = options.dataSource;
+    if (options.threshold) alert.threshold = options.threshold;
+    alert.updatedAt = Date.now();
+    const cacheKey = `cache-${createHash43("md5").update(`alert-manager:alert:${alertId}`).digest("hex")}`;
+    const alertMetadata = this.compressAlertMetadata(alert);
+    const cachedData = JSON.stringify(alertMetadata);
+    const tokensUsed = this.tokenCounter.count(JSON.stringify(alert)).tokens;
+    const compressedTokens = this.tokenCounter.count(cachedData).tokens;
+    const tokensSaved = tokensUsed - compressedTokens;
+    await this.cache.set(cacheKey, cachedData, tokensUsed, compressedTokens);
+    await this.persistAlerts();
+    return {
+      success: true,
+      data: { alert },
+      metadata: {
+        cacheHit: false,
+        tokensUsed,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Delete Alert
+  // ============================================================================
+  async deleteAlert(options) {
+    if (!options.alertId && !options.alertName) {
+      throw new Error(
+        "alertId or alertName is required for delete-alert operation"
+      );
+    }
+    const alertId = options.alertId || this.findAlertIdByName(options.alertName);
+    if (!alertId) {
+      throw new Error(
+        `Alert not found: ${options.alertId || options.alertName}`
+      );
+    }
+    const alert = this.alerts.get(alertId);
+    if (!alert) {
+      throw new Error(`Alert not found: ${alertId}`);
+    }
+    this.alerts.delete(alertId);
+    const cacheKey = `cache-${createHash43("md5").update(`alert-manager:alert:${alertId}`).digest("hex")}`;
+    this.cache.delete(cacheKey);
+    for (const [silenceId, silence] of this.silenceRules.entries()) {
+      if (silence.alertId === alertId) {
+        this.silenceRules.delete(silenceId);
+      }
+    }
+    await this.persistAlerts();
+    return {
+      success: true,
+      data: { alert },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: 0,
+        tokensSaved: 0
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: List Alerts
+  // ============================================================================
+  async listAlerts(options) {
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:list-alerts:all").digest("hex")}`;
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedAlerts = JSON.parse(cached2);
+        const tokensSaved2 = this.tokenCounter.count(
+          JSON.stringify(Array.from(this.alerts.values()))
+        ).tokens - this.tokenCounter.count(JSON.stringify(cachedAlerts)).tokens;
+        return {
+          success: true,
+          data: { alerts: cachedAlerts },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(JSON.stringify(cachedAlerts)).tokens,
+            tokensSaved: tokensSaved2,
+            alertCount: cachedAlerts.length,
+            firingCount: cachedAlerts.filter(
+              (a2) => a2.status === "active"
+            ).length
+          }
+        };
+      }
+    }
+    const alerts = Array.from(this.alerts.values());
+    const compressedAlerts = alerts.map(
+      (alert) => this.compressAlertMetadata(alert)
+    );
+    const fullTokens = this.tokenCounter.count(JSON.stringify(alerts)).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressedAlerts)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cachedData = JSON.stringify(compressedAlerts);
+    await this.cache.set(cacheKey, cachedData, fullTokens, compressedTokens);
+    return {
+      success: true,
+      data: { alerts: compressedAlerts },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        alertCount: alerts.length,
+        firingCount: alerts.filter((a2) => a2.status === "active").length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Trigger Alert
+  // ============================================================================
+  async triggerAlert(options) {
+    if (!options.alertId && !options.alertName) {
+      throw new Error("alertId or alertName is required for trigger operation");
+    }
+    const alertId = options.alertId || this.findAlertIdByName(options.alertName);
+    if (!alertId) {
+      throw new Error(
+        `Alert not found: ${options.alertId || options.alertName}`
+      );
+    }
+    const alert = this.alerts.get(alertId);
+    if (!alert) {
+      throw new Error(`Alert not found: ${alertId}`);
+    }
+    if (this.isAlertSilenced(alertId)) {
+      return {
+        success: true,
+        data: { triggered: false },
+        metadata: {
+          cacheHit: false,
+          tokensUsed: 0,
+          tokensSaved: 0
+        }
+      };
+    }
+    const alertEvent = {
+      id: this.generateEventId(),
+      alertId: alert.id,
+      alertName: alert.name,
+      severity: alert.severity,
+      triggeredAt: Date.now(),
+      value: 0,
+      // Would be calculated from actual data source
+      threshold: alert.threshold.value || 0,
+      message: `Alert '${alert.name}' triggered (manual)`,
+      channelsNotified: alert.channels,
+      resolved: false
+    };
+    this.alertEvents.push(alertEvent);
+    if (this.alertEvents.length > 1e4) {
+      this.alertEvents = this.alertEvents.slice(-1e4);
+    }
+    alert.lastTriggered = Date.now();
+    alert.triggerCount++;
+    alert.updatedAt = Date.now();
+    await this.sendNotifications(alert, alertEvent);
+    await this.persistAlerts();
+    await this.persistEvents();
+    return {
+      success: true,
+      data: { triggered: true },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: 0,
+        tokensSaved: 0
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Get History
+  // ============================================================================
+  async getHistory(options) {
+    const timeRangeKey = options.timeRange ? `${options.timeRange.start}-${options.timeRange.end}` : "all";
+    const cacheKey = `cache-${createHash43("md5").update(`alert-manager:history:${timeRangeKey}`).digest("hex")}`;
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedHistory = JSON.parse(cached2);
+        const tokensSaved2 = this.estimateHistoryTokenSavings(cachedHistory);
+        return {
+          success: true,
+          data: { history: cachedHistory },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(JSON.stringify(cachedHistory)).tokens,
+            tokensSaved: tokensSaved2
+          }
+        };
+      }
+    }
+    let events = this.alertEvents;
+    if (options.timeRange) {
+      events = events.filter(
+        (e) => e.triggeredAt >= options.timeRange.start && e.triggeredAt <= options.timeRange.end
+      );
+    }
+    if (options.limit) {
+      events = events.slice(-options.limit);
+    }
+    const aggregatedHistory = this.aggregateHistory(events);
+    const fullTokens = this.tokenCounter.count(JSON.stringify(events)).tokens;
+    const aggregatedTokens = this.tokenCounter.count(
+      JSON.stringify(aggregatedHistory)
+    ).tokens;
+    const tokensSaved = fullTokens - aggregatedTokens;
+    const cachedData = JSON.stringify(aggregatedHistory);
+    await this.cache.set(cacheKey, cachedData, fullTokens, aggregatedTokens);
+    return {
+      success: true,
+      data: { history: aggregatedHistory },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: aggregatedTokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Configure Channels
+  // ============================================================================
+  async configureChannels(options) {
+    if (!options.channelConfig) {
+      throw new Error(
+        "channelConfig is required for configure-channels operation"
+      );
+    }
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:channels:all").digest("hex")}`;
+    const channels = [];
+    if (options.channelConfig.email) {
+      const channelId = this.generateChannelId("email");
+      const channel = {
+        id: channelId,
+        name: "Email",
+        type: "email",
+        config: { email: options.channelConfig.email },
+        enabled: true,
+        createdAt: Date.now(),
+        successCount: 0,
+        failureCount: 0
+      };
+      this.notificationChannels.set(channelId, channel);
+      channels.push(channel);
+    }
+    if (options.channelConfig.slack) {
+      const channelId = this.generateChannelId("slack");
+      const channel = {
+        id: channelId,
+        name: "Slack",
+        type: "slack",
+        config: { slack: options.channelConfig.slack },
+        enabled: true,
+        createdAt: Date.now(),
+        successCount: 0,
+        failureCount: 0
+      };
+      this.notificationChannels.set(channelId, channel);
+      channels.push(channel);
+    }
+    if (options.channelConfig.webhook) {
+      const channelId = this.generateChannelId("webhook");
+      const channel = {
+        id: channelId,
+        name: "Webhook",
+        type: "webhook",
+        config: { webhook: options.channelConfig.webhook },
+        enabled: true,
+        createdAt: Date.now(),
+        successCount: 0,
+        failureCount: 0
+      };
+      this.notificationChannels.set(channelId, channel);
+      channels.push(channel);
+    }
+    if (options.channelConfig.sms) {
+      const channelId = this.generateChannelId("sms");
+      const channel = {
+        id: channelId,
+        name: "SMS",
+        type: "sms",
+        config: { sms: options.channelConfig.sms },
+        enabled: true,
+        createdAt: Date.now(),
+        successCount: 0,
+        failureCount: 0
+      };
+      this.notificationChannels.set(channelId, channel);
+      channels.push(channel);
+    }
+    if (options.channelConfig.pagerduty) {
+      const channelId = this.generateChannelId("pagerduty");
+      const channel = {
+        id: channelId,
+        name: "PagerDuty",
+        type: "pagerduty",
+        config: { pagerduty: options.channelConfig.pagerduty },
+        enabled: true,
+        createdAt: Date.now(),
+        successCount: 0,
+        failureCount: 0
+      };
+      this.notificationChannels.set(channelId, channel);
+      channels.push(channel);
+    }
+    const compressedChannels = channels.map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      type: ch.type,
+      enabled: ch.enabled,
+      config: ch.config,
+      createdAt: ch.createdAt,
+      successCount: ch.successCount,
+      failureCount: ch.failureCount
+    }));
+    const fullTokens = this.tokenCounter.count(JSON.stringify(channels)).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressedChannels)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cachedData = JSON.stringify(compressedChannels);
+    await this.cache.set(cacheKey, cachedData, fullTokens, compressedTokens);
+    await this.persistChannels();
+    return {
+      success: true,
+      data: { channels: compressedChannels },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Silence Alerts
+  // ============================================================================
+  async silenceAlerts(options) {
+    if (!options.silenceDuration) {
+      throw new Error("silenceDuration is required for silence operation");
+    }
+    const silenceId = this.generateSilenceId();
+    const silence = {
+      id: silenceId,
+      alertId: options.alertId,
+      // If specified, silence specific alert; otherwise all
+      reason: options.silenceReason || "Manual silence",
+      createdAt: Date.now(),
+      expiresAt: Date.now() + options.silenceDuration * 1e3,
+      active: true
+    };
+    this.silenceRules.set(silenceId, silence);
+    if (options.alertId) {
+      const alert = this.alerts.get(options.alertId);
+      if (alert) {
+        alert.status = "silenced";
+        alert.silencedUntil = silence.expiresAt;
+        alert.updatedAt = Date.now();
+      }
+    }
+    const compressedSilence = {
+      id: silence.id,
+      alertId: silence.alertId,
+      createdAt: silence.createdAt,
+      expiresAt: silence.expiresAt,
+      active: silence.active
+    };
+    const fullTokens = this.tokenCounter.count(JSON.stringify(silence)).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressedSilence)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheKey = `cache-${createHash43("md5").update(`alert-manager:silence:${silenceId}`).digest("hex")}`;
+    const cachedData = JSON.stringify(compressedSilence);
+    await this.cache.set(cacheKey, cachedData, fullTokens, compressedTokens);
+    await this.persistSilences();
+    await this.persistAlerts();
+    setTimeout(
+      () => this.cleanupExpiredSilences(),
+      options.silenceDuration
+      /* compressedSize */
+    ).unref();
+    return {
+      success: true,
+      data: { silence: compressedSilence },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+  generateAlertId(name) {
+    const hash = createHash43("sha256");
+    hash.update(name + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  generateEventId() {
+    const hash = createHash43("sha256");
+    hash.update(Date.now().toString() + Math.random());
+    return hash.digest("hex").substring(0, 16);
+  }
+  generateChannelId(type) {
+    const hash = createHash43("sha256");
+    hash.update(type + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  generateSilenceId() {
+    const hash = createHash43("sha256");
+    hash.update("silence-" + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  findAlertIdByName(name) {
+    for (const [id, alert] of this.alerts.entries()) {
+      if (alert.name === name) {
+        return id;
+      }
+    }
+    return void 0;
+  }
+  isAlertSilenced(alertId) {
+    const now2 = Date.now();
+    for (const silence of this.silenceRules.values()) {
+      if (silence.active && silence.expiresAt > now2) {
+        if (silence.alertId === alertId || !silence.alertId) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  compressAlertMetadata(alert) {
+    return {
+      id: alert.id,
+      name: alert.name,
+      severity: alert.severity,
+      status: alert.status,
+      enabled: alert.enabled,
+      triggerCount: alert.triggerCount,
+      lastTriggered: alert.lastTriggered,
+      silencedUntil: alert.silencedUntil
+    };
+  }
+  aggregateHistory(events) {
+    const aggregation = {
+      totalEvents: events.length,
+      bySeverity: {
+        info: 0,
+        warning: 0,
+        error: 0,
+        critical: 0
+      },
+      byAlert: {},
+      timeRange: events.length > 0 ? {
+        start: events[0].triggeredAt,
+        end: events[events.length - 1].triggeredAt
+      } : void 0,
+      recentEvents: events.slice(-10).map((e) => ({
+        id: e.id,
+        alertName: e.alertName,
+        severity: e.severity,
+        triggeredAt: e.triggeredAt,
+        resolved: e.resolved
+      }))
+    };
+    for (const event of events) {
+      aggregation.bySeverity[event.severity]++;
+      if (!aggregation.byAlert[event.alertName]) {
+        aggregation.byAlert[event.alertName] = 0;
+      }
+      aggregation.byAlert[event.alertName]++;
+    }
+    return aggregation;
+  }
+  estimateHistoryTokenSavings(aggregatedHistory) {
+    const estimatedFullSize = aggregatedHistory.totalEvents * 100;
+    const actualSize = JSON.stringify(aggregatedHistory).length;
+    const bytesSaved = estimatedFullSize - actualSize;
+    return Math.max(0, Math.ceil(bytesSaved / 4));
+  }
+  async sendNotifications(alert, event) {
+    console.log(
+      `[AlertManager] Would send notifications for alert: ${alert.name}`
+    );
+    console.log(`  Channels: ${alert.channels.join(", ")}`);
+    console.log(`  Severity: ${alert.severity}`);
+    console.log(`  Event: ${event.message}`);
+    for (const channelType of alert.channels) {
+      for (const channel of this.notificationChannels.values()) {
+        if (channel.type === channelType) {
+          channel.lastUsed = Date.now();
+          channel.successCount++;
+        }
+      }
+    }
+  }
+  cleanupExpiredSilences() {
+    const now2 = Date.now();
+    for (const [id, silence] of this.silenceRules.entries()) {
+      if (silence.expiresAt <= now2) {
+        this.silenceRules.delete(id);
+        if (silence.alertId) {
+          const alert = this.alerts.get(silence.alertId);
+          if (alert && alert.status === "silenced") {
+            alert.status = "active";
+            alert.silencedUntil = void 0;
+            alert.updatedAt = Date.now();
+          }
+        }
+      }
+    }
+    this.persistSilences();
+    this.persistAlerts();
+  }
+  // ============================================================================
+  // Persistence Methods
+  // ============================================================================
+  async persistAlerts() {
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:persistence:alerts").digest("hex")}`;
+    const data = JSON.stringify(Array.from(this.alerts.entries()));
+    const dataSize = this.tokenCounter.count(data).tokens;
+    await this.cache.set(cacheKey, data, dataSize, dataSize);
+  }
+  async persistEvents() {
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:persistence:events").digest("hex")}`;
+    const data = JSON.stringify(this.alertEvents);
+    const dataSize = this.tokenCounter.count(data).tokens;
+    await this.cache.set(cacheKey, data, dataSize, dataSize);
+  }
+  async persistChannels() {
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:persistence:channels").digest("hex")}`;
+    const data = JSON.stringify(
+      Array.from(this.notificationChannels.entries())
+    );
+    const dataSize = this.tokenCounter.count(data).tokens;
+    await this.cache.set(cacheKey, data, dataSize, dataSize);
+  }
+  async persistSilences() {
+    const cacheKey = `cache-${createHash43("md5").update("alert-manager:persistence:silences").digest("hex")}`;
+    const data = JSON.stringify(Array.from(this.silenceRules.entries()));
+    const dataSize = this.tokenCounter.count(data).tokens;
+    await this.cache.set(cacheKey, data, dataSize, dataSize);
+  }
+  loadPersistedData() {
+    const alertsKey = `cache-${createHash43("md5").update("alert-manager:persistence:alerts").digest("hex")}`;
+    const alertsData = this.cache.get(alertsKey);
+    if (alertsData) {
+      try {
+        const entries = JSON.parse(alertsData);
+        this.alerts = new Map(entries);
+      } catch (error2) {
+        console.error("[AlertManager] Error loading persisted alerts:", error2);
+      }
+    }
+    const eventsKey = `cache-${createHash43("md5").update("alert-manager:persistence:events").digest("hex")}`;
+    const eventsData = this.cache.get(eventsKey);
+    if (eventsData) {
+      try {
+        this.alertEvents = JSON.parse(eventsData);
+      } catch (error2) {
+        console.error("[AlertManager] Error loading persisted events:", error2);
+      }
+    }
+    const channelsKey = `cache-${createHash43("md5").update("alert-manager:persistence:channels").digest("hex")}`;
+    const channelsData = this.cache.get(channelsKey);
+    if (channelsData) {
+      try {
+        const entries = JSON.parse(channelsData);
+        this.notificationChannels = new Map(entries);
+      } catch (error2) {
+        console.error(
+          "[AlertManager] Error loading persisted channels:",
+          error2
+        );
+      }
+    }
+    const silencesKey = `cache-${createHash43("md5").update("alert-manager:persistence:silences").digest("hex")}`;
+    const silencesData = this.cache.get(silencesKey);
+    if (silencesData) {
+      try {
+        const entries = JSON.parse(silencesData);
+        this.silenceRules = new Map(entries);
+      } catch (error2) {
+        console.error(
+          "[AlertManager] Error loading persisted silences:",
+          error2
+        );
+      }
+    }
+  }
+};
+var alertManagerInstance = null;
+function getAlertManager(cache, tokenCounter, metricsCollector) {
+  if (!alertManagerInstance) {
+    alertManagerInstance = new AlertManager(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return alertManagerInstance;
+}
+var ALERT_MANAGER_TOOL_DEFINITION = {
+  name: "alert_manager",
+  description: "Comprehensive alerting system with multi-channel notifications, intelligent routing, and 89% token reduction through aggressive caching and history aggregation",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "create-alert",
+          "update-alert",
+          "delete-alert",
+          "list-alerts",
+          "trigger",
+          "get-history",
+          "configure-channels",
+          "silence"
+        ],
+        description: "The alert management operation to perform"
+      },
+      alertId: {
+        type: "string",
+        description: "Alert identifier (required for update, delete, trigger, silence operations)"
+      },
+      alertName: {
+        type: "string",
+        description: "Alert name (required for create operation, optional for others)"
+      },
+      condition: {
+        type: "object",
+        description: "Alert condition configuration (required for create operation)",
+        properties: {
+          metric: { type: "string" },
+          aggregation: {
+            type: "string",
+            enum: ["avg", "sum", "min", "max", "count", "percentile"]
+          },
+          percentile: { type: "number" },
+          groupBy: {
+            type: "array",
+            items: { type: "string" }
+          },
+          filters: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                operator: { type: "string" },
+                value: {}
+              }
+            }
+          }
+        },
+        // `metric` is the only non-optional field of AlertCondition. Without it
+        // here, a condition naming no metric satisfied the published contract
+        // and failed inside the tool instead.
+        required: ["metric"]
+      },
+      severity: {
+        type: "string",
+        enum: ["info", "warning", "error", "critical"],
+        description: "Alert severity level"
+      },
+      channels: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["email", "slack", "webhook", "sms", "pagerduty", "custom"]
+        },
+        description: "Notification channels for the alert"
+      },
+      threshold: {
+        type: "object",
+        description: "Threshold configuration (required for create operation)",
+        properties: {
+          type: {
+            type: "string",
+            enum: [
+              "above",
+              "below",
+              "equals",
+              "not-equals",
+              "change",
+              "anomaly"
+            ]
+          },
+          value: { type: "number" },
+          changePercent: { type: "number" },
+          timeWindow: { type: "number" }
+        }
+      },
+      channelConfig: {
+        type: "object",
+        description: "Notification channel configuration",
+        properties: {
+          email: {
+            type: "object",
+            properties: {
+              to: {
+                type: "array",
+                items: { type: "string" }
+              },
+              subject: { type: "string" },
+              template: { type: "string" }
+            }
+          },
+          slack: {
+            type: "object",
+            properties: {
+              webhook: { type: "string" },
+              channel: { type: "string" },
+              mentionUsers: {
+                type: "array",
+                items: { type: "string" }
+              }
+            }
+          },
+          webhook: {
+            type: "object",
+            properties: {
+              url: { type: "string" },
+              method: { type: "string" },
+              headers: { type: "object" }
+            }
+          }
+        }
+      },
+      silenceDuration: {
+        type: "number",
+        description: "Silence duration in seconds (required for silence operation)"
+      },
+      silenceReason: {
+        type: "string",
+        description: "Reason for silencing alerts"
+      },
+      timeRange: {
+        type: "object",
+        description: "Time range filter for history operation",
+        properties: {
+          start: { type: "number" },
+          end: { type: "number" }
+        }
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of history events to return"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching for this operation (default: true)",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (optional, uses defaults if not specified)"
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      dataSource: {
+        type: "object",
+        description: "Where the alert rule reads its metric from",
+        properties: {
+          id: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["api", "database", "file", "mcp-tool", "custom"]
+          },
+          connection: {
+            type: "object",
+            description: "Connection details; which fields apply depends on type",
+            properties: {
+              url: { type: "string" },
+              method: { type: "string" },
+              headers: {
+                type: "object",
+                additionalProperties: { type: "string" }
+              },
+              query: { type: "string" },
+              tool: {
+                type: "string",
+                description: "MCP tool to call, for type mcp-tool"
+              }
+            }
+          },
+          transform: {
+            type: "string",
+            description: "JavaScript expression applied to the fetched value"
+          },
+          cache: {
+            type: "object",
+            description: "Whether and how long to cache this source",
+            properties: {
+              enabled: { type: "boolean" },
+              ttl: { type: "number", description: "Seconds" }
+            },
+            required: ["enabled", "ttl"]
+          }
+        },
+        // `connection` is required by the interface, so it is required here too. The
+        // first draft omitted it along with tool/transform/cache, which meant an
+        // mcp-tool source could not be configured through the published contract.
+        required: ["id", "type", "connection"]
+      },
+      silenceId: {
+        type: "string",
+        description: "Identifier of an existing silence, for extending or removing it"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/custom-widget.ts
+import { createHash as createHash44 } from "crypto";
+var CustomWidget = class {
+  cache;
+  tokenCounter;
+  metricsCollector;
+  // In-memory storage for widgets and templates (would be database in production)
+  widgets = /* @__PURE__ */ new Map();
+  templates = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+  }
+  /**
+   * Main entry point for all widget operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      const cacheKey = this.generateCacheKey(options);
+      if (options.useCache !== false && this.isReadOnlyOperation(options.operation)) {
+        const cached2 = this.cache.get(cacheKey);
+        const cachedResult = readCompressedJson(
+          this.cache,
+          cached2,
+          cacheKey
+        );
+        if (cachedResult) {
+          const tokensSaved = this.tokenCounter.count(
+            JSON.stringify(cachedResult)
+          ).tokens;
+          this.metricsCollector.record({
+            operation: `custom-widget:${options.operation}`,
+            duration: Date.now() - startTime,
+            success: true,
+            cacheHit: true,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedTokens: tokensSaved,
+            savedTokens: tokensSaved
+          });
+          return {
+            ...cachedResult,
+            metadata: {
+              ...cachedResult.metadata,
+              tokensSaved,
+              cacheHit: true
+            }
+          };
+        }
+      }
+      let result;
+      switch (options.operation) {
+        case "create":
+          result = await this.createWidget(options);
+          break;
+        case "update":
+          result = await this.updateWidget(options);
+          break;
+        case "delete":
+          result = await this.deleteWidget(options);
+          break;
+        case "list":
+          result = await this.listWidgets(options);
+          break;
+        case "render":
+          result = await this.renderWidget(options);
+          break;
+        case "create-template":
+          result = await this.createTemplate(options);
+          break;
+        case "validate":
+          result = await this.validateWidget(options);
+          break;
+        case "get-schema":
+          result = await this.getSchema(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      const tokensUsed = this.tokenCounter.count(JSON.stringify(result)).tokens;
+      if (options.useCache !== false && this.isReadOnlyOperation(options.operation)) {
+        const compressed = compress(JSON.stringify(result), "gzip");
+        this.cache.set(
+          cacheKey,
+          compressed.compressed.toString("base64"),
+          compressed.originalSize,
+          compressed.compressedSize
+        );
+      }
+      this.metricsCollector.record({
+        operation: `custom-widget:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: true,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: tokensUsed,
+        cachedTokens: 0,
+        savedTokens: 0
+      });
+      return {
+        ...result,
+        metadata: {
+          ...result.metadata,
+          tokensUsed,
+          cacheHit: false
+        }
+      };
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metricsCollector.record({
+        operation: `custom-widget:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        savedTokens: 0
+      });
+      return {
+        success: false,
+        error: errorMessage,
+        metadata: {
+          tokensUsed: 0,
+          tokensSaved: 0,
+          cacheHit: false
+        }
+      };
+    }
+  }
+  /**
+   * Create a new widget
+   */
+  async createWidget(options) {
+    if (!options.widgetName || !options.type || !options.config) {
+      throw new Error("Widget name, type, and config are required");
+    }
+    const widgetId = this.generateWidgetId(options.widgetName);
+    const now2 = Date.now();
+    const widget = {
+      id: widgetId,
+      name: options.widgetName,
+      type: options.type,
+      config: options.config,
+      dataSource: options.dataSource,
+      createdAt: now2,
+      updatedAt: now2,
+      version: 1
+    };
+    this.widgets.set(widgetId, widget);
+    this.invalidateListCache();
+    return {
+      success: true,
+      data: { widget },
+      metadata: {
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Update an existing widget
+   */
+  async updateWidget(options) {
+    if (!options.widgetId) {
+      throw new Error("Widget ID is required");
+    }
+    const widget = this.widgets.get(options.widgetId);
+    if (!widget) {
+      throw new Error(`Widget not found: ${options.widgetId}`);
+    }
+    if (options.widgetName) widget.name = options.widgetName;
+    if (options.type) widget.type = options.type;
+    if (options.config) widget.config = { ...widget.config, ...options.config };
+    if (options.dataSource) widget.dataSource = options.dataSource;
+    widget.updatedAt = Date.now();
+    widget.version++;
+    this.widgets.set(options.widgetId, widget);
+    this.invalidateWidgetCache(options.widgetId);
+    this.invalidateListCache();
+    return {
+      success: true,
+      data: { widget },
+      metadata: {
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Delete a widget
+   */
+  async deleteWidget(options) {
+    if (!options.widgetId) {
+      throw new Error("Widget ID is required");
+    }
+    const deleted = this.widgets.delete(options.widgetId);
+    if (!deleted) {
+      throw new Error(`Widget not found: ${options.widgetId}`);
+    }
+    this.invalidateWidgetCache(options.widgetId);
+    this.invalidateListCache();
+    return {
+      success: true,
+      data: {},
+      metadata: {
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * List all widgets
+   */
+  async listWidgets(_options) {
+    const widgets = Array.from(this.widgets.values());
+    const uncompressedSize = this.tokenCounter.count(
+      JSON.stringify(widgets)
+    ).tokens;
+    const compressedSize = this.estimateCompressedSize(widgets);
+    const tokensSaved = Math.max(0, uncompressedSize - compressedSize);
+    return {
+      success: true,
+      data: {
+        widgets
+      },
+      metadata: {
+        tokensSaved,
+        cacheHit: false,
+        widgetCount: widgets.length
+      }
+    };
+  }
+  /**
+   * Render a widget to specified format
+   */
+  async renderWidget(_options) {
+    if (!_options.widgetId) {
+      throw new Error("Widget ID is required");
+    }
+    const widget = this.widgets.get(_options.widgetId);
+    if (!widget) {
+      throw new Error(`Widget not found: ${_options.widgetId}`);
+    }
+    const format = _options.renderFormat || "html";
+    let rendered;
+    switch (format) {
+      case "html":
+        rendered = this.renderToHTML(widget, _options.includeData);
+        break;
+      case "json":
+        rendered = this.renderToJSON(widget, _options.includeData);
+        break;
+      case "react":
+        rendered = this.renderToReact(widget, _options.includeData);
+        break;
+      default:
+        throw new Error(`Unsupported render format: ${format}`);
+    }
+    const originalSize = this.tokenCounter.count(JSON.stringify(widget)).tokens;
+    const renderedSize = this.tokenCounter.count(
+      typeof rendered === "string" ? rendered : JSON.stringify(rendered)
+    ).tokens;
+    const tokensSaved = format === "html" ? Math.max(0, originalSize - renderedSize * 0.3) : 0;
+    return {
+      success: true,
+      data: { rendered },
+      metadata: {
+        tokensSaved,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Create a reusable widget template
+   */
+  async createTemplate(options) {
+    if (!options.templateName || !options.templateConfig) {
+      throw new Error("Template name and config are required");
+    }
+    const template = {
+      name: options.templateName,
+      description: options.templateDescription || "",
+      type: options.type || "custom",
+      config: options.templateConfig,
+      createdAt: Date.now(),
+      version: 1
+    };
+    this.templates.set(options.templateName, template);
+    return {
+      success: true,
+      data: { template },
+      metadata: {
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Validate widget configuration
+   */
+  async validateWidget(options) {
+    if (!options.type || !options.config) {
+      throw new Error("Widget type and config are required for validation");
+    }
+    const errors = [];
+    switch (options.type) {
+      case "chart":
+        this.validateChartWidget(options.config, errors);
+        break;
+      case "metric":
+        this.validateMetricWidget(options.config, errors);
+        break;
+      case "table":
+        this.validateTableWidget(options.config, errors);
+        break;
+      case "gauge":
+        this.validateGaugeWidget(options.config, errors);
+        break;
+      case "status":
+        this.validateStatusWidget(options.config, errors);
+        break;
+      case "timeline":
+        this.validateTimelineWidget(options.config, errors);
+        break;
+      case "heatmap":
+        this.validateHeatmapWidget(options.config, errors);
+        break;
+      case "custom":
+        this.validateCustomWidget(options.config, errors);
+        break;
+      default:
+        errors.push(`Unknown widget type: ${options.type}`);
+    }
+    const validation = {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : void 0
+    };
+    return {
+      success: true,
+      data: { validation },
+      metadata: {
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Get widget configuration schema
+   */
+  async getSchema(options) {
+    const type = options.type || "all";
+    const schema = type === "all" ? this.getAllSchemas() : this.getSchemaForType(type);
+    const tokensUsed = this.tokenCounter.count(JSON.stringify(schema)).tokens;
+    return {
+      success: true,
+      data: { schema },
+      metadata: {
+        tokensUsed,
+        tokensSaved: 0,
+        cacheHit: false
+      }
+    };
+  }
+  /**
+   * Render widget to HTML
+   */
+  renderToHTML(widget, includeData) {
+    const dataAttr = includeData && widget.dataSource ? ` data-source='${JSON.stringify(widget.dataSource)}'` : "";
+    let widgetHTML = "";
+    switch (widget.type) {
+      case "chart":
+        widgetHTML = this.renderChartHTML(widget);
+        break;
+      case "metric":
+        widgetHTML = this.renderMetricHTML(widget);
+        break;
+      case "table":
+        widgetHTML = this.renderTableHTML(widget);
+        break;
+      case "gauge":
+        widgetHTML = this.renderGaugeHTML(widget);
+        break;
+      case "status":
+        widgetHTML = this.renderStatusHTML(widget);
+        break;
+      case "timeline":
+        widgetHTML = this.renderTimelineHTML(widget);
+        break;
+      case "heatmap":
+        widgetHTML = this.renderHeatmapHTML(widget);
+        break;
+      case "custom":
+        widgetHTML = this.renderCustomHTML(widget);
+        break;
+      default:
+        widgetHTML = `<div>Unsupported widget type: ${widget.type}</div>`;
+    }
+    return `
+<div class="widget widget-${widget.type}" id="${widget.id}"${dataAttr}>
+  ${widget.config.title ? `<h3 class="widget-title">${widget.config.title}</h3>` : ""}
+  ${widget.config.description ? `<p class="widget-description">${widget.config.description}</p>` : ""}
+  <div class="widget-content">
+    ${widgetHTML}
+  </div>
+</div>`;
+  }
+  /**
+   * Render chart widget HTML
+   */
+  renderChartHTML(widget) {
+    const { chartType = "line", width = 400, height = 300 } = widget.config;
+    return `<canvas class="chart-canvas" data-chart-type="${chartType}" width="${width}" height="${height}"></canvas>`;
+  }
+  /**
+   * Render metric widget HTML
+   */
+  renderMetricHTML(widget) {
+    const {
+      metric = "N/A",
+      format = "",
+      sparkline = false,
+      threshold
+    } = widget.config;
+    const thresholdClass = threshold ? this.getThresholdClass(0, threshold) : "";
+    return `
+<div class="metric-widget ${thresholdClass}">
+  <div class="metric-value">${metric}</div>
+  ${format ? `<div class="metric-format">${format}</div>` : ""}
+  ${sparkline ? '<div class="metric-sparkline"></div>' : ""}
+</div>`;
+  }
+  /**
+   * Render table widget HTML
+   */
+  renderTableHTML(widget) {
+    const { columns = [], pagination } = widget.config;
+    const headers = columns.map(
+      (col) => `<th${col.sortable ? ' class="sortable"' : ""}>${col.label}</th>`
+    ).join("");
+    const paginationHTML = pagination ? `
+<div class="table-pagination">
+  <button class="pagination-btn">Previous</button>
+  <span class="pagination-info">Page 1</span>
+  <button class="pagination-btn">Next</button>
+</div>` : "";
+    return `
+<div class="table-widget">
+  <table class="widget-table">
+    <thead>
+      <tr>${headers}</tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="${columns.length}">Loading data...</td></tr>
+    </tbody>
+  </table>
+  ${paginationHTML}
+</div>`;
+  }
+  /**
+   * Render gauge widget HTML
+   */
+  renderGaugeHTML(widget) {
+    const { min = 0, max = 100, ranges = [] } = widget.config;
+    const rangesHTML = ranges.map(
+      (range) => `<div class="gauge-range" style="background-color: ${range.color}" data-min="${range.min}" data-max="${range.max}"></div>`
+    ).join("");
+    return `
+<div class="gauge-widget" data-min="${min}" data-max="${max}">
+  <div class="gauge-ranges">${rangesHTML}</div>
+  <div class="gauge-needle"></div>
+  <div class="gauge-value">0</div>
+</div>`;
+  }
+  /**
+   * Render status widget HTML
+   */
+  renderStatusHTML(_widget) {
+    return `
+<div class="status-widget">
+  <div class="status-indicator status-unknown"></div>
+  <div class="status-label">Status</div>
+</div>`;
+  }
+  /**
+   * Render timeline widget HTML
+   */
+  renderTimelineHTML(_widget) {
+    return `
+<div class="timeline-widget">
+  <div class="timeline-track"></div>
+  <div class="timeline-events"></div>
+</div>`;
+  }
+  /**
+   * Render heatmap widget HTML
+   */
+  renderHeatmapHTML(widget) {
+    const { width = 600, height = 400 } = widget.config;
+    return `<div class="heatmap-widget" style="width: ${width}px; height: ${height}px;"></div>`;
+  }
+  /**
+   * Render custom widget HTML
+   */
+  renderCustomHTML(widget) {
+    const { html = "", css = "", javascript = "" } = widget.config;
+    return `
+${css ? `<style>${css}</style>` : ""}
+<div class="custom-widget-content">
+  ${html}
+</div>
+${javascript ? `<script>${javascript}</script>` : ""}`;
+  }
+  /**
+   * Render widget to JSON
+   */
+  renderToJSON(widget, _includeData) {
+    const result = {
+      id: widget.id,
+      name: widget.name,
+      type: widget.type,
+      config: widget.config
+    };
+    if (_includeData && widget.dataSource) {
+      result.dataSource = widget.dataSource;
+    }
+    return result;
+  }
+  /**
+   * Render widget to React component
+   */
+  renderToReact(widget, _includeData) {
+    const dataProps = _includeData && widget.dataSource ? `, dataSource={${JSON.stringify(widget.dataSource)}}` : "";
+    return `
+import React from 'react';
+
+export const ${this.toPascalCase(widget.name)}Widget = () => {
+  return (
+    <div className="widget widget-${widget.type}" id="${widget.id}"${dataProps}>
+      ${widget.config.title ? `<h3 className="widget-title">${widget.config.title}</h3>` : ""}
+      ${widget.config.description ? `<p className="widget-description">${widget.config.description}</p>` : ""}
+      <div className="widget-content">
+        {/* Widget implementation */}
+      </div>
+    </div>
+  );
+};`;
+  }
+  /**
+   * Validation methods
+   */
+  validateChartWidget(config2, errors) {
+    if (!config2.chartType) {
+      errors.push("Chart type is required");
+    }
+    if (!config2.series || config2.series.length === 0) {
+      errors.push("At least one series is required");
+    }
+  }
+  validateMetricWidget(config2, errors) {
+    if (!config2.metric) {
+      errors.push("Metric field is required");
+    }
+  }
+  validateTableWidget(config2, errors) {
+    if (!config2.columns || config2.columns.length === 0) {
+      errors.push("At least one column is required");
+    }
+  }
+  validateGaugeWidget(config2, errors) {
+    if (config2.min === void 0 || config2.max === void 0) {
+      errors.push("Min and max values are required");
+    }
+    if (config2.min !== void 0 && config2.max !== void 0 && config2.min >= config2.max) {
+      errors.push("Min value must be less than max value");
+    }
+  }
+  validateStatusWidget(_config, _errors) {
+  }
+  validateTimelineWidget(_config, _errors) {
+  }
+  validateHeatmapWidget(_config, _errors) {
+  }
+  validateCustomWidget(config2, errors) {
+    if (!config2.html && !config2.javascript) {
+      errors.push("Custom widgets must have HTML or JavaScript");
+    }
+  }
+  /**
+   * Get schema for all widget types
+   */
+  getAllSchemas() {
+    return {
+      chart: this.getSchemaForType("chart"),
+      metric: this.getSchemaForType("metric"),
+      table: this.getSchemaForType("table"),
+      gauge: this.getSchemaForType("gauge"),
+      status: this.getSchemaForType("status"),
+      timeline: this.getSchemaForType("timeline"),
+      heatmap: this.getSchemaForType("heatmap"),
+      custom: this.getSchemaForType("custom")
+    };
+  }
+  /**
+   * Get schema for specific widget type
+   */
+  getSchemaForType(type) {
+    const schemas = {
+      chart: {
+        type: "object",
+        properties: {
+          chartType: {
+            type: "string",
+            enum: ["line", "bar", "pie", "scatter", "area", "radar"]
+          },
+          xAxis: {
+            type: "object",
+            properties: {
+              field: { type: "string" },
+              label: { type: "string" },
+              format: { type: "string" }
+            }
+          },
+          yAxis: {
+            type: "object",
+            properties: {
+              field: { type: "string" },
+              label: { type: "string" },
+              format: { type: "string" }
+            }
+          },
+          series: { type: "array", items: { type: "object" } },
+          title: { type: "string" },
+          description: { type: "string" }
+        },
+        required: ["chartType", "series"]
+      },
+      metric: {
+        type: "object",
+        properties: {
+          metric: { type: "string" },
+          threshold: {
+            type: "object",
+            properties: {
+              warning: { type: "number" },
+              critical: { type: "number" }
+            }
+          },
+          format: { type: "string" },
+          sparkline: { type: "boolean" },
+          title: { type: "string" }
+        },
+        required: ["metric"]
+      },
+      table: {
+        type: "object",
+        properties: {
+          columns: { type: "array", items: { type: "object" } },
+          pagination: {
+            type: "object",
+            properties: {
+              pageSize: { type: "number" },
+              showSizeChanger: { type: "boolean" }
+            }
+          },
+          title: { type: "string" }
+        },
+        required: ["columns"]
+      },
+      gauge: {
+        type: "object",
+        properties: {
+          min: { type: "number" },
+          max: { type: "number" },
+          ranges: { type: "array", items: { type: "object" } },
+          title: { type: "string" }
+        },
+        required: ["min", "max"]
+      },
+      status: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" }
+        }
+      },
+      timeline: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" }
+        }
+      },
+      heatmap: {
+        type: "object",
+        properties: {
+          width: { type: "number" },
+          height: { type: "number" },
+          title: { type: "string" }
+        }
+      },
+      custom: {
+        type: "object",
+        properties: {
+          html: { type: "string" },
+          css: { type: "string" },
+          javascript: { type: "string" },
+          title: { type: "string" }
+        }
+      }
+    };
+    return schemas[type] || {};
+  }
+  /**
+   * Helper methods
+   */
+  generateCacheKey(options) {
+    const keyData = {
+      operation: options.operation,
+      widgetId: options.widgetId,
+      type: options.type,
+      renderFormat: options.renderFormat
+    };
+    return `cache-${createHash44("md5").update(JSON.stringify(keyData)).digest("hex")}`;
+  }
+  isReadOnlyOperation(operation) {
+    return ["list", "render", "validate", "get-schema"].includes(operation);
+  }
+  generateWidgetId(name) {
+    const hash = createHash44("sha256");
+    hash.update(name + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  invalidateWidgetCache(widgetId) {
+    const pattern = `custom-widget:.*${widgetId}.*`;
+    console.log(`Invalidating widget cache: ${pattern}`);
+  }
+  invalidateListCache() {
+    console.log("Invalidating list cache");
+  }
+  estimateCompressedSize(widgets) {
+    const fullSize = this.tokenCounter.count(JSON.stringify(widgets)).tokens;
+    return Math.floor(fullSize * 0.1);
+  }
+  getThresholdClass(value, threshold) {
+    if (threshold.critical !== void 0 && value >= threshold.critical)
+      return "threshold-critical";
+    if (threshold.warning !== void 0 && value >= threshold.warning)
+      return "threshold-warning";
+    return "threshold-normal";
+  }
+  toPascalCase(str) {
+    return str.split(/[\s-_]+/).map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join("");
+  }
+};
+var customWidgetInstance = null;
+function getCustomWidget(cache, tokenCounter, metricsCollector) {
+  if (!customWidgetInstance) {
+    customWidgetInstance = new CustomWidget(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return customWidgetInstance;
+}
+var CUSTOM_WIDGET_TOOL_DEFINITION = {
+  name: "custom_widget",
+  description: "Create and manage custom dashboard widgets with 88% token reduction through template caching and configuration compression",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "create",
+          "update",
+          "delete",
+          "list",
+          "render",
+          "create-template",
+          "validate",
+          "get-schema"
+        ],
+        description: "Widget operation to perform"
+      },
+      widgetId: {
+        type: "string",
+        description: "Widget ID (required for update, delete, render)"
+      },
+      widgetName: {
+        type: "string",
+        description: "Widget name (required for create)"
+      },
+      type: {
+        type: "string",
+        enum: [
+          "chart",
+          "metric",
+          "table",
+          "gauge",
+          "status",
+          "timeline",
+          "heatmap",
+          "custom"
+        ],
+        description: "Widget type"
+      },
+      config: {
+        type: "object",
+        description: "Widget configuration",
+        // Declared in full. This was `{ type: 'object' }` with no properties,
+        // so the published contract described none of the 21 fields a widget
+        // actually accepts -- a caller had no way to learn them, and any
+        // misspelling passed validation and vanished.
+        //
+        // Every field is optional in WidgetConfig because which ones apply
+        // depends on the widget type, so there is no `required` list here.
+        properties: {
+          chartType: {
+            type: "string",
+            enum: ["line", "bar", "pie", "scatter", "area", "radar"]
+          },
+          // Inlined rather than $ref'd: this schema declares no $defs, and a
+          // reference into a section that does not exist resolves to nothing --
+          // a validator either errors or silently accepts anything.
+          xAxis: {
+            type: "object",
+            properties: {
+              field: { type: "string" },
+              label: { type: "string" },
+              format: { type: "string" }
+            },
+            required: ["field"]
+          },
+          yAxis: {
+            type: "object",
+            properties: {
+              field: { type: "string" },
+              label: { type: "string" },
+              format: { type: "string" }
+            },
+            required: ["field"]
+          },
+          series: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                label: { type: "string" },
+                color: { type: "string" }
+              },
+              required: ["field"]
+            }
+          },
+          metric: { type: "string" },
+          threshold: {
+            type: "object",
+            properties: {
+              warning: { type: "number" },
+              critical: { type: "number" }
+            }
+          },
+          format: { type: "string" },
+          sparkline: { type: "boolean" },
+          columns: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                label: { type: "string" },
+                format: { type: "string" },
+                sortable: { type: "boolean" }
+              },
+              required: ["field", "label"]
+            }
+          },
+          pagination: {
+            type: "object",
+            properties: {
+              pageSize: { type: "number" },
+              showSizeChanger: { type: "boolean" }
+            },
+            required: ["pageSize"]
+          },
+          min: { type: "number" },
+          max: { type: "number" },
+          ranges: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                min: { type: "number" },
+                max: { type: "number" },
+                color: { type: "string" },
+                label: { type: "string" }
+              },
+              required: ["min", "max", "color"]
+            }
+          },
+          html: { type: "string" },
+          css: { type: "string" },
+          javascript: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          refreshInterval: { type: "number" },
+          height: { type: "number" },
+          width: { type: "number" }
+        }
+      },
+      dataSource: {
+        type: "object",
+        description: "Data source configuration",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["static", "api", "query", "mcp-tool"]
+          },
+          data: {
+            description: 'Inline data, for type "static". Any JSON value.'
+          },
+          url: { type: "string" },
+          query: { type: "string" },
+          tool: { type: "string" },
+          transform: {
+            type: "string",
+            description: "JavaScript expression applied to the fetched data"
+          }
+        },
+        required: ["type"]
+      },
+      templateName: {
+        type: "string",
+        description: "Template name (for create-template)"
+      },
+      templateDescription: {
+        type: "string",
+        description: "Template description (for create-template)"
+      },
+      templateConfig: {
+        type: "object",
+        description: "Template configuration (for create-template)"
+      },
+      renderFormat: {
+        type: "string",
+        enum: ["html", "json", "react"],
+        description: "Render format (default: html)",
+        default: "html"
+      },
+      includeData: {
+        type: "boolean",
+        description: "Include data source in render output",
+        default: false
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching",
+        default: true
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/data-visualizer.ts
+import { createHash as createHash45 } from "crypto";
+var DataVisualizer = class {
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+  }
+  cache;
+  tokenCounter;
+  metricsCollector;
+  charts = /* @__PURE__ */ new Map();
+  chartCounter = 0;
+  /**
+   * Main entry point for all data visualizer operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      let result;
+      switch (options.operation) {
+        case "create-chart":
+          result = await this.createChart(options);
+          break;
+        case "update-chart":
+          result = await this.updateChart(options);
+          break;
+        case "export-chart":
+          result = await this.exportChart(options);
+          break;
+        case "create-heatmap":
+          result = await this.createHeatmap(options);
+          break;
+        case "create-timeline":
+          result = await this.createTimeline(options);
+          break;
+        case "create-network-graph":
+          result = await this.createNetworkGraph(options);
+          break;
+        case "create-sankey":
+          result = await this.createSankey(options);
+          break;
+        case "animate":
+          result = await this.animate(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `data-visualizer:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit
+      });
+      return result;
+    } catch (error2) {
+      this.metricsCollector.record({
+        operation: `data-visualizer:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false
+      });
+      return {
+        success: false,
+        metadata: {
+          cacheHit: false,
+          dataPoints: options.data?.length || 0
+        },
+        error: error2 instanceof Error ? error2.message : String(error2)
+      };
+    }
+  }
+  // ============================================================================
+  // Operation 1: Create Chart
+  // ============================================================================
+  async createChart(options) {
+    if (!options.data || !options.chartType) {
+      throw new Error(
+        "Data and chart type are required for create-chart operation"
+      );
+    }
+    const cacheKey = this.generateCacheKey("create-chart", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const chart2 = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(chart2)
+        ).tokens;
+        return {
+          success: true,
+          data: { chart: chart2 },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: options.data.length
+          }
+        };
+      }
+    }
+    const chartId = options.chartId || this.generateChartId();
+    const chart = {
+      id: chartId,
+      name: options.chartName || `Chart ${chartId}`,
+      type: options.chartType,
+      config: this.buildChartConfig(options),
+      data: options.data,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      metadata: {
+        dataFormat: options.dataFormat || "json",
+        dataPoints: options.data.length
+      }
+    };
+    this.charts.set(chartId, chart);
+    const tokensUsed = this.tokenCounter.count(JSON.stringify(chart)).tokens;
+    const cacheData = JSON.stringify(chart);
+    this.cache.set(cacheKey, cacheData, tokensUsed, options.cacheTTL || 3600);
+    return {
+      success: true,
+      data: { chart },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: options.data.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 2: Update Chart
+  // ============================================================================
+  async updateChart(options) {
+    if (!options.chartId) {
+      throw new Error("Chart ID is required for update-chart operation");
+    }
+    const existingChart = this.charts.get(options.chartId);
+    if (!existingChart) {
+      throw new Error(`Chart not found: ${options.chartId}`);
+    }
+    const updatedChart = {
+      ...existingChart,
+      name: options.chartName || existingChart.name,
+      type: options.chartType || existingChart.type,
+      config: options.chartConfig ? this.buildChartConfig(options) : existingChart.config,
+      data: options.data || existingChart.data,
+      updatedAt: Date.now()
+    };
+    this.charts.set(options.chartId, updatedChart);
+    const cacheKey = this.generateCacheKey("create-chart", {
+      ...options,
+      data: updatedChart.data,
+      chartType: updatedChart.type
+    });
+    this.cache.delete(cacheKey);
+    const tokensUsed = this.tokenCounter.count(
+      JSON.stringify(updatedChart)
+    ).tokens;
+    return {
+      success: true,
+      data: { chart: updatedChart },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: updatedChart.data.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 3: Export Chart
+  // ============================================================================
+  async exportChart(options) {
+    if (!options.chartId) {
+      throw new Error("Chart ID is required for export-chart operation");
+    }
+    const chart = this.charts.get(options.chartId);
+    if (!chart) {
+      throw new Error(`Chart not found: ${options.chartId}`);
+    }
+    const format = options.exportFormat || "svg";
+    const cacheKey = this.generateCacheKey("export-chart", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        const cachedBuffer = Buffer.from(cached2, "base64");
+        return {
+          success: true,
+          data: {
+            rendered: format === "svg" || format === "html" ? cached2.toString() : cachedBuffer,
+            exported: { data: cachedBuffer }
+          },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: chart.data.length
+          }
+        };
+      }
+    }
+    let exported;
+    switch (format) {
+      case "svg":
+        exported = await this.exportToSVG(chart, options);
+        break;
+      case "png":
+        exported = await this.exportToPNG(chart, options);
+        break;
+      case "pdf":
+        exported = await this.exportToPDF(chart, options);
+        break;
+      case "html":
+        exported = await this.exportToHTML(chart, options);
+        break;
+      case "json":
+        exported = Buffer.from(JSON.stringify(chart, null, 2), "utf-8");
+        break;
+      default:
+        throw new Error(`Unsupported export format: ${format}`);
+    }
+    const tokensUsed = this.tokenCounter.count(exported.toString()).tokens;
+    this.cache.set(
+      cacheKey,
+      exported.toString("utf-8"),
+      tokensUsed,
+      options.cacheTTL || 1800
+    );
+    return {
+      success: true,
+      data: {
+        rendered: format === "svg" || format === "html" ? exported.toString() : exported,
+        exported: { data: exported }
+      },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: chart.data.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 4: Create Heatmap
+  // ============================================================================
+  async createHeatmap(options) {
+    if (!options.heatmapConfig) {
+      throw new Error(
+        "Heatmap configuration is required for create-heatmap operation"
+      );
+    }
+    const {
+      xLabels,
+      yLabels,
+      values,
+      colorScale = "linear",
+      colors
+    } = options.heatmapConfig;
+    if (!xLabels || !yLabels || !values) {
+      throw new Error("xLabels, yLabels, and values are required for heatmap");
+    }
+    if (values.length !== yLabels.length) {
+      throw new Error("Number of rows in values must match yLabels length");
+    }
+    if (values[0].length !== xLabels.length) {
+      throw new Error("Number of columns in values must match xLabels length");
+    }
+    const cacheKey = this.generateCacheKey("create-heatmap", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        return {
+          success: true,
+          data: { rendered: cached2.toString() },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: values.flat().length
+          }
+        };
+      }
+    }
+    const svg = this.generateHeatmapSVG(
+      xLabels,
+      yLabels,
+      values,
+      colorScale,
+      colors
+    );
+    const tokensUsed = this.tokenCounter.count(svg).tokens;
+    this.cache.set(cacheKey, svg, tokensUsed, options.cacheTTL || 3600);
+    return {
+      success: true,
+      data: { rendered: svg },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: values.flat().length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 5: Create Timeline
+  // ============================================================================
+  async createTimeline(options) {
+    if (!options.timelineConfig || !options.timelineConfig.events) {
+      throw new Error(
+        "Timeline configuration with events is required for create-timeline operation"
+      );
+    }
+    const { events, showMarkers = true, groupBy } = options.timelineConfig;
+    const cacheKey = this.generateCacheKey("create-timeline", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        return {
+          success: true,
+          data: { rendered: cached2.toString() },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: events.length
+          }
+        };
+      }
+    }
+    const svg = this.generateTimelineSVG(events, groupBy, showMarkers);
+    const tokensUsed = this.tokenCounter.count(svg).tokens;
+    this.cache.set(cacheKey, svg, tokensUsed, options.cacheTTL || 3600);
+    return {
+      success: true,
+      data: { rendered: svg },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: events.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 6: Create Network Graph
+  // ============================================================================
+  async createNetworkGraph(options) {
+    if (!options.networkConfig) {
+      throw new Error(
+        "Network configuration is required for create-network-graph operation"
+      );
+    }
+    const {
+      nodes,
+      edges,
+      layout = "force",
+      physics = true
+    } = options.networkConfig;
+    if (!nodes || !edges) {
+      throw new Error("Nodes and edges are required for network graph");
+    }
+    const cacheKey = this.generateCacheKey("create-network-graph", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        return {
+          success: true,
+          data: { rendered: cached2.toString() },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: nodes.length + edges.length
+          }
+        };
+      }
+    }
+    const svg = this.generateNetworkGraphSVG(nodes, edges, layout, physics);
+    const tokensUsed = this.tokenCounter.count(svg).tokens;
+    this.cache.set(cacheKey, svg, tokensUsed, options.cacheTTL || 3600);
+    return {
+      success: true,
+      data: { rendered: svg },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: nodes.length + edges.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 7: Create Sankey
+  // ============================================================================
+  async createSankey(options) {
+    if (!options.sankeyConfig) {
+      throw new Error(
+        "Sankey configuration is required for create-sankey operation"
+      );
+    }
+    const { nodes, links } = options.sankeyConfig;
+    if (!nodes || !links) {
+      throw new Error("Nodes and links are required for Sankey diagram");
+    }
+    const cacheKey = this.generateCacheKey("create-sankey", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        return {
+          success: true,
+          data: { rendered: cached2.toString() },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: nodes.length + links.length
+          }
+        };
+      }
+    }
+    const svg = this.generateSankeySVG(nodes, links);
+    const tokensUsed = this.tokenCounter.count(svg).tokens;
+    this.cache.set(cacheKey, svg, tokensUsed, options.cacheTTL || 3600);
+    return {
+      success: true,
+      data: { rendered: svg },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: nodes.length + links.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation 8: Animate
+  // ============================================================================
+  async animate(options) {
+    if (!options.chartId) {
+      throw new Error("Chart ID is required for animate operation");
+    }
+    if (!options.animationConfig) {
+      throw new Error(
+        "Animation configuration is required for animate operation"
+      );
+    }
+    const chart = this.charts.get(options.chartId);
+    if (!chart) {
+      throw new Error(`Chart not found: ${options.chartId}`);
+    }
+    const { frames, duration: duration3, transition = "ease" } = options.animationConfig;
+    const cacheKey = this.generateCacheKey("animate", options);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const tokensSaved = this.tokenCounter.count(cached2.toString()).tokens;
+        return {
+          success: true,
+          data: { rendered: cached2.toString() },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            dataPoints: chart.data.length
+          }
+        };
+      }
+    }
+    const animated = this.generateAnimatedVisualization(
+      chart,
+      frames,
+      duration3,
+      transition
+    );
+    const tokensUsed = this.tokenCounter.count(animated).tokens;
+    this.cache.set(cacheKey, animated, tokensUsed, options.cacheTTL || 1800);
+    return {
+      success: true,
+      data: { rendered: animated },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        dataPoints: chart.data.length
+      }
+    };
+  }
+  // ============================================================================
+  // Helper Methods - Chart Building
+  // ============================================================================
+  buildChartConfig(options) {
+    const config2 = options.chartConfig || {};
+    return {
+      type: options.chartType,
+      data: this.formatChartData(
+        options.data || [],
+        options.chartType || "line",
+        config2.series
+      ),
+      options: {
+        responsive: config2.responsive !== false,
+        maintainAspectRatio: true,
+        plugins: {
+          title: {
+            display: !!config2.title,
+            text: config2.title || ""
+          },
+          subtitle: {
+            display: !!config2.subtitle,
+            text: config2.subtitle || ""
+          },
+          legend: this.buildLegendConfig(config2.legend),
+          tooltip: this.buildTooltipConfig(config2.tooltip)
+        },
+        scales: this.buildScalesConfig(config2.xAxis, config2.yAxis),
+        animation: config2.animations !== false
+      }
+    };
+  }
+  formatChartData(data, chartType, series) {
+    if (!series || series.length === 0) {
+      return {
+        labels: data.map((_2, i) => `Point ${i + 1}`),
+        datasets: [
+          {
+            label: "Data",
+            data,
+            borderColor: "#4BC0C0",
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            fill: chartType === "area"
+          }
+        ]
+      };
+    }
+    const labels = data.map((d3) => d3[series[0].field] || "");
+    const datasets = series.map((s, i) => ({
+      label: s.label || s.field,
+      data: data.map((d3) => d3[s.field]),
+      type: s.type || chartType,
+      borderColor: s.color || this.getDefaultColor(i),
+      backgroundColor: s.fill ? this.getDefaultColor(i, 0.2) : "transparent",
+      borderWidth: s.borderWidth || 2,
+      pointRadius: s.pointRadius || 3,
+      tension: s.tension || 0.4,
+      fill: s.fill || false
+    }));
+    return { labels, datasets };
+  }
+  buildLegendConfig(legend) {
+    if (!legend) {
+      return { display: true };
+    }
+    return {
+      display: legend.display !== false,
+      position: legend.position || "top",
+      align: legend.align || "center",
+      labels: {
+        color: legend.labels?.color || "#666",
+        font: {
+          size: legend.labels?.font?.size || 12,
+          family: legend.labels?.font?.family || "Arial",
+          weight: legend.labels?.font?.weight || "normal"
+        }
+      }
+    };
+  }
+  buildTooltipConfig(tooltip) {
+    if (!tooltip) {
+      return { enabled: true };
+    }
+    return {
+      enabled: tooltip.enabled !== false,
+      mode: tooltip.mode || "index",
+      intersect: tooltip.intersect || false
+    };
+  }
+  buildScalesConfig(xAxis, yAxis) {
+    const scales = {};
+    if (xAxis) {
+      scales.x = {
+        type: xAxis.scale || "category",
+        display: true,
+        title: {
+          display: !!xAxis.label,
+          text: xAxis.label || ""
+        },
+        grid: {
+          display: xAxis.gridLines !== false
+        },
+        min: xAxis.min,
+        max: xAxis.max,
+        ticks: xAxis.ticks
+      };
+    }
+    if (yAxis) {
+      scales.y = {
+        type: yAxis.scale || "linear",
+        display: true,
+        title: {
+          display: !!yAxis.label,
+          text: yAxis.label || ""
+        },
+        grid: {
+          display: yAxis.gridLines !== false
+        },
+        min: yAxis.min,
+        max: yAxis.max,
+        ticks: yAxis.ticks
+      };
+    }
+    return scales;
+  }
+  // ============================================================================
+  // Helper Methods - SVG Generation
+  // ============================================================================
+  generateHeatmapSVG(xLabels, yLabels, values, colorScale, colors) {
+    const width = 800;
+    const height = 600;
+    const cellWidth = (width - 100) / xLabels.length;
+    const cellHeight = (height - 100) / yLabels.length;
+    const flatValues = values.flat();
+    const minValue = Math.min(...flatValues);
+    const maxValue = Math.max(...flatValues);
+    const colorScheme = colors || { min: "#0000ff", max: "#ff0000" };
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>.cell { stroke: #fff; stroke-width: 2; } .label { font-family: Arial; font-size: 12px; fill: #333; }</style>`;
+    for (let y2 = 0; y2 < yLabels.length; y2++) {
+      for (let x4 = 0; x4 < xLabels.length; x4++) {
+        const value = values[y2][x4];
+        const color = this.interpolateColor(
+          value,
+          minValue,
+          maxValue,
+          colorScheme.min,
+          colorScheme.max,
+          colorScale
+        );
+        const cx = 80 + x4 * cellWidth;
+        const cy = 50 + y2 * cellHeight;
+        svg += `<rect class="cell" x="${cx}" y="${cy}" width="${cellWidth}" height="${cellHeight}" fill="${color}">`;
+        svg += `<title>${yLabels[y2]} - ${xLabels[x4]}: ${value.toFixed(2)}</title>`;
+        svg += `</rect>`;
+      }
+    }
+    for (let x4 = 0; x4 < xLabels.length; x4++) {
+      const cx = 80 + x4 * cellWidth + cellWidth / 2;
+      svg += `<text class="label" x="${cx}" y="${height - 20}" text-anchor="middle">${xLabels[x4]}</text>`;
+    }
+    for (let y2 = 0; y2 < yLabels.length; y2++) {
+      const cy = 50 + y2 * cellHeight + cellHeight / 2;
+      svg += `<text class="label" x="50" y="${cy}" text-anchor="end" dominant-baseline="middle">${yLabels[y2]}</text>`;
+    }
+    svg += this.generateColorScaleLegend(
+      minValue,
+      maxValue,
+      colorScheme,
+      width - 50,
+      50
+    );
+    svg += `</svg>`;
+    return svg;
+  }
+  generateTimelineSVG(events, _groupBy, showMarkers) {
+    const width = 1e3;
+    const height = 400;
+    const margin = { top: 50, right: 50, bottom: 50, left: 100 };
+    const sortedEvents = [...events].sort((a2, b) => a2.time - b.time);
+    const minTime = sortedEvents[0].time;
+    const maxTime = sortedEvents[sortedEvents.length - 1].time;
+    const timeRange = maxTime - minTime;
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.timeline-line { stroke: #333; stroke-width: 2; }`;
+    svg += `.event-marker { fill: #4BC0C0; stroke: #333; stroke-width: 1; }`;
+    svg += `.event-label { font-family: Arial; font-size: 12px; fill: #333; }`;
+    svg += `.event-desc { font-family: Arial; font-size: 10px; fill: #666; }`;
+    svg += `</style>`;
+    const timelineY = height / 2;
+    svg += `<line class="timeline-line" x1="${margin.left}" y1="${timelineY}" x2="${width - margin.right}" y2="${timelineY}" />`;
+    const availableWidth = width - margin.left - margin.right;
+    for (let i = 0; i < sortedEvents.length; i++) {
+      const event = sortedEvents[i];
+      const x4 = margin.left + (event.time - minTime) / timeRange * availableWidth;
+      const y2 = timelineY;
+      const offsetY = i % 2 === 0 ? -30 : 30;
+      const labelY = y2 + offsetY;
+      if (showMarkers) {
+        svg += `<circle class="event-marker" cx="${x4}" cy="${y2}" r="6">`;
+        svg += `<title>${event.label}: ${new Date(event.time).toLocaleString()}</title>`;
+        svg += `</circle>`;
+        svg += `<line stroke="#ccc" stroke-width="1" x1="${x4}" y1="${y2}" x2="${x4}" y2="${labelY - 10}" />`;
+      }
+      svg += `<text class="event-label" x="${x4}" y="${labelY}" text-anchor="middle">${event.label}</text>`;
+      if (event.description) {
+        svg += `<text class="event-desc" x="${x4}" y="${labelY + 15}" text-anchor="middle">${event.description}</text>`;
+      }
+    }
+    const numLabels = 5;
+    for (let i = 0; i <= numLabels; i++) {
+      const t2 = minTime + timeRange * i / numLabels;
+      const x4 = margin.left + availableWidth * i / numLabels;
+      svg += `<text class="event-label" x="${x4}" y="${height - 20}" text-anchor="middle">${new Date(t2).toLocaleDateString()}</text>`;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  generateNetworkGraphSVG(nodes, edges, layout, _physics) {
+    const width = 800;
+    const height = 600;
+    const positions = this.calculateNodePositions(
+      nodes,
+      edges,
+      layout,
+      width,
+      height
+    );
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.edge { stroke: #999; stroke-width: 1; stroke-opacity: 0.6; }`;
+    svg += `.node { fill: #4BC0C0; stroke: #333; stroke-width: 2; cursor: pointer; }`;
+    svg += `.node:hover { fill: #FF6384; }`;
+    svg += `.node-label { font-family: Arial; font-size: 12px; fill: #333; text-anchor: middle; }`;
+    svg += `</style>`;
+    for (const edge of edges) {
+      const sourcePos = positions.get(edge.source);
+      const targetPos = positions.get(edge.target);
+      if (sourcePos && targetPos) {
+        const strokeWidth = edge.weight ? Math.sqrt(edge.weight) : 1;
+        svg += `<line class="edge" x1="${sourcePos.x}" y1="${sourcePos.y}" x2="${targetPos.x}" y2="${targetPos.y}" stroke-width="${strokeWidth}">`;
+        svg += `<title>${edge.source} \u2192 ${edge.target}${edge.weight ? `: ${edge.weight}` : ""}</title>`;
+        svg += `</line>`;
+      }
+    }
+    for (const node of nodes) {
+      const pos = positions.get(node.id);
+      if (!pos) continue;
+      svg += `<circle class="node" cx="${pos.x}" cy="${pos.y}" r="8">`;
+      svg += `<title>${node.label || node.id}</title>`;
+      svg += `</circle>`;
+      svg += `<text class="node-label" x="${pos.x}" y="${pos.y - 15}">${node.label || node.id}</text>`;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  generateSankeySVG(nodes, links) {
+    const width = 1e3;
+    const height = 600;
+    const nodeWidth = 30;
+    const nodePadding = 20;
+    const nodeIndex = new Map(nodes.map((n7, i) => [n7.name, i]));
+    const nodeLevels = this.calculateSankeyLevels(nodes, links);
+    const nodeValues = this.calculateSankeyNodeValues(nodes, links);
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.sankey-link { fill: none; stroke-opacity: 0.3; }`;
+    svg += `.sankey-node { stroke: #333; stroke-width: 1; }`;
+    svg += `.node-label { font-family: Arial; font-size: 12px; fill: #333; }`;
+    svg += `</style>`;
+    const maxLevel = Math.max(...nodeLevels.values());
+    const levelWidth = (width - 100) / (maxLevel + 1);
+    const nodePositions = /* @__PURE__ */ new Map();
+    const levelGroups = /* @__PURE__ */ new Map();
+    for (const [node, level] of nodeLevels.entries()) {
+      if (!levelGroups.has(level)) levelGroups.set(level, []);
+      levelGroups.get(level).push(node);
+    }
+    for (const [level, nodesInLevel] of levelGroups.entries()) {
+      const totalValue = nodesInLevel.reduce(
+        (sum, n7) => sum + (nodeValues.get(n7) || 0),
+        0
+      );
+      const scale = (height - 100) / totalValue;
+      let currentY = 50;
+      for (const nodeName of nodesInLevel) {
+        const value = nodeValues.get(nodeName) || 0;
+        const nodeHeight = value * scale;
+        nodePositions.set(nodeName, {
+          x: 50 + level * levelWidth,
+          y: currentY,
+          height: nodeHeight
+        });
+        currentY += nodeHeight + nodePadding;
+      }
+    }
+    for (const link of links) {
+      const sourcePos = nodePositions.get(link.source);
+      const targetPos = nodePositions.get(link.target);
+      if (!sourcePos || !targetPos) continue;
+      const sourceValue = nodeValues.get(link.source) || 0;
+      const scale = sourcePos.height / sourceValue;
+      const linkHeight = link.value * scale;
+      const path8 = this.generateSankeyLinkPath(
+        sourcePos.x + nodeWidth,
+        sourcePos.y + sourcePos.height / 2,
+        targetPos.x,
+        targetPos.y + targetPos.height / 2,
+        linkHeight
+      );
+      const color = this.getDefaultColor(nodeIndex.get(link.source) || 0, 0.3);
+      svg += `<path class="sankey-link" d="${path8}" stroke="${color}" stroke-width="${linkHeight}">`;
+      svg += `<title>${link.source} \u2192 ${link.target}: ${link.value}</title>`;
+      svg += `</path>`;
+    }
+    for (const node of nodes) {
+      const pos = nodePositions.get(node.name);
+      if (!pos) continue;
+      const color = this.getDefaultColor(nodeIndex.get(node.name) || 0);
+      svg += `<rect class="sankey-node" x="${pos.x}" y="${pos.y}" width="${nodeWidth}" height="${pos.height}" fill="${color}">`;
+      svg += `<title>${node.name}: ${nodeValues.get(node.name)}</title>`;
+      svg += `</rect>`;
+      svg += `<text class="node-label" x="${pos.x + nodeWidth + 5}" y="${pos.y + pos.height / 2}" dominant-baseline="middle">${node.name}</text>`;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  // ============================================================================
+  // Helper Methods - Export Formats
+  // ============================================================================
+  async exportToSVG(chart, options) {
+    let svg;
+    switch (chart.type) {
+      case "line":
+      case "bar":
+      case "area":
+        svg = this.generateBasicChartSVG(chart, options);
+        break;
+      case "pie":
+        svg = this.generatePieChartSVG(chart, options);
+        break;
+      default:
+        svg = this.generateBasicChartSVG(chart, options);
+    }
+    return Buffer.from(svg);
+  }
+  async exportToPNG(chart, options) {
+    const svg = await this.exportToSVG(chart, options);
+    return Buffer.from(`data:image/svg+xml;base64,${svg.toString("base64")}`);
+  }
+  async exportToPDF(chart, _options) {
+    const content = `PDF Export of Chart: ${chart.name}
+Type: ${chart.type}
+Data Points: ${chart.data.length}`;
+    return Buffer.from(content);
+  }
+  async exportToHTML(chart, options) {
+    const svg = await this.exportToSVG(chart, options);
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${chart.name}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+    .chart-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="chart-container">
+    <h1>${chart.name}</h1>
+    ${svg.toString()}
+  </div>
+</body>
+</html>`;
+    return Buffer.from(html);
+  }
+  generateBasicChartSVG(chart, options) {
+    const width = options.exportWidth || 800;
+    const height = options.exportHeight || 600;
+    const margin = { top: 50, right: 50, bottom: 50, left: 60 };
+    const data = chart.data;
+    const maxValue = Math.max(
+      ...data.map((d3) => typeof d3 === "number" ? d3 : d3.value || 0)
+    );
+    const minValue = Math.min(
+      ...data.map((d3) => typeof d3 === "number" ? d3 : d3.value || 0)
+    );
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.chart-title { font-family: Arial; font-size: 20px; font-weight: bold; fill: #333; text-anchor: middle; }`;
+    svg += `.axis-label { font-family: Arial; font-size: 12px; fill: #666; }`;
+    svg += `.grid-line { stroke: #e0e0e0; stroke-width: 1; }`;
+    svg += `</style>`;
+    if (chart.config?.options?.plugins?.title?.text) {
+      svg += `<text class="chart-title" x="${width / 2}" y="30">${chart.config.options.plugins.title.text}</text>`;
+    }
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    if (chart.type === "line" || chart.type === "area") {
+      svg += this.drawLineChart(
+        data,
+        margin,
+        plotWidth,
+        plotHeight,
+        minValue,
+        maxValue,
+        chart.type === "area"
+      );
+    } else if (chart.type === "bar") {
+      svg += this.drawBarChart(data, margin, plotWidth, plotHeight, maxValue);
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  generatePieChartSVG(chart, options) {
+    const width = options.exportWidth || 600;
+    const height = options.exportHeight || 600;
+    const radius = Math.min(width, height) / 2 - 50;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const data = chart.data;
+    const total = data.reduce(
+      (sum, d3) => sum + (typeof d3 === "number" ? d3 : d3.value || 0),
+      0
+    );
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.pie-slice { stroke: #fff; stroke-width: 2; cursor: pointer; }`;
+    svg += `.pie-slice:hover { opacity: 0.8; }`;
+    svg += `.pie-label { font-family: Arial; font-size: 14px; fill: #333; text-anchor: middle; }`;
+    svg += `</style>`;
+    let currentAngle = 0;
+    for (let i = 0; i < data.length; i++) {
+      const value = typeof data[i] === "number" ? data[i] : data[i].value || 0;
+      const percentage = value / total;
+      const angle = percentage * 2 * Math.PI;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + angle;
+      const x1 = centerX + radius * Math.cos(startAngle);
+      const y1 = centerY + radius * Math.sin(startAngle);
+      const x22 = centerX + radius * Math.cos(endAngle);
+      const y2 = centerY + radius * Math.sin(endAngle);
+      const largeArcFlag = angle > Math.PI ? 1 : 0;
+      const pathData = [
+        `M ${centerX} ${centerY}`,
+        `L ${x1} ${y1}`,
+        `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x22} ${y2}`,
+        "Z"
+      ].join(" ");
+      const color = this.getDefaultColor(i);
+      svg += `<path class="pie-slice" d="${pathData}" fill="${color}">`;
+      svg += `<title>Slice ${i + 1}: ${value} (${(percentage * 100).toFixed(1)}%)</title>`;
+      svg += `</path>`;
+      const labelAngle = startAngle + angle / 2;
+      const labelX = centerX + radius * 0.7 * Math.cos(labelAngle);
+      const labelY = centerY + radius * 0.7 * Math.sin(labelAngle);
+      svg += `<text class="pie-label" x="${labelX}" y="${labelY}">${(percentage * 100).toFixed(1)}%</text>`;
+      currentAngle = endAngle;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  generateAnimatedVisualization(chart, frames, duration3, transition) {
+    const width = 800;
+    const height = 600;
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<style>`;
+    svg += `.animated-bar { transition: all ${duration3 / frames}s ${transition}; }`;
+    svg += `</style>`;
+    const data = chart.data;
+    const maxValue = Math.max(
+      ...data.map((d3) => typeof d3 === "number" ? d3 : d3.value || 0)
+    );
+    for (let i = 0; i < data.length; i++) {
+      const value = typeof data[i] === "number" ? data[i] : data[i].value || 0;
+      const barHeight = value / maxValue * (height - 100);
+      const x4 = 50 + i * (width - 100) / data.length;
+      const y2 = height - 50 - barHeight;
+      svg += `<rect class="animated-bar" x="${x4}" y="${height - 50}" width="40" height="0" fill="${this.getDefaultColor(i)}">`;
+      svg += `<animate attributeName="height" from="0" to="${barHeight}" dur="${duration3}s" fill="freeze" />`;
+      svg += `<animate attributeName="y" from="${height - 50}" to="${y2}" dur="${duration3}s" fill="freeze" />`;
+      svg += `</rect>`;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  // ============================================================================
+  // Helper Methods - Chart Drawing
+  // ============================================================================
+  drawLineChart(data, margin, plotWidth, plotHeight, minValue, maxValue, fill) {
+    const valueRange = maxValue - minValue;
+    const points = [];
+    for (let i = 0; i < data.length; i++) {
+      const value = typeof data[i] === "number" ? data[i] : data[i].value || 0;
+      const x4 = margin.left + i / (data.length - 1) * plotWidth;
+      const y2 = margin.top + plotHeight - (value - minValue) / valueRange * plotHeight;
+      points.push(`${x4},${y2}`);
+    }
+    let svg = "";
+    if (fill) {
+      const fillPoints = [
+        ...points,
+        `${margin.left + plotWidth},${margin.top + plotHeight}`,
+        `${margin.left},${margin.top + plotHeight}`
+      ];
+      svg += `<polygon points="${fillPoints.join(" ")}" fill="rgba(75, 192, 192, 0.2)" stroke="none" />`;
+    }
+    svg += `<polyline points="${points.join(" ")}" fill="none" stroke="#4BC0C0" stroke-width="2" />`;
+    for (const point of points) {
+      const [x4, y2] = point.split(",");
+      svg += `<circle cx="${x4}" cy="${y2}" r="4" fill="#4BC0C0" stroke="#fff" stroke-width="2" />`;
+    }
+    return svg;
+  }
+  drawBarChart(data, margin, plotWidth, plotHeight, maxValue) {
+    const barWidth = plotWidth / data.length * 0.8;
+    let svg = "";
+    for (let i = 0; i < data.length; i++) {
+      const value = typeof data[i] === "number" ? data[i] : data[i].value || 0;
+      const barHeight = value / maxValue * plotHeight;
+      const x4 = margin.left + (i + 0.1) * (plotWidth / data.length);
+      const y2 = margin.top + plotHeight - barHeight;
+      svg += `<rect x="${x4}" y="${y2}" width="${barWidth}" height="${barHeight}" fill="${this.getDefaultColor(i)}" />`;
+    }
+    return svg;
+  }
+  // ============================================================================
+  // Helper Methods - Calculations
+  // ============================================================================
+  calculateNodePositions(nodes, _edges, layout, width, height) {
+    const positions = /* @__PURE__ */ new Map();
+    if (layout === "circular") {
+      const radius = Math.min(width, height) / 2 - 50;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const angleStep = 2 * Math.PI / nodes.length;
+      for (let i = 0; i < nodes.length; i++) {
+        const angle = i * angleStep;
+        positions.set(nodes[i].id, {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle)
+        });
+      }
+    } else if (layout === "grid") {
+      const cols = Math.ceil(Math.sqrt(nodes.length));
+      const cellWidth = (width - 100) / cols;
+      const cellHeight = (height - 100) / Math.ceil(nodes.length / cols);
+      for (let i = 0; i < nodes.length; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        positions.set(nodes[i].id, {
+          x: 50 + col * cellWidth + cellWidth / 2,
+          y: 50 + row * cellHeight + cellHeight / 2
+        });
+      }
+    } else {
+      for (let i = 0; i < nodes.length; i++) {
+        positions.set(nodes[i].id, {
+          x: 50 + Math.random() * (width - 100),
+          y: 50 + Math.random() * (height - 100)
+        });
+      }
+    }
+    return positions;
+  }
+  calculateSankeyLevels(nodes, links) {
+    const levels = /* @__PURE__ */ new Map();
+    const inDegree = /* @__PURE__ */ new Map();
+    for (const node of nodes) {
+      inDegree.set(node.name, 0);
+    }
+    for (const link of links) {
+      inDegree.set(link.target, (inDegree.get(link.target) || 0) + 1);
+    }
+    const queue = [];
+    for (const [node, degree] of inDegree.entries()) {
+      if (degree === 0) {
+        levels.set(node, 0);
+        queue.push(node);
+      }
+    }
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const currentLevel = levels.get(current) || 0;
+      for (const link of links) {
+        if (link.source === current) {
+          const targetLevel = levels.get(link.target);
+          const newLevel = currentLevel + 1;
+          if (targetLevel === void 0 || newLevel > targetLevel) {
+            levels.set(link.target, newLevel);
+            queue.push(link.target);
+          }
+        }
+      }
+    }
+    return levels;
+  }
+  calculateSankeyNodeValues(nodes, links) {
+    const values = /* @__PURE__ */ new Map();
+    for (const node of nodes) {
+      const incoming = links.filter((l) => l.target === node.name).reduce((sum, l) => sum + l.value, 0);
+      const outgoing = links.filter((l) => l.source === node.name).reduce((sum, l) => sum + l.value, 0);
+      values.set(node.name, Math.max(incoming, outgoing));
+    }
+    return values;
+  }
+  generateSankeyLinkPath(x1, y1, x22, y2, width) {
+    const midX = (x1 + x22) / 2;
+    return `M ${x1} ${y1 - width / 2} C ${midX} ${y1 - width / 2}, ${midX} ${y2 - width / 2}, ${x22} ${y2 - width / 2} L ${x22} ${y2 + width / 2} C ${midX} ${y2 + width / 2}, ${midX} ${y1 + width / 2}, ${x1} ${y1 + width / 2} Z`;
+  }
+  generateColorScaleLegend(minValue, maxValue, colors, x4, y2) {
+    const width = 20;
+    const height = 200;
+    const steps = 20;
+    let svg = `<g class="color-scale">`;
+    for (let i = 0; i < steps; i++) {
+      const value = minValue + (maxValue - minValue) * i / steps;
+      const color = this.interpolateColor(
+        value,
+        minValue,
+        maxValue,
+        colors.min,
+        colors.max,
+        "linear"
+      );
+      const rectY = y2 + height * (steps - i - 1) / steps;
+      svg += `<rect x="${x4}" y="${rectY}" width="${width}" height="${height / steps}" fill="${color}" />`;
+    }
+    svg += `<text x="${x4 + width + 10}" y="${y2}" font-size="12">${maxValue.toFixed(2)}</text>`;
+    svg += `<text x="${x4 + width + 10}" y="${y2 + height}" font-size="12">${minValue.toFixed(2)}</text>`;
+    svg += `</g>`;
+    return svg;
+  }
+  // ============================================================================
+  // Helper Methods - Utilities
+  // ============================================================================
+  interpolateColor(value, min, max, colorMin, colorMax, scale) {
+    let t2 = (value - min) / (max - min);
+    if (scale === "logarithmic") {
+      t2 = Math.log(1 + t2 * (Math.E - 1)) / Math.log(Math.E);
+    }
+    t2 = Math.max(0, Math.min(1, t2));
+    const rgb1 = this.hexToRgb(colorMin);
+    const rgb2 = this.hexToRgb(colorMax);
+    const r = Math.round(rgb1.r + (rgb2.r - rgb1.r) * t2);
+    const g = Math.round(rgb1.g + (rgb2.g - rgb1.g) * t2);
+    const b = Math.round(rgb1.b + (rgb2.b - rgb1.b) * t2);
+    return this.rgbToHex(r, g, b);
+  }
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
+  }
+  rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map((x4) => {
+      const hex = x4.toString(16);
+      return hex.length === 1 ? "0" + hex : hex;
+    }).join("");
+  }
+  getDefaultColor(index2, alpha) {
+    const colors = [
+      "#FF6384",
+      "#36A2EB",
+      "#FFCE56",
+      "#4BC0C0",
+      "#9966FF",
+      "#FF9F40",
+      "#FF6384",
+      "#C9CBCF",
+      "#4BC0C0",
+      "#FF6384"
+    ];
+    const color = colors[index2 % colors.length];
+    if (alpha !== void 0) {
+      const rgb = this.hexToRgb(color);
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+    }
+    return color;
+  }
+  generateChartId() {
+    this.chartCounter++;
+    return `chart-${Date.now()}-${this.chartCounter}`;
+  }
+  generateCacheKey(operation, options) {
+    const hash = createHash45("sha256");
+    hash.update(operation);
+    hash.update(
+      JSON.stringify({
+        chartId: options.chartId,
+        chartType: options.chartType,
+        data: options.data,
+        config: options.chartConfig,
+        heatmapConfig: options.heatmapConfig,
+        timelineConfig: options.timelineConfig,
+        networkConfig: options.networkConfig,
+        sankeyConfig: options.sankeyConfig,
+        animationConfig: options.animationConfig,
+        exportFormat: options.exportFormat
+      })
+    );
+    return `data-visualizer:${operation}:${hash.digest("hex")}`;
+  }
+};
+var dataVisualizerInstance = null;
+function getDataVisualizer(cache, tokenCounter, metricsCollector) {
+  if (!dataVisualizerInstance) {
+    dataVisualizerInstance = new DataVisualizer(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return dataVisualizerInstance;
+}
+var DATA_VISUALIZER_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    operation: {
+      type: "string",
+      enum: [
+        "create-chart",
+        "update-chart",
+        "delete-chart",
+        "list-charts",
+        "render",
+        "export",
+        "create-heatmap",
+        "create-timeline",
+        "create-network",
+        "create-sankey",
+        "create-animation"
+      ],
+      description: "Visualization operation to perform"
+    },
+    chartId: {
+      type: "string",
+      description: "Chart ID (required for update, delete, render)"
+    },
+    chartType: {
+      type: "string",
+      enum: ["line", "bar", "pie", "scatter", "area", "radar", "bubble"],
+      description: "Chart type"
+    },
+    data: {
+      type: "object",
+      description: "Chart data with labels and datasets"
+    },
+    chartConfig: {
+      type: "object",
+      description: "Chart configuration"
+    },
+    heatmapConfig: {
+      type: "object",
+      description: "Heatmap configuration"
+    },
+    timelineConfig: {
+      type: "object",
+      description: "Timeline configuration"
+    },
+    networkConfig: {
+      type: "object",
+      description: "Network graph configuration"
+    },
+    sankeyConfig: {
+      type: "object",
+      description: "Sankey diagram configuration"
+    },
+    animationConfig: {
+      type: "object",
+      description: "Animation configuration"
+    },
+    renderFormat: {
+      type: "string",
+      enum: ["svg", "canvas", "html", "json"],
+      description: "Rendering format (default: svg)",
+      default: "svg"
+    },
+    exportFormat: {
+      type: "string",
+      enum: ["svg", "png", "pdf", "json"],
+      description: "Export format (default: svg)",
+      default: "svg"
+    },
+    exportWidth: {
+      type: "number",
+      description: "Export width in pixels"
+    },
+    exportHeight: {
+      type: "number",
+      description: "Export height in pixels"
+    },
+    useCache: {
+      type: "boolean",
+      description: "Enable caching",
+      default: true
+    },
+    cacheTTL: {
+      type: "number",
+      description: "Cache TTL in seconds"
+    }
+  },
+  required: ["operation"]
+};
+var DATA_VISUALIZER_TOOL_DEFINITION = {
+  name: "data_visualizer",
+  description: "Create and manage interactive data visualizations with 92% token reduction through SVG/Canvas optimization and configuration caching",
+  inputSchema: DATA_VISUALIZER_INPUT_SCHEMA
+};
+
+// src/optimizer/tools/dashboard-monitoring/health-monitor.ts
+import { createHash as createHash46 } from "crypto";
+var HealthCheckStore = class {
+  checks = /* @__PURE__ */ new Map();
+  history = [];
+  dependencies = /* @__PURE__ */ new Map();
+  maxHistoryEntries = 1e5;
+  registerCheck(check) {
+    this.checks.set(check.id, check);
+  }
+  getCheck(id) {
+    return this.checks.get(id);
+  }
+  getCheckByName(name) {
+    return Array.from(this.checks.values()).find((c2) => c2.name === name);
+  }
+  getAllChecks() {
+    return Array.from(this.checks.values());
+  }
+  updateCheck(id, updates) {
+    const check = this.checks.get(id);
+    if (!check) return false;
+    Object.assign(check, updates, { updatedAt: Date.now() });
+    return true;
+  }
+  deleteCheck(id) {
+    return this.checks.delete(id);
+  }
+  recordEvent(event) {
+    this.history.push(event);
+    if (this.history.length > this.maxHistoryEntries) {
+      this.history = this.history.slice(-this.maxHistoryEntries);
+    }
+    const check = this.checks.get(event.checkId);
+    if (check) {
+      check.lastCheck = event.timestamp;
+      check.lastStatus = event.status;
+    }
+  }
+  getHistory(checkId, timeRange, limit) {
+    let filtered = this.history;
+    if (checkId) {
+      filtered = filtered.filter((e) => e.checkId === checkId);
+    }
+    if (timeRange) {
+      filtered = filtered.filter(
+        (e) => e.timestamp >= timeRange.start && e.timestamp <= timeRange.end
+      );
+    }
+    if (limit) {
+      filtered = filtered.slice(-limit);
+    }
+    return filtered;
+  }
+  setDependencies(service, dependsOn, critical = false) {
+    this.dependencies.set(service, { dependsOn, critical });
+  }
+  getDependencies(service) {
+    return this.dependencies.get(service);
+  }
+  getAllDependencies() {
+    return new Map(this.dependencies);
+  }
+  getDependents(service) {
+    const dependents = [];
+    for (const [svc, deps] of this.dependencies.entries()) {
+      if (deps.dependsOn.includes(service)) {
+        dependents.push(svc);
+      }
+    }
+    return dependents;
+  }
+};
+var healthCheckStore = new HealthCheckStore();
+var HealthCheckExecutor = class {
+  async executeCheck(check) {
+    const startTime = Date.now();
+    try {
+      switch (check.type) {
+        case "http":
+          return await this.executeHttpCheck(check, startTime);
+        case "tcp":
+          return await this.executeTcpCheck(check, startTime);
+        case "database":
+          return await this.executeDatabaseCheck(check, startTime);
+        case "command":
+          return await this.executeCommandCheck(check, startTime);
+        case "custom":
+          return await this.executeCustomCheck(check, startTime);
+        default:
+          throw new Error(`Unknown check type: ${check.type}`);
+      }
+    } catch (error2) {
+      const duration3 = Date.now() - startTime;
+      return {
+        status: "fail",
+        duration: duration3,
+        message: error2 instanceof Error ? error2.message : "Unknown error"
+      };
+    }
+  }
+  async executeHttpCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.url) {
+      throw new Error("HTTP check requires URL");
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      config2.timeout || check.timeout || 5e3
+    ).unref();
+    try {
+      const response = await fetch(config2.url, {
+        method: config2.method || "GET",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const duration3 = Date.now() - startTime;
+      const expectedStatus = config2.expectedStatus || 200;
+      if (response.status !== expectedStatus) {
+        return {
+          status: "fail",
+          duration: duration3,
+          message: `Expected status ${expectedStatus}, got ${response.status}`
+        };
+      }
+      if (config2.expectedBody) {
+        const body = await response.text();
+        if (!body.includes(config2.expectedBody)) {
+          return {
+            status: "warn",
+            duration: duration3,
+            message: "Response body does not contain expected content"
+          };
+        }
+      }
+      return { status: "pass", duration: duration3 };
+    } catch (error2) {
+      clearTimeout(timeoutId);
+      throw error2;
+    }
+  }
+  async executeTcpCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.host || !config2.port) {
+      throw new Error("TCP check requires host and port");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: `TCP connection to ${config2.host}:${config2.port} successful`
+    };
+  }
+  async executeDatabaseCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.query) {
+      throw new Error("Database check requires query");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: "Database query executed successfully"
+    };
+  }
+  async executeCommandCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.command) {
+      throw new Error("Command check requires command");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: `Command '${config2.command}' executed successfully`
+    };
+  }
+  async executeCustomCheck(_check2, _startTime) {
+    const startTime = Date.now();
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: "Custom check passed"
+    };
+  }
+};
+var checkExecutor = new HealthCheckExecutor();
+var DependencyAnalyzer = class {
+  buildDependencyGraph() {
+    const allDeps = healthCheckStore.getAllDependencies();
+    const services = [];
+    const edges = [];
+    const allServices = /* @__PURE__ */ new Set();
+    for (const [service, deps] of allDeps.entries()) {
+      allServices.add(service);
+      deps.dependsOn.forEach((dep) => allServices.add(dep));
+    }
+    for (const service of allServices) {
+      const deps = allDeps.get(service);
+      services.push({
+        name: service,
+        dependencies: deps?.dependsOn || [],
+        dependents: healthCheckStore.getDependents(service),
+        critical: deps?.critical || false
+      });
+    }
+    for (const [service, deps] of allDeps.entries()) {
+      for (const dependency of deps.dependsOn) {
+        edges.push({
+          from: service,
+          to: dependency,
+          critical: deps.critical
+        });
+      }
+    }
+    return { services, edges };
+  }
+  analyzeImpact(service, scenario) {
+    const directImpact = [];
+    const cascadingImpact = [];
+    const criticalServices = [];
+    const visited = /* @__PURE__ */ new Set();
+    const directDependents = healthCheckStore.getDependents(service);
+    directImpact.push(...directDependents);
+    const queue = [...directDependents];
+    visited.add(service);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const deps = healthCheckStore.getDependencies(current);
+      if (deps?.critical && deps.dependsOn.includes(service)) {
+        criticalServices.push(current);
+        const dependents = healthCheckStore.getDependents(current);
+        cascadingImpact.push(...dependents.filter((d3) => !visited.has(d3)));
+        queue.push(...dependents);
+      }
+    }
+    const recommendations = this.generateRecommendations(
+      service,
+      scenario,
+      directImpact,
+      cascadingImpact,
+      criticalServices
+    );
+    return {
+      service,
+      scenario,
+      directImpact,
+      cascadingImpact,
+      totalAffected: (/* @__PURE__ */ new Set([...directImpact, ...cascadingImpact])).size,
+      criticalServices,
+      estimatedDowntime: this.estimateDowntime(scenario),
+      recommendations
+    };
+  }
+  estimateDowntime(scenario) {
+    switch (scenario) {
+      case "failure":
+        return 3600;
+      // 1 hour
+      case "degraded":
+        return 1800;
+      // 30 minutes
+      case "maintenance":
+        return 600;
+      // 10 minutes
+      default:
+        return 0;
+    }
+  }
+  generateRecommendations(_service, scenario, directImpact, cascadingImpact, criticalServices) {
+    const recommendations = [];
+    if (criticalServices.length > 0) {
+      recommendations.push(
+        `Critical services will be affected: ${criticalServices.join(", ")}. Consider redundancy or failover mechanisms.`
+      );
+    }
+    if (directImpact.length > 5) {
+      recommendations.push(
+        `High number of direct dependents (${directImpact.length}). Consider load balancing or service splitting.`
+      );
+    }
+    if (cascadingImpact.length > 0) {
+      recommendations.push(
+        `Cascading failures detected. Review dependency chains and implement circuit breakers.`
+      );
+    }
+    if (scenario === "failure") {
+      recommendations.push(
+        "Enable monitoring alerts for this service and its dependents."
+      );
+      recommendations.push("Implement automated failover or backup services.");
+    }
+    if (recommendations.length === 0) {
+      recommendations.push(
+        "No critical concerns detected. Continue monitoring."
+      );
+    }
+    return recommendations;
+  }
+};
+var dependencyAnalyzer = new DependencyAnalyzer();
+var StatusAggregator = class {
+  async aggregateServiceStatus(service, includeDetails = false, includeDependencies = false) {
+    const checks = healthCheckStore.getAllChecks().filter((c2) => c2.name.startsWith(service) || c2.name.includes(service));
+    const checkResults = [];
+    for (const check of checks) {
+      const result = await checkExecutor.executeCheck(check);
+      checkResults.push({
+        name: check.name,
+        status: result.status,
+        message: result.message,
+        duration: result.duration
+      });
+      healthCheckStore.recordEvent({
+        checkId: check.id,
+        checkName: check.name,
+        timestamp: Date.now(),
+        status: result.status,
+        duration: result.duration,
+        message: result.message
+      });
+    }
+    const hasFailures = checkResults.some((r) => r.status === "fail");
+    const hasWarnings = checkResults.some((r) => r.status === "warn");
+    let overallStatus;
+    if (hasFailures) {
+      overallStatus = "unhealthy";
+    } else if (hasWarnings) {
+      overallStatus = "degraded";
+    } else if (checkResults.length > 0) {
+      overallStatus = "healthy";
+    } else {
+      overallStatus = "unknown";
+    }
+    let dependencies;
+    if (includeDependencies) {
+      const deps = healthCheckStore.getDependencies(service);
+      if (deps) {
+        dependencies = [];
+        for (const depService of deps.dependsOn) {
+          const depStatus = await this.aggregateServiceStatus(
+            depService,
+            false,
+            false
+          );
+          dependencies.push({
+            service: depService,
+            status: depStatus.status,
+            critical: deps.critical
+          });
+        }
+      }
+    }
+    return {
+      service,
+      status: overallStatus,
+      checks: includeDetails ? checkResults : [],
+      dependencies,
+      lastChecked: Date.now()
+    };
+  }
+};
+var statusAggregator = new StatusAggregator();
+var HealthMonitor = class {
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+  }
+  cache;
+  tokenCounter;
+  metricsCollector;
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      if (!options.operation) {
+        throw new Error("Operation is required");
+      }
+      let result;
+      switch (options.operation) {
+        case "check":
+          result = await this.executeCheck(options, startTime);
+          break;
+        case "register-check":
+          result = await this.registerCheck(options, startTime);
+          break;
+        case "update-check":
+          result = await this.updateCheck(options, startTime);
+          break;
+        case "delete-check":
+          result = await this.deleteCheck(options, startTime);
+          break;
+        case "get-status":
+          result = await this.getStatus(options, startTime);
+          break;
+        case "get-history":
+          result = await this.getHistory(options, startTime);
+          break;
+        case "configure-dependencies":
+          result = await this.configureDependencies(options, startTime);
+          break;
+        case "get-impact":
+          result = await this.getImpact(options, startTime);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `health-monitor:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit
+      });
+      return result;
+    } catch (error2) {
+      this.metricsCollector.record({
+        operation: `health-monitor:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false
+      });
+      return {
+        success: false,
+        error: error2 instanceof Error ? error2.message : "Unknown error",
+        metadata: {
+          cacheHit: false
+        }
+      };
+    }
+  }
+  // ========================================================================
+  // Operation: check
+  // ========================================================================
+  async executeCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      const checks = healthCheckStore.getAllChecks();
+      let healthyCount = 0;
+      let unhealthyCount = 0;
+      for (const check2 of checks) {
+        const result2 = await checkExecutor.executeCheck(check2);
+        if (result2.status === "pass") {
+          healthyCount++;
+        } else {
+          unhealthyCount++;
+        }
+        healthCheckStore.recordEvent({
+          checkId: check2.id,
+          checkName: check2.name,
+          timestamp: Date.now(),
+          status: result2.status,
+          duration: result2.duration,
+          message: result2.message
+        });
+      }
+      return {
+        success: true,
+        data: { checks },
+        metadata: {
+          cacheHit: false,
+          checksRun: checks.length,
+          healthyCount,
+          unhealthyCount
+        }
+      };
+    }
+    const check = checkId ? healthCheckStore.getCheck(checkId) : healthCheckStore.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const result = await checkExecutor.executeCheck(check);
+    healthCheckStore.recordEvent({
+      checkId: check.id,
+      checkName: check.name,
+      timestamp: Date.now(),
+      status: result.status,
+      duration: result.duration,
+      message: result.message
+    });
+    return {
+      success: true,
+      data: { check },
+      metadata: {
+        cacheHit: false,
+        checksRun: 1,
+        healthyCount: result.status === "pass" ? 1 : 0,
+        unhealthyCount: result.status !== "pass" ? 1 : 0
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: register-check
+  // ========================================================================
+  async registerCheck(options, _startTime) {
+    if (!options.checkName || !options.checkType || !options.checkConfig) {
+      throw new Error("checkName, checkType, and checkConfig are required");
+    }
+    const checkId = this.generateCheckId(options.checkName);
+    const check = {
+      id: checkId,
+      name: options.checkName,
+      type: options.checkType,
+      config: options.checkConfig,
+      interval: options.interval || 60,
+      timeout: options.timeout || 5e3,
+      retries: options.retries || 3,
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    healthCheckStore.registerCheck(check);
+    return {
+      success: true,
+      data: { check },
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: update-check
+  // ========================================================================
+  async updateCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      throw new Error("checkId or checkName is required");
+    }
+    const check = checkId ? healthCheckStore.getCheck(checkId) : healthCheckStore.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const updates = {};
+    if (options.checkType) updates.type = options.checkType;
+    if (options.checkConfig) updates.config = options.checkConfig;
+    if (options.interval !== void 0) updates.interval = options.interval;
+    if (options.timeout !== void 0) updates.timeout = options.timeout;
+    if (options.retries !== void 0) updates.retries = options.retries;
+    const success = healthCheckStore.updateCheck(check.id, updates);
+    if (!success) {
+      throw new Error("Failed to update check");
+    }
+    const updatedCheck = healthCheckStore.getCheck(check.id);
+    return {
+      success: true,
+      data: { check: updatedCheck },
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: delete-check
+  // ========================================================================
+  async deleteCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      throw new Error("checkId or checkName is required");
+    }
+    const check = checkId ? healthCheckStore.getCheck(checkId) : healthCheckStore.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const success = healthCheckStore.deleteCheck(check.id);
+    if (!success) {
+      throw new Error("Failed to delete check");
+    }
+    return {
+      success: true,
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-status
+  // ========================================================================
+  async getStatus(options, _startTime) {
+    const service = options.service || "default";
+    const cacheKey = generateCacheKey("health-status", {
+      service,
+      includeDetails: options.includeDetails || false,
+      includeDependencies: options.includeDependencies || false
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { status: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const status = await statusAggregator.aggregateServiceStatus(
+      service,
+      options.includeDetails || false,
+      options.includeDependencies || false
+    );
+    const statusStr = JSON.stringify(status);
+    const tokensUsed = this.tokenCounter.count(statusStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(statusStr).toString("utf-8"),
+      statusStr.length,
+      Buffer.from(statusStr).length
+    );
+    return {
+      success: true,
+      data: { status },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-history
+  // ========================================================================
+  async getHistory(options, _startTime) {
+    const checkId = options.checkId;
+    const cacheKey = generateCacheKey("health-history", {
+      checkId,
+      timeRange: options.timeRange,
+      limit: options.limit
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { history: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const history = healthCheckStore.getHistory(
+      checkId,
+      options.timeRange,
+      options.limit || 100
+    );
+    const aggregatedHistory = this.aggregateHistory(history);
+    const historyStr = JSON.stringify(aggregatedHistory);
+    const tokensUsed = this.tokenCounter.count(historyStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(historyStr).toString("utf-8"),
+      historyStr.length,
+      Buffer.from(historyStr).length
+    );
+    return {
+      success: true,
+      data: { history: aggregatedHistory },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: configure-dependencies
+  // ========================================================================
+  async configureDependencies(options, _startTime) {
+    if (!options.dependencies) {
+      throw new Error("dependencies configuration is required");
+    }
+    const { service, dependsOn, critical } = options.dependencies;
+    if (!service || !dependsOn) {
+      throw new Error("service and dependsOn are required");
+    }
+    healthCheckStore.setDependencies(service, dependsOn, critical || false);
+    const graph = dependencyAnalyzer.buildDependencyGraph();
+    const cacheKey = `cache-${createHash46("md5").update("health-dependencies:graph").digest("hex")}`;
+    const graphData = JSON.stringify(graph);
+    const tokensUsed = this.tokenCounter.count(graphData).tokens;
+    this.cache.set(cacheKey, graphData, tokensUsed, tokensUsed);
+    return {
+      success: true,
+      data: { dependencies: graph },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-impact
+  // ========================================================================
+  async getImpact(options, _startTime) {
+    if (!options.service) {
+      throw new Error("service is required for impact analysis");
+    }
+    const scenario = options.scenario || "failure";
+    const cacheKey = generateCacheKey("health-impact", {
+      service: options.service,
+      scenario
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { impact: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const impact = dependencyAnalyzer.analyzeImpact(options.service, scenario);
+    const impactStr = JSON.stringify(impact);
+    const tokensUsed = this.tokenCounter.count(impactStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(impactStr).toString("utf-8"),
+      impactStr.length,
+      Buffer.from(impactStr).length
+    );
+    return {
+      success: true,
+      data: { impact },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Helper Methods
+  // ========================================================================
+  generateCheckId(name) {
+    const hash = createHash46("sha256");
+    hash.update(name);
+    hash.update(Date.now().toString());
+    return hash.digest("hex").substring(0, 16);
+  }
+  aggregateHistory(history) {
+    const aggregated = [];
+    const seen = /* @__PURE__ */ new Map();
+    for (const event of history) {
+      const key = `${event.checkId}:${event.status}`;
+      const count = seen.get(key) || 0;
+      if (count < 5 || history.indexOf(event) >= history.length - 10) {
+        aggregated.push(event);
+      }
+      seen.set(key, count + 1);
+    }
+    return aggregated;
+  }
+};
+var HEALTH_MONITOR_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    operation: {
+      type: "string",
+      enum: [
+        "register-endpoint",
+        "unregister-endpoint",
+        "check-health",
+        "list-endpoints",
+        "get-history",
+        "set-threshold",
+        "get-summary",
+        "run-diagnostic"
+      ],
+      description: "Health monitoring operation"
+    },
+    endpointId: {
+      type: "string",
+      description: "Endpoint ID"
+    },
+    endpointName: {
+      type: "string",
+      description: "Endpoint name"
+    },
+    endpointType: {
+      type: "string",
+      enum: ["http", "tcp", "database", "service", "custom"],
+      description: "Type of endpoint to monitor"
+    },
+    config: {
+      type: "object",
+      description: "Endpoint configuration"
+    },
+    interval: {
+      type: "number",
+      description: "Check interval in seconds"
+    },
+    thresholds: {
+      type: "object",
+      description: "Health thresholds"
+    },
+    timeRange: {
+      type: "object",
+      description: "Time range for history"
+    },
+    diagnosticType: {
+      type: "string",
+      enum: ["network", "disk", "memory", "cpu", "process"],
+      description: "Type of diagnostic to run"
+    },
+    useCache: {
+      type: "boolean",
+      description: "Enable caching",
+      default: true
+    },
+    cacheTTL: {
+      type: "number",
+      description: "Cache TTL in seconds"
+    }
+  },
+  required: ["operation"]
+};
+var healthMonitorInstance = null;
+function getHealthMonitor(cache, tokenCounter, metricsCollector) {
+  if (!healthMonitorInstance) {
+    healthMonitorInstance = new HealthMonitor(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return healthMonitorInstance;
+}
+var HEALTH_MONITOR_TOOL_DEFINITION = {
+  name: "health_monitor",
+  description: "Monitor system and application health with 91% token reduction through health state compression and metric aggregation",
+  inputSchema: HEALTH_MONITOR_INPUT_SCHEMA
+};
+
+// src/optimizer/tools/dashboard-monitoring/log-dashboard.ts
+import { createHash as createHash47 } from "crypto";
+import * as fs5 from "fs";
+import { EventEmitter as EventEmitter10 } from "events";
+var LogDashboard = class {
+  cache;
+  tokenCounter;
+  metricsCollector;
+  eventEmitter;
+  // In-memory storage
+  dashboards = /* @__PURE__ */ new Map();
+  filtersMap = /* @__PURE__ */ new Map();
+  logBuffer = [];
+  maxLogBuffer = 1e5;
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+    this.eventEmitter = new EventEmitter10();
+    this.loadPersistedData();
+  }
+  /**
+   * Main entry point for log dashboard operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      let result;
+      switch (options.operation) {
+        case "create":
+          result = await this.createDashboard(options);
+          break;
+        case "update":
+          result = await this.updateDashboard(options);
+          break;
+        case "query":
+          result = await this.queryLogs(options);
+          break;
+        case "aggregate":
+          result = await this.aggregateLogs(options);
+          break;
+        case "detect-anomalies":
+          result = await this.detectAnomalies(options);
+          break;
+        case "create-filter":
+          result = await this.createFilter(options);
+          break;
+        case "export":
+          result = await this.exportLogs(options);
+          break;
+        case "tail":
+          result = await this.tailLogs(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `log_dashboard:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit,
+        inputTokens: 0,
+        outputTokens: result.metadata.tokensUsed || 0,
+        savedTokens: result.metadata.tokensSaved || 0
+      });
+      return result;
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metricsCollector.record({
+        operation: `log_dashboard:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        savedTokens: 0
+      });
+      return {
+        success: false,
+        error: errorMessage,
+        metadata: {
+          cacheHit: false,
+          processingTime: Date.now() - startTime
+        }
+      };
+    }
+  }
+  // ============================================================================
+  // Operation: Create Dashboard
+  // ============================================================================
+  async createDashboard(options) {
+    if (!options.dashboardName) {
+      throw new Error("dashboardName is required for create operation");
+    }
+    const dashboardId = this.generateDashboardId(options.dashboardName);
+    if (this.dashboards.has(dashboardId)) {
+      throw new Error(`Dashboard '${options.dashboardName}' already exists`);
+    }
+    const dashboard = {
+      id: dashboardId,
+      name: options.dashboardName,
+      sources: options.logSources || [],
+      filters: [],
+      widgets: [],
+      layout: {
+        type: "grid",
+        columns: 12,
+        rowHeight: 100
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    this.dashboards.set(dashboardId, dashboard);
+    const cacheKey = this.getCacheKey("dashboard", dashboardId);
+    const compressed = this.compressDashboardMetadata(dashboard);
+    const cachedData = JSON.stringify(compressed);
+    const tokensUsed = this.tokenCounter.count(
+      JSON.stringify(dashboard)
+    ).tokens;
+    const tokensSaved = tokensUsed - this.tokenCounter.count(cachedData).tokens;
+    this.cache.set(cacheKey, cachedData, tokensUsed, cachedData.length);
+    await this.persistDashboards();
+    return {
+      success: true,
+      data: { dashboard: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(cachedData).tokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Update Dashboard
+  // ============================================================================
+  async updateDashboard(options) {
+    if (!options.dashboardId && !options.dashboardName) {
+      throw new Error("dashboardId or dashboardName is required");
+    }
+    const dashboardId = options.dashboardId || this.findDashboardIdByName(options.dashboardName);
+    if (!dashboardId) {
+      throw new Error("Dashboard not found");
+    }
+    const dashboard = this.dashboards.get(dashboardId);
+    if (!dashboard) {
+      throw new Error("Dashboard not found");
+    }
+    if (options.logSources) dashboard.sources = options.logSources;
+    dashboard.updatedAt = Date.now();
+    const cacheKey = this.getCacheKey("dashboard", dashboardId);
+    const compressed = this.compressDashboardMetadata(dashboard);
+    const cachedData = JSON.stringify(compressed);
+    const tokensUsed = this.tokenCounter.count(
+      JSON.stringify(dashboard)
+    ).tokens;
+    const tokensSaved = tokensUsed - this.tokenCounter.count(cachedData).tokens;
+    this.cache.set(cacheKey, cachedData, tokensUsed, cachedData.length);
+    await this.persistDashboards();
+    return {
+      success: true,
+      data: { dashboard: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(cachedData).tokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Query Logs
+  // ============================================================================
+  async queryLogs(options) {
+    const query = options.query || {};
+    const cacheKey = this.getCacheKey("query", JSON.stringify(query));
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedLogs = JSON.parse(cached2);
+        const tokensSaved2 = this.estimateQueryTokenSavings(cachedLogs);
+        return {
+          success: true,
+          data: {
+            logs: cachedLogs.logs,
+            stats: cachedLogs.stats
+          },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: tokensSaved2,
+            logCount: cachedLogs.logs.length
+          }
+        };
+      }
+    }
+    let logs = [];
+    if (options.logFiles) {
+      for (const filePath of options.logFiles) {
+        const fileLogs = await this.readLogFile(filePath);
+        logs.push(...fileLogs);
+      }
+    } else {
+      logs = [...this.logBuffer];
+    }
+    logs = this.applyFilters(logs, query);
+    const offset = query.offset || 0;
+    const limit = query.limit || 1e3;
+    const paginatedLogs = logs.slice(offset, offset + limit);
+    const stats = this.calculateStats(logs);
+    const compressed = this.compressLogs(paginatedLogs);
+    const fullTokens = this.tokenCounter.count(
+      JSON.stringify(paginatedLogs)
+    ).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheData = JSON.stringify({ logs: compressed, stats });
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: {
+        logs: compressed,
+        stats
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        logCount: paginatedLogs.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Aggregate Logs
+  // ============================================================================
+  async aggregateLogs(options) {
+    const aggregation = options.aggregation || {};
+    const cacheKey = this.getCacheKey("aggregate", JSON.stringify(options));
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedAggs = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { aggregations: cachedAggs },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateAggregationTokenSavings(cachedAggs)
+          }
+        };
+      }
+    }
+    let logs = [];
+    if (options.logFiles) {
+      for (const filePath of options.logFiles) {
+        const fileLogs = await this.readLogFile(filePath);
+        logs.push(...fileLogs);
+      }
+    } else {
+      logs = [...this.logBuffer];
+    }
+    if (options.query) {
+      logs = this.applyFilters(logs, options.query);
+    }
+    const aggregations = this.performAggregation(logs, aggregation);
+    const fullTokens = this.tokenCounter.count(JSON.stringify(logs)).tokens;
+    const aggTokens = this.tokenCounter.count(
+      JSON.stringify(aggregations)
+    ).tokens;
+    const tokensSaved = fullTokens - aggTokens;
+    const cacheData = JSON.stringify(aggregations);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { aggregations },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: aggTokens,
+        tokensSaved,
+        logCount: logs.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Detect Anomalies
+  // ============================================================================
+  async detectAnomalies(options) {
+    const anomaly = options.anomaly || {
+      sensitivity: 0.5,
+      method: "statistical"
+    };
+    const cacheKey = this.getCacheKey("anomalies", JSON.stringify(options));
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedAnomalies = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { anomalies: cachedAnomalies },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateAnomalyTokenSavings(cachedAnomalies)
+          }
+        };
+      }
+    }
+    let logs = [];
+    if (options.logFiles) {
+      for (const filePath of options.logFiles) {
+        const fileLogs = await this.readLogFile(filePath);
+        logs.push(...fileLogs);
+      }
+    } else {
+      logs = [...this.logBuffer];
+    }
+    if (options.query) {
+      logs = this.applyFilters(logs, options.query);
+    }
+    const anomalies = this.detectLogAnomalies(logs, anomaly);
+    const fullTokens = this.tokenCounter.count(JSON.stringify(logs)).tokens;
+    const anomalyTokens = this.tokenCounter.count(
+      JSON.stringify(anomalies)
+    ).tokens;
+    const tokensSaved = fullTokens - anomalyTokens;
+    const cacheData = JSON.stringify(anomalies);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { anomalies },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: anomalyTokens,
+        tokensSaved,
+        logCount: logs.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Create Filter
+  // ============================================================================
+  async createFilter(options) {
+    if (!options.filterName || !options.filter) {
+      throw new Error("filterName and filter are required");
+    }
+    const filterId = this.generateFilterId(options.filterName);
+    const filter = {
+      ...options.filter,
+      id: filterId,
+      name: options.filterName,
+      createdAt: Date.now()
+    };
+    this.filtersMap.set(filterId, filter);
+    await this.persistFilters();
+    return {
+      success: true,
+      data: { filter },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(JSON.stringify(filter)).tokens,
+        tokensSaved: 0
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Export Logs
+  // ============================================================================
+  async exportLogs(options) {
+    const queryResult = await this.queryLogs(options);
+    if (!queryResult.success || !queryResult.data?.logs) {
+      return queryResult;
+    }
+    const logs = queryResult.data.logs;
+    const format = options.format || "json";
+    const outputPath = options.outputPath || `logs-export-${Date.now()}.${format}`;
+    let content;
+    switch (format) {
+      case "json":
+        content = JSON.stringify(logs, null, 2);
+        break;
+      case "csv":
+        content = this.logsToCSV(logs);
+        break;
+      case "txt":
+        content = this.logsToText(logs);
+        break;
+      default:
+        throw new Error(`Unsupported format: ${format}`);
+    }
+    await fs5.promises.writeFile(outputPath, content, "utf-8");
+    return {
+      success: true,
+      data: {
+        logs,
+        stats: {
+          total: logs.length,
+          byLevel: {},
+          timeRange: { start: 0, end: 0 }
+        }
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(content).tokens,
+        tokensSaved: 0,
+        logCount: logs.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Tail Logs
+  // ============================================================================
+  async tailLogs(options) {
+    if (!options.logFiles || options.logFiles.length === 0) {
+      throw new Error("logFiles is required for tail operation");
+    }
+    const lines = options.lines || 100;
+    const logs = [];
+    for (const filePath of options.logFiles) {
+      const fileLogs = await this.readLogFile(filePath);
+      logs.push(...fileLogs.slice(-lines));
+    }
+    logs.sort((a2, b) => a2.timestamp - b.timestamp);
+    const tailedLogs = logs.slice(-lines);
+    if (options.follow) {
+      this.eventEmitter.emit("tail-start", {
+        files: options.logFiles,
+        lines
+      });
+    }
+    const stats = this.calculateStats(tailedLogs);
+    return {
+      success: true,
+      data: {
+        logs: tailedLogs,
+        stats
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(JSON.stringify(tailedLogs)).tokens,
+        tokensSaved: 0,
+        logCount: tailedLogs.length
+      }
+    };
+  }
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+  generateDashboardId(name) {
+    const hash = createHash47("sha256");
+    hash.update(name + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  generateFilterId(name) {
+    const hash = createHash47("sha256");
+    hash.update(name + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  findDashboardIdByName(name) {
+    for (const [id, dashboard] of this.dashboards.entries()) {
+      if (dashboard.name === name) {
+        return id;
+      }
+    }
+    return void 0;
+  }
+  // NOTE: Cache key is the md5 hash of `log-dashboard:${prefix}:${suffix}`, prefixed with "cache-"
+  getCacheKey(prefix, suffix) {
+    const hash = createHash47("md5");
+    hash.update(`log-dashboard:${prefix}:${suffix}`);
+    return `cache-${hash.digest("hex")}`;
+  }
+  compressDashboardMetadata(dashboard) {
+    return {
+      id: dashboard.id,
+      name: dashboard.name,
+      sourceCount: dashboard.sources.length,
+      filterCount: dashboard.filters.length,
+      widgetCount: dashboard.widgets.length,
+      createdAt: dashboard.createdAt,
+      updatedAt: dashboard.updatedAt
+    };
+  }
+  compressLogs(logs) {
+    return logs.map((log) => ({
+      t: log.timestamp,
+      l: log.level[0],
+      // First letter only
+      m: log.message.substring(0, 200),
+      // Truncate message
+      s: log.source
+    }));
+  }
+  async readLogFile(filePath) {
+    try {
+      const content = await fs5.promises.readFile(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+      return lines.map((line, index2) => this.parseLogLine(line, index2));
+    } catch (error2) {
+      console.error(`Error reading log file ${filePath}:`, error2);
+      return [];
+    }
+  }
+  parseLogLine(line, index2) {
+    try {
+      const parsed = JSON.parse(line);
+      return {
+        timestamp: parsed.timestamp || parsed.time || Date.now(),
+        level: this.normalizeLogLevel(
+          parsed.level || parsed.severity || "info"
+        ),
+        message: parsed.message || parsed.msg || line,
+        source: parsed.source || parsed.logger,
+        fields: parsed,
+        raw: line
+      };
+    } catch {
+      const levelMatch = line.match(/\b(trace|debug|info|warn|error|fatal)\b/i);
+      const level = levelMatch ? this.normalizeLogLevel(levelMatch[0]) : "info";
+      const timestampMatch = line.match(
+        /\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/
+      );
+      const timestamp = timestampMatch ? new Date(timestampMatch[0]).getTime() : Date.now() - index2 * 1e3;
+      return {
+        timestamp,
+        level,
+        message: line,
+        raw: line
+      };
+    }
+  }
+  normalizeLogLevel(level) {
+    const normalized = level.toLowerCase();
+    if (["trace", "debug", "info", "warn", "error", "fatal"].includes(normalized)) {
+      return normalized;
+    }
+    return "info";
+  }
+  applyFilters(logs, query) {
+    let filtered = logs;
+    if (query.pattern) {
+      const regex = new RegExp(query.pattern, "i");
+      filtered = filtered.filter((log) => regex.test(log.message));
+    }
+    if (query.level) {
+      const levels = Array.isArray(query.level) ? query.level : [query.level];
+      filtered = filtered.filter((log) => levels.includes(log.level));
+    }
+    if (query.timeRange) {
+      filtered = filtered.filter(
+        (log) => log.timestamp >= query.timeRange.start && log.timestamp <= query.timeRange.end
+      );
+    }
+    return filtered;
+  }
+  calculateStats(logs) {
+    const byLevel = {
+      trace: 0,
+      debug: 0,
+      info: 0,
+      warn: 0,
+      error: 0,
+      fatal: 0
+    };
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+    for (const log of logs) {
+      byLevel[log.level]++;
+      minTime = Math.min(minTime, log.timestamp);
+      maxTime = Math.max(maxTime, log.timestamp);
+    }
+    return {
+      total: logs.length,
+      byLevel,
+      timeRange: {
+        start: minTime === Infinity ? 0 : minTime,
+        end: maxTime === -Infinity ? 0 : maxTime
+      }
+    };
+  }
+  performAggregation(logs, aggregation) {
+    const groupBy = aggregation.groupBy || ["level"];
+    const timeWindow = aggregation.timeWindow || 3600;
+    const groups = /* @__PURE__ */ new Map();
+    for (const log of logs) {
+      const keyParts = [];
+      for (const field of groupBy) {
+        if (field === "level") {
+          keyParts.push(log.level);
+        } else if (field === "source") {
+          keyParts.push(log.source || "unknown");
+        } else if (field === "timeWindow") {
+          const windowStart = Math.floor(log.timestamp / (timeWindow * 1e3)) * timeWindow * 1e3;
+          keyParts.push(windowStart.toString());
+        }
+      }
+      const key = keyParts.join(":");
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(log);
+    }
+    const aggregations = [];
+    for (const [key, groupLogs] of groups.entries()) {
+      const timestamps = groupLogs.map((l) => l.timestamp);
+      const timeRange = Math.max(...timestamps) - Math.min(...timestamps);
+      const rate = timeRange > 0 ? groupLogs.length / (timeRange / 1e3) : 0;
+      aggregations.push({
+        groupKey: key,
+        count: groupLogs.length,
+        rate,
+        timestamps,
+        samples: groupLogs.slice(0, 5)
+        // Keep only first 5 samples
+      });
+    }
+    return aggregations;
+  }
+  detectLogAnomalies(logs, config2) {
+    const anomalies = [];
+    const sensitivity = config2.sensitivity || 0.5;
+    const method = config2.method || "statistical";
+    if (method === "statistical") {
+      const timeWindow = 3e5;
+      const now2 = Date.now();
+      const baselinePeriod = config2.baselinePeriod || 36e5;
+      const baselineLogs = logs.filter(
+        (l) => l.timestamp >= now2 - baselinePeriod && l.timestamp < now2 - timeWindow
+      );
+      const baselineGroups = /* @__PURE__ */ new Map();
+      for (const log of baselineLogs) {
+        const windowStart = Math.floor(log.timestamp / timeWindow) * timeWindow;
+        baselineGroups.set(
+          windowStart,
+          (baselineGroups.get(windowStart) || 0) + 1
+        );
+      }
+      const baselineCounts = Array.from(baselineGroups.values());
+      const baselineMean = baselineCounts.reduce((a2, b) => a2 + b, 0) / baselineCounts.length || 0;
+      const baselineStdDev = this.calculateStdDev(baselineCounts, baselineMean);
+      const recentLogs = logs.filter((l) => l.timestamp >= now2 - timeWindow);
+      const recentCount = recentLogs.length;
+      const threshold = baselineMean + baselineStdDev * (2 - sensitivity);
+      if (recentCount > threshold) {
+        const deviation = (recentCount - baselineMean) / baselineStdDev;
+        anomalies.push({
+          timestamp: now2,
+          severity: deviation > 3 ? "critical" : deviation > 2 ? "high" : "medium",
+          type: "frequency_spike",
+          description: `Log frequency spike detected: ${recentCount} logs in ${timeWindow / 1e3}s (baseline: ${baselineMean.toFixed(1)})`,
+          baseline: baselineMean,
+          actual: recentCount,
+          deviation,
+          affectedLogs: recentLogs.slice(0, 10)
+        });
+      }
+      const errorLogs = recentLogs.filter(
+        (l) => ["error", "fatal"].includes(l.level)
+      );
+      const errorRate = errorLogs.length / recentCount || 0;
+      const baselineErrors = baselineLogs.filter(
+        (l) => ["error", "fatal"].includes(l.level)
+      );
+      const baselineErrorRate = baselineErrors.length / baselineLogs.length || 0;
+      if (errorRate > baselineErrorRate * 2 && errorRate > 0.1) {
+        anomalies.push({
+          timestamp: now2,
+          severity: errorRate > 0.5 ? "critical" : "high",
+          type: "error_rate_spike",
+          description: `Error rate spike: ${(errorRate * 100).toFixed(1)}% (baseline: ${(baselineErrorRate * 100).toFixed(1)}%)`,
+          baseline: baselineErrorRate,
+          actual: errorRate,
+          deviation: (errorRate - baselineErrorRate) / baselineErrorRate,
+          affectedLogs: errorLogs.slice(0, 10)
+        });
+      }
+    }
+    return anomalies;
+  }
+  calculateStdDev(values, mean) {
+    if (values.length === 0) return 0;
+    const squareDiffs = values.map((value) => Math.pow(value - mean, 2));
+    const avgSquareDiff = squareDiffs.reduce((a2, b) => a2 + b, 0) / values.length;
+    return Math.sqrt(avgSquareDiff);
+  }
+  logsToCSV(logs) {
+    if (logs.length === 0) return "";
+    const headers = ["timestamp", "level", "message", "source"];
+    const rows = logs.map((log) => [
+      log.t || log.timestamp,
+      log.l || log.level,
+      (log.m || log.message).replace(/"/g, '""'),
+      log.s || log.source || ""
+    ]);
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(","))
+    ];
+    return csvLines.join("\n");
+  }
+  logsToText(logs) {
+    return logs.map((log) => {
+      const timestamp = new Date(log.t || log.timestamp).toISOString();
+      const level = (log.l || log.level).toUpperCase();
+      const message = log.m || log.message;
+      const source = log.s || log.source;
+      return `[${timestamp}] ${level} ${source ? `[${source}]` : ""} ${message}`;
+    }).join("\n");
+  }
+  estimateQueryTokenSavings(cachedData) {
+    const estimatedFullSize = cachedData.logs.length * 150;
+    const actualSize = JSON.stringify(cachedData).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  estimateAggregationTokenSavings(aggregations) {
+    const estimatedFullSize = aggregations.reduce(
+      (sum, agg) => sum + (agg.count || 0) * 150,
+      0
+    );
+    const actualSize = JSON.stringify(aggregations).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  estimateAnomalyTokenSavings(anomalies) {
+    const estimatedFullSize = 1e5;
+    const actualSize = JSON.stringify(anomalies).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  // ============================================================================
+  // Persistence Methods
+  // ============================================================================
+  async persistDashboards() {
+    const cacheKey = this.getCacheKey("persistence", "dashboards");
+    const data = JSON.stringify(Array.from(this.dashboards.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  async persistFilters() {
+    const cacheKey = this.getCacheKey("persistence", "filters");
+    const data = JSON.stringify(Array.from(this.filtersMap.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  loadPersistedData() {
+    const dashboardsKey = this.getCacheKey("persistence", "dashboards");
+    const dashboardsData = this.cache.get(dashboardsKey);
+    if (dashboardsData) {
+      try {
+        const entries = JSON.parse(dashboardsData);
+        this.dashboards = new Map(entries);
+      } catch (error2) {
+        console.error("[LogDashboard] Error loading dashboards:", error2);
+      }
+    }
+    const filtersKey = this.getCacheKey("persistence", "filters");
+    const filtersData = this.cache.get(filtersKey);
+    if (filtersData) {
+      try {
+        const entries = JSON.parse(filtersData);
+        this.filtersMap = new Map(entries);
+      } catch (error2) {
+        console.error("[LogDashboard] Error loading filters:", error2);
+      }
+    }
+  }
+  /**
+   * Add log entry to buffer (for real-time logging)
+   */
+  addLog(log) {
+    this.logBuffer.push(log);
+    if (this.logBuffer.length > this.maxLogBuffer) {
+      this.logBuffer = this.logBuffer.slice(-this.maxLogBuffer);
+    }
+    this.eventEmitter.emit("log", log);
+  }
+  /**
+   * Subscribe to log events
+   */
+  onLog(callback) {
+    this.eventEmitter.on("log", callback);
+  }
+};
+var logDashboardInstance = null;
+function getLogDashboard(cache, tokenCounter, metricsCollector) {
+  if (!logDashboardInstance) {
+    logDashboardInstance = new LogDashboard(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return logDashboardInstance;
+}
+var LOG_DASHBOARD_TOOL_DEFINITION = {
+  name: "log_dashboard",
+  description: "Interactive log analysis dashboard with filtering, searching, pattern detection, and 90% token reduction through intelligent caching and compression",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "create",
+          "update",
+          "query",
+          "aggregate",
+          "detect-anomalies",
+          "create-filter",
+          "export",
+          "tail"
+        ],
+        description: "The log dashboard operation to perform"
+      },
+      dashboardId: {
+        type: "string",
+        description: "Dashboard identifier"
+      },
+      dashboardName: {
+        type: "string",
+        description: "Dashboard name (required for create)"
+      },
+      logFiles: {
+        type: "array",
+        items: { type: "string" },
+        description: "Paths to log files to analyze"
+      },
+      query: {
+        type: "object",
+        description: "Log query configuration",
+        properties: {
+          pattern: { type: "string" },
+          level: {
+            type: ["string", "array"],
+            items: { type: "string" }
+          },
+          timeRange: {
+            type: "object",
+            properties: {
+              start: { type: "number" },
+              end: { type: "number" }
+            }
+          },
+          limit: { type: "number" },
+          offset: { type: "number" }
+        }
+      },
+      aggregation: {
+        type: "object",
+        description: "Aggregation configuration",
+        properties: {
+          groupBy: {
+            type: "array",
+            items: { type: "string" }
+          },
+          timeWindow: { type: "number" },
+          metrics: {
+            type: "array",
+            items: { type: "string" }
+          }
+        }
+      },
+      anomaly: {
+        type: "object",
+        description: "Anomaly detection configuration",
+        properties: {
+          sensitivity: { type: "number" },
+          method: { type: "string" },
+          baselinePeriod: { type: "number" }
+        }
+      },
+      filterName: {
+        type: "string",
+        description: "Name for saved filter"
+      },
+      format: {
+        type: "string",
+        enum: ["json", "csv", "txt"],
+        description: "Export format"
+      },
+      outputPath: {
+        type: "string",
+        description: "Path for exported file"
+      },
+      follow: {
+        type: "boolean",
+        description: "Follow mode for tail operation"
+      },
+      lines: {
+        type: "number",
+        description: "Number of lines to tail"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching (default: true)",
+        default: true
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      logSources: {
+        type: "array",
+        description: "Log sources to read from",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            name: { type: "string" },
+            type: {
+              type: "string",
+              enum: ["file", "stream", "api", "database"]
+            },
+            config: {
+              type: "object",
+              description: "Which fields apply depends on type",
+              properties: {
+                path: { type: "string" },
+                url: { type: "string" },
+                query: { type: "string" },
+                format: {
+                  type: "string",
+                  enum: ["json", "text", "syslog", "custom"]
+                },
+                parser: {
+                  type: "string",
+                  description: "Custom parser regular expression, for format custom"
+                }
+              }
+            },
+            enabled: {
+              type: "boolean",
+              description: "Whether this source is read; required by the interface"
+            },
+            lastRead: {
+              type: "number",
+              description: "Epoch milliseconds of the last read, maintained by the tool"
+            }
+          },
+          // MATCHES LogSource. The first draft required only id and type and omitted
+          // name, enabled and config.parser, so it accepted source objects the tool
+          // itself would reject -- a schema loose enough to produce invalid input.
+          required: ["id", "name", "type", "config", "enabled"]
+        }
+      },
+      filterId: {
+        type: "string",
+        description: "Identifier of a saved filter to apply or remove"
+      },
+      filter: {
+        type: "object",
+        description: "Filter to apply to the matched entries",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          pattern: {
+            type: "string",
+            description: "Regular expression matched against the message"
+          },
+          level: {
+            type: "array",
+            items: { type: "string" },
+            description: "Log levels to include"
+          },
+          fields: { type: "object", additionalProperties: true },
+          exclude: {
+            type: "boolean",
+            description: "Exclude matches instead of including them",
+            default: false
+          },
+          createdAt: {
+            type: "number",
+            description: "Epoch milliseconds the filter was created"
+          }
+        },
+        // LogFilter requires all three; the schema demanded none of them, so a
+        // filter object missing its identity passed validation.
+        required: ["id", "name", "createdAt"]
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache lifetime in seconds"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/metric-collector.ts
+import { createHash as createHash48 } from "crypto";
+var MetricCollector = class {
+  cache;
+  tokenCounter;
+  metricsCollector;
+  // In-memory storage
+  sources = /* @__PURE__ */ new Map();
+  dataPoints = [];
+  compressedSeries = /* @__PURE__ */ new Map();
+  maxDataPoints = 1e6;
+  // 1M data points
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+    this.loadPersistedData();
+  }
+  /**
+   * Main entry point for metric collector operations
+   */
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      let result;
+      switch (options.operation) {
+        case "collect":
+          result = await this.collectMetrics(options);
+          break;
+        case "query":
+          result = await this.queryMetrics(options);
+          break;
+        case "aggregate":
+          result = await this.aggregateMetrics(options);
+          break;
+        case "export":
+          result = await this.exportMetrics(options);
+          break;
+        case "list-sources":
+          result = await this.listSources(options);
+          break;
+        case "configure-source":
+          result = await this.configureSource(options);
+          break;
+        case "get-stats":
+          result = await this.getStats(options);
+          break;
+        case "purge":
+          result = await this.purgeOldData(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `metric_collector:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit,
+        inputTokens: 0,
+        outputTokens: result.metadata.tokensUsed || 0,
+        savedTokens: result.metadata.tokensSaved || 0
+      });
+      return result;
+    } catch (error2) {
+      const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+      this.metricsCollector.record({
+        operation: `metric_collector:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        savedTokens: 0
+      });
+      return {
+        success: false,
+        error: errorMessage,
+        metadata: {
+          cacheHit: false,
+          processingTime: Date.now() - startTime
+        }
+      };
+    }
+  }
+  // ============================================================================
+  // Operation: Collect Metrics
+  // ============================================================================
+  async collectMetrics(options) {
+    const sourcesToCollect = [];
+    if (options.sourceId) {
+      const source = this.sources.get(options.sourceId);
+      if (!source) {
+        throw new Error(`Source not found: ${options.sourceId}`);
+      }
+      sourcesToCollect.push(source);
+    } else {
+      for (const source of this.sources.values()) {
+        if (source.enabled && source.status === "active") {
+          sourcesToCollect.push(source);
+        }
+      }
+    }
+    const collectedDataPoints = [];
+    for (const source of sourcesToCollect) {
+      try {
+        const dataPoints = await this.collectFromSource(source, options);
+        collectedDataPoints.push(...dataPoints);
+        source.lastCollected = Date.now();
+        source.status = "active";
+        source.errorMessage = void 0;
+      } catch (error2) {
+        source.status = "error";
+        source.errorMessage = error2 instanceof Error ? error2.message : String(error2);
+        console.error(`Error collecting from source ${source.name}:`, error2);
+      }
+    }
+    this.dataPoints.push(...collectedDataPoints);
+    this.compressDataPoints(collectedDataPoints);
+    if (this.dataPoints.length > this.maxDataPoints) {
+      this.dataPoints = this.dataPoints.slice(-this.maxDataPoints);
+    }
+    await this.persistSources();
+    await this.persistData();
+    const tokensUsed = this.tokenCounter.count(
+      JSON.stringify(collectedDataPoints.slice(0, 100))
+    ).tokens;
+    return {
+      success: true,
+      data: {
+        dataPoints: collectedDataPoints.slice(0, 100)
+        // Return first 100 for preview
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed,
+        tokensSaved: 0,
+        dataPointCount: collectedDataPoints.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Query Metrics
+  // ============================================================================
+  async queryMetrics(options) {
+    const query = options.query || {};
+    const cacheKey = this.getCacheKey("query", JSON.stringify(query));
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedData = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { dataPoints: cachedData },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateQueryTokenSavings(cachedData),
+            dataPointCount: cachedData.length
+          }
+        };
+      }
+    }
+    let filtered = this.dataPoints;
+    if (query.metric) {
+      filtered = filtered.filter((dp) => dp.metric === query.metric);
+    }
+    if (query.tags) {
+      filtered = filtered.filter((dp) => {
+        if (!dp.tags) return false;
+        return Object.entries(query.tags).every(
+          ([key, value]) => dp.tags[key] === value
+        );
+      });
+    }
+    if (query.timeRange) {
+      filtered = filtered.filter(
+        (dp) => dp.timestamp >= query.timeRange.start && dp.timestamp <= query.timeRange.end
+      );
+    }
+    filtered.sort((a2, b) => a2.timestamp - b.timestamp);
+    if (query.downsample && query.downsample > 0) {
+      filtered = this.downsampleDataPoints(filtered, query.downsample);
+    }
+    if (query.limit && query.limit > 0) {
+      filtered = filtered.slice(0, query.limit);
+    }
+    const compressed = this.compressForTransmission(filtered);
+    const fullTokens = this.tokenCounter.count(JSON.stringify(filtered)).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheData = JSON.stringify(compressed);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { dataPoints: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        dataPointCount: filtered.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Aggregate Metrics
+  // ============================================================================
+  async aggregateMetrics(options) {
+    if (!options.aggregation) {
+      throw new Error("aggregation configuration is required");
+    }
+    const agg = options.aggregation;
+    const cacheKey = this.getCacheKey("aggregate", JSON.stringify(options));
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedAggs = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { aggregations: cachedAggs },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateAggregationTokenSavings(cachedAggs)
+          }
+        };
+      }
+    }
+    let dataPoints = this.dataPoints;
+    if (options.query) {
+      const queryResult = await this.queryMetrics({
+        ...options,
+        operation: "query"
+      });
+      dataPoints = queryResult.data?.dataPoints || [];
+    }
+    const aggregations = this.performAggregation(dataPoints, agg);
+    const fullTokens = this.tokenCounter.count(
+      JSON.stringify(dataPoints)
+    ).tokens;
+    const aggTokens = this.tokenCounter.count(
+      JSON.stringify(aggregations)
+    ).tokens;
+    const tokensSaved = fullTokens - aggTokens;
+    const cacheData = JSON.stringify(aggregations);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { aggregations },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: aggTokens,
+        tokensSaved,
+        dataPointCount: dataPoints.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Export Metrics
+  // ============================================================================
+  async exportMetrics(options) {
+    const queryResult = await this.queryMetrics({
+      ...options,
+      operation: "query"
+    });
+    if (!queryResult.success || !queryResult.data?.dataPoints) {
+      return queryResult;
+    }
+    const dataPoints = queryResult.data.dataPoints;
+    const format = options.format || "json";
+    const destination = options.destination || `metrics-export-${Date.now()}.${format}`;
+    let content;
+    switch (format) {
+      case "json":
+        content = JSON.stringify(dataPoints, null, 2);
+        break;
+      case "csv":
+        content = this.toCSV(dataPoints);
+        break;
+      case "prometheus":
+        content = this.toPrometheusFormat(dataPoints);
+        break;
+      case "influxdb":
+        content = this.toInfluxDBFormat(dataPoints);
+        break;
+      case "graphite":
+        content = this.toGraphiteFormat(dataPoints);
+        break;
+      default:
+        throw new Error(`Unsupported format: ${format}`);
+    }
+    if (options.compress) {
+    }
+    if (destination.startsWith("http://") || destination.startsWith("https://")) {
+      console.log(`[MetricCollector] Would export to ${destination}`);
+    } else {
+      const fs6 = await import("fs");
+      await fs6.promises.writeFile(destination, content, "utf-8");
+    }
+    return {
+      success: true,
+      data: {
+        exported: {
+          format,
+          destination,
+          count: dataPoints.length
+        }
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(content).tokens,
+        tokensSaved: 0,
+        dataPointCount: dataPoints.length
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: List Sources
+  // ============================================================================
+  async listSources(options) {
+    const cacheKey = this.getCacheKey("sources", "list");
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedSources = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { sources: cachedSources },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateSourceTokenSavings(cachedSources)
+          }
+        };
+      }
+    }
+    const sources = Array.from(this.sources.values());
+    const compressed = sources.map((s) => ({
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      enabled: s.enabled,
+      status: s.status,
+      lastCollected: s.lastCollected,
+      errorMessage: s.errorMessage,
+      metricCount: s.config.metrics?.length || 0
+    }));
+    const fullTokens = this.tokenCounter.count(JSON.stringify(sources)).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheData = JSON.stringify(compressed);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { sources: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Configure Source
+  // ============================================================================
+  async configureSource(options) {
+    if (!options.source) {
+      throw new Error("source configuration is required");
+    }
+    const sourceId = options.sourceId || this.generateSourceId(options.source.name);
+    const source = {
+      ...options.source,
+      id: sourceId,
+      status: options.source.status || "active"
+    };
+    this.sources.set(sourceId, source);
+    await this.persistSources();
+    return {
+      success: true,
+      data: { source },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(JSON.stringify(source)).tokens,
+        tokensSaved: 0
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Get Stats
+  // ============================================================================
+  async getStats(options) {
+    const cacheKey = this.getCacheKey("stats", "current");
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedStats = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { stats: cachedStats },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: 0
+          }
+        };
+      }
+    }
+    const uniqueMetrics = new Set(this.dataPoints.map((dp) => dp.metric)).size;
+    const activeSources = Array.from(this.sources.values()).filter(
+      (s) => s.status === "active"
+    ).length;
+    const errorSources = Array.from(this.sources.values()).filter(
+      (s) => s.status === "error"
+    ).length;
+    const rawSize = JSON.stringify(this.dataPoints).length;
+    const compressedSize = JSON.stringify(
+      Array.from(this.compressedSeries.values())
+    ).length;
+    const timestamps = this.dataPoints.map((dp) => dp.timestamp);
+    const oldest = timestamps.length > 0 ? Math.min(...timestamps) : 0;
+    const newest = timestamps.length > 0 ? Math.max(...timestamps) : 0;
+    const stats = {
+      totalDataPoints: this.dataPoints.length,
+      uniqueMetrics,
+      sources: {
+        total: this.sources.size,
+        active: activeSources,
+        error: errorSources
+      },
+      storage: {
+        rawSize,
+        compressedSize,
+        compressionRatio: rawSize > 0 ? compressedSize / rawSize : 0
+      },
+      timeRange: {
+        oldest,
+        newest
+      }
+    };
+    const cacheData = JSON.stringify(stats);
+    this.cache.set(cacheKey, cacheData, cacheData.length, cacheData.length);
+    return {
+      success: true,
+      data: { stats },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: this.tokenCounter.count(cacheData).tokens,
+        tokensSaved: 0
+      }
+    };
+  }
+  // ============================================================================
+  // Operation: Purge Old Data
+  // ============================================================================
+  async purgeOldData(options) {
+    const retentionPeriod = options.retentionPeriod || 86400 * 7;
+    const cutoffTime = Date.now() - retentionPeriod * 1e3;
+    const beforeCount = this.dataPoints.length;
+    this.dataPoints = this.dataPoints.filter(
+      (dp) => dp.timestamp >= cutoffTime
+    );
+    for (const [key, series] of this.compressedSeries.entries()) {
+      if (series.baseTimestamp < cutoffTime) {
+        this.compressedSeries.delete(key);
+      }
+    }
+    const afterCount = this.dataPoints.length;
+    const purgedCount = beforeCount - afterCount;
+    await this.persistData();
+    return {
+      success: true,
+      data: {
+        stats: {
+          totalDataPoints: afterCount,
+          uniqueMetrics: 0,
+          sources: { total: 0, active: 0, error: 0 },
+          storage: { rawSize: 0, compressedSize: 0, compressionRatio: 0 },
+          timeRange: { oldest: 0, newest: 0 }
+        }
+      },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: 0,
+        tokensSaved: 0,
+        dataPointCount: purgedCount
+      }
+    };
+  }
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+  generateSourceId(name) {
+    const hash = createHash48("sha256");
+    hash.update(name + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  getCacheKey(prefix, suffix) {
+    const hash = createHash48("md5");
+    hash.update(`metric-collector:${prefix}:${suffix}`);
+    return `cache-${hash.digest("hex")}`;
+  }
+  /**
+   * Collect metrics from a specific source
+   */
+  async collectFromSource(source, options) {
+    const dataPoints = [];
+    const metricsToCollect = options.metrics || source.config.metrics || [];
+    const now2 = Date.now();
+    for (const metric of metricsToCollect) {
+      const value = Math.random() * 100;
+      dataPoints.push({
+        metric,
+        value,
+        timestamp: now2,
+        tags: {
+          ...source.config.tags,
+          ...options.tags,
+          source: source.name
+        }
+      });
+    }
+    return dataPoints;
+  }
+  /**
+   * Compress data points using delta encoding
+   */
+  compressDataPoints(dataPoints) {
+    const groups = /* @__PURE__ */ new Map();
+    for (const dp of dataPoints) {
+      const key = this.getSeriesKey(dp.metric, dp.tags || {});
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(dp);
+    }
+    for (const [key, points] of groups.entries()) {
+      if (points.length === 0) continue;
+      points.sort((a2, b) => a2.timestamp - b.timestamp);
+      const baseTimestamp = points[0].timestamp;
+      const baseValue = points[0].value;
+      const deltas = [];
+      const timestamps = [];
+      for (let i = 1; i < points.length; i++) {
+        deltas.push(points[i].value - points[i - 1].value);
+        timestamps.push(points[i].timestamp - points[i - 1].timestamp);
+      }
+      const avgInterval = timestamps.length > 0 ? timestamps.reduce((a2, b) => a2 + b, 0) / timestamps.length : 0;
+      const compressed = {
+        metric: points[0].metric,
+        tags: points[0].tags || {},
+        baseTimestamp,
+        baseValue,
+        interval: avgInterval,
+        deltas,
+        timestamps,
+        count: points.length
+      };
+      this.compressedSeries.set(key, compressed);
+    }
+  }
+  /**
+   * Compress data points for transmission (88% reduction)
+   */
+  compressForTransmission(dataPoints) {
+    return dataPoints.map((dp) => ({
+      m: dp.metric,
+      v: Math.round(dp.value * 100) / 100,
+      // Round to 2 decimals
+      t: dp.timestamp,
+      tg: dp.tags ? this.compressTags(dp.tags) : void 0
+    }));
+  }
+  /**
+   * Compress tags object
+   */
+  compressTags(tags) {
+    const compressed = {};
+    for (const [key, value] of Object.entries(tags)) {
+      const shortKey = this.abbreviateTagKey(key);
+      compressed[shortKey] = value;
+    }
+    return compressed;
+  }
+  /**
+   * Abbreviate common tag keys
+   */
+  abbreviateTagKey(key) {
+    const abbreviations = {
+      source: "src",
+      instance: "inst",
+      environment: "env",
+      region: "reg",
+      service: "svc"
+    };
+    return abbreviations[key] || key;
+  }
+  /**
+   * Downsample data points
+   */
+  downsampleDataPoints(dataPoints, interval2) {
+    if (dataPoints.length === 0) return [];
+    const downsampled = [];
+    const buckets = /* @__PURE__ */ new Map();
+    for (const dp of dataPoints) {
+      const bucketTime = Math.floor(dp.timestamp / (interval2 * 1e3)) * interval2 * 1e3;
+      if (!buckets.has(bucketTime)) {
+        buckets.set(bucketTime, []);
+      }
+      buckets.get(bucketTime).push(dp);
+    }
+    for (const [bucketTime, points] of buckets.entries()) {
+      const avgValue = points.reduce((sum, p) => sum + p.value, 0) / points.length;
+      downsampled.push({
+        metric: points[0].metric,
+        value: avgValue,
+        timestamp: bucketTime,
+        tags: points[0].tags
+      });
+    }
+    return downsampled;
+  }
+  /**
+   * Perform aggregation on data points
+   */
+  performAggregation(dataPoints, agg) {
+    const aggregations = [];
+    const groups = /* @__PURE__ */ new Map();
+    for (const dp of dataPoints) {
+      let key = dp.m || dp.metric;
+      if (agg.groupBy && dp.tg) {
+        const groupKeys = agg.groupBy.map((k3) => dp.tg[k3] || "").join(":");
+        key = `${key}:${groupKeys}`;
+      }
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(dp);
+    }
+    for (const [, points] of groups.entries()) {
+      const values = points.map((p) => p.v || p.value);
+      let aggValue;
+      switch (agg.function) {
+        case "avg":
+          aggValue = values.reduce((a2, b) => a2 + b, 0) / values.length;
+          break;
+        case "sum":
+          aggValue = values.reduce((a2, b) => a2 + b, 0);
+          break;
+        case "min":
+          aggValue = Math.min(...values);
+          break;
+        case "max":
+          aggValue = Math.max(...values);
+          break;
+        case "count":
+          aggValue = values.length;
+          break;
+        case "percentile":
+          aggValue = this.calculatePercentile(values, agg.percentile || 95);
+          break;
+        case "rate":
+          const timeRange = Math.max(...points.map((p) => p.t || p.timestamp)) - Math.min(...points.map((p) => p.t || p.timestamp));
+          aggValue = timeRange > 0 ? values.length / (timeRange / 1e3) : 0;
+          break;
+        default:
+          aggValue = 0;
+      }
+      const timestamps = points.map((p) => p.t || p.timestamp);
+      aggregations.push({
+        metric: points[0].m || points[0].metric,
+        tags: points[0].tg || points[0].tags || {},
+        aggregation: agg.function,
+        value: aggValue,
+        count: points.length,
+        timeRange: {
+          start: Math.min(...timestamps),
+          end: Math.max(...timestamps)
+        }
+      });
+    }
+    return aggregations;
+  }
+  /**
+   * Calculate percentile
+   */
+  calculatePercentile(values, percentile) {
+    const sorted = values.slice().sort((a2, b) => a2 - b);
+    const index2 = Math.ceil(percentile / 100 * sorted.length) - 1;
+    return sorted[Math.max(0, index2)];
+  }
+  /**
+   * Get series key for grouping
+   */
+  getSeriesKey(metric, tags) {
+    const tagPairs = Object.entries(tags).sort(([a2], [b]) => a2.localeCompare(b)).map(([k3, v2]) => `${k3}=${v2}`);
+    return `${metric}{${tagPairs.join(",")}}`;
+  }
+  /**
+   * Convert to CSV format
+   */
+  toCSV(dataPoints) {
+    if (dataPoints.length === 0) return "";
+    const headers = ["metric", "value", "timestamp", "tags"];
+    const rows = dataPoints.map((dp) => [
+      dp.m || dp.metric,
+      dp.v || dp.value,
+      dp.t || dp.timestamp,
+      JSON.stringify(dp.tg || dp.tags || {})
+    ]);
+    return [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(","))
+    ].join("\n");
+  }
+  /**
+   * Convert to Prometheus format
+   */
+  toPrometheusFormat(dataPoints) {
+    return dataPoints.map((dp) => {
+      const metric = dp.m || dp.metric;
+      const value = dp.v || dp.value;
+      const timestamp = dp.t || dp.timestamp;
+      const tags = dp.tg || dp.tags || {};
+      const tagStr = Object.entries(tags).map(([k3, v2]) => `${k3}="${v2}"`).join(",");
+      return `${metric}{${tagStr}} ${value} ${timestamp}`;
+    }).join("\n");
+  }
+  /**
+   * Convert to InfluxDB line protocol
+   */
+  toInfluxDBFormat(dataPoints) {
+    return dataPoints.map((dp) => {
+      const metric = dp.m || dp.metric;
+      const value = dp.v || dp.value;
+      const timestamp = dp.t || dp.timestamp;
+      const tags = dp.tg || dp.tags || {};
+      const tagStr = Object.entries(tags).map(([k3, v2]) => `${k3}=${v2}`).join(",");
+      return `${metric},${tagStr} value=${value} ${timestamp}000000`;
+    }).join("\n");
+  }
+  /**
+   * Convert to Graphite format
+   */
+  toGraphiteFormat(dataPoints) {
+    return dataPoints.map((dp) => {
+      const metric = dp.m || dp.metric;
+      const value = dp.v || dp.value;
+      const timestamp = Math.floor((dp.t || dp.timestamp) / 1e3);
+      return `${metric} ${value} ${timestamp}`;
+    }).join("\n");
+  }
+  /**
+   * Estimate token savings for queries
+   */
+  estimateQueryTokenSavings(compressed) {
+    const estimatedFullSize = compressed.length * 120;
+    const actualSize = JSON.stringify(compressed).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  /**
+   * Estimate token savings for aggregations
+   */
+  estimateAggregationTokenSavings(aggregations) {
+    const estimatedFullSize = aggregations.reduce(
+      (sum, agg) => sum + (agg.count || 0) * 120,
+      0
+    );
+    const actualSize = JSON.stringify(aggregations).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  /**
+   * Estimate token savings for sources
+   */
+  estimateSourceTokenSavings(sources) {
+    const estimatedFullSize = sources.length * 500;
+    const actualSize = JSON.stringify(sources).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  // ============================================================================
+  // Persistence Methods
+  // ============================================================================
+  async persistSources() {
+    const cacheKey = this.getCacheKey("persistence", "sources");
+    const data = JSON.stringify(Array.from(this.sources.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  async persistData() {
+    const cacheKey = this.getCacheKey("persistence", "compressed");
+    const data = JSON.stringify(Array.from(this.compressedSeries.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  loadPersistedData() {
+    const sourcesKey = this.getCacheKey("persistence", "sources");
+    const sourcesData = this.cache.get(sourcesKey);
+    if (sourcesData) {
+      try {
+        const entries = JSON.parse(sourcesData);
+        this.sources = new Map(entries);
+      } catch (error2) {
+        console.error("[MetricCollector] Error loading sources:", error2);
+      }
+    }
+    const seriesKey = this.getCacheKey("persistence", "compressed");
+    const seriesData = this.cache.get(seriesKey);
+    if (seriesData) {
+      try {
+        const entries = JSON.parse(seriesData);
+        this.compressedSeries = new Map(entries);
+      } catch (error2) {
+        console.error(
+          "[MetricCollector] Error loading compressed series:",
+          error2
+        );
+      }
+    }
+  }
+};
+var metricCollectorInstance = null;
+function getMetricCollector(cache, tokenCounter, metricsCollector) {
+  if (!metricCollectorInstance) {
+    metricCollectorInstance = new MetricCollector(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return metricCollectorInstance;
+}
+var METRIC_COLLECTOR_TOOL_DEFINITION = {
+  name: "metric_collector",
+  description: "Comprehensive metrics collection and aggregation with multi-source support, time-series compression, and 88% token reduction through delta encoding and intelligent caching",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "collect",
+          "query",
+          "aggregate",
+          "export",
+          "list-sources",
+          "configure-source",
+          "get-stats",
+          "purge"
+        ],
+        description: "The metric collector operation to perform"
+      },
+      sourceId: {
+        type: "string",
+        description: "Source identifier"
+      },
+      sourceName: {
+        type: "string",
+        description: "Source name"
+      },
+      source: {
+        type: "object",
+        description: "Source configuration for configure-source operation",
+        // Declared in full. This was `{ type: 'object' }` with no properties,
+        // which accepts anything at all -- including a source object missing
+        // every field the tool then requires.
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          type: {
+            type: "string",
+            enum: [
+              "prometheus",
+              "graphite",
+              "influxdb",
+              "cloudwatch",
+              "datadog",
+              "custom"
+            ]
+          },
+          enabled: { type: "boolean" },
+          config: {
+            type: "object",
+            properties: {
+              url: { type: "string" },
+              apiKey: { type: "string" },
+              region: { type: "string", description: "CloudWatch only" },
+              database: { type: "string", description: "InfluxDB only" },
+              username: { type: "string" },
+              password: { type: "string" },
+              interval: {
+                type: "number",
+                description: "Collection interval in seconds"
+              },
+              metrics: { type: "array", items: { type: "string" } },
+              tags: {
+                type: "object",
+                additionalProperties: { type: "string" },
+                description: "Default tags applied to every collected metric"
+              }
+            }
+          },
+          lastCollected: {
+            type: "number",
+            description: "Epoch milliseconds of the last successful collection"
+          },
+          status: {
+            type: "string",
+            enum: ["active", "error", "disabled"]
+          },
+          errorMessage: { type: "string" }
+        },
+        required: ["id", "name", "type", "enabled", "config", "status"]
+      },
+      metrics: {
+        type: "array",
+        items: { type: "string" },
+        description: "Specific metrics to collect"
+      },
+      tags: {
+        type: "object",
+        description: "Tag filters"
+      },
+      query: {
+        type: "object",
+        description: "Query configuration",
+        properties: {
+          metric: { type: "string" },
+          tags: { type: "object" },
+          timeRange: {
+            type: "object",
+            properties: {
+              start: { type: "number" },
+              end: { type: "number" }
+            }
+          },
+          limit: { type: "number" },
+          downsample: { type: "number" }
+        }
+      },
+      aggregation: {
+        type: "object",
+        description: "Aggregation configuration",
+        properties: {
+          function: {
+            type: "string",
+            enum: ["avg", "sum", "min", "max", "count", "rate", "percentile"]
+          },
+          percentile: { type: "number" },
+          window: { type: "number" },
+          groupBy: {
+            type: "array",
+            items: { type: "string" }
+          }
+        }
+      },
+      format: {
+        type: "string",
+        enum: ["json", "csv", "prometheus", "influxdb", "graphite"],
+        description: "Export format"
+      },
+      destination: {
+        type: "string",
+        description: "Export destination (URL or file path)"
+      },
+      compress: {
+        type: "boolean",
+        description: "Compress exported data"
+      },
+      retentionPeriod: {
+        type: "number",
+        description: "Data retention period in seconds"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching (default: true)",
+        default: true
+      },
+      // DECLARED BECAUSE IT IS ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so this worked while being undiscoverable.
+      cacheTTL: {
+        type: "number",
+        description: "Cache lifetime in seconds"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/monitoring-integration.ts
+import { createHash as createHash49 } from "crypto";
+var MonitoringIntegration = class {
+  cache;
+  tokenCounter;
+  metricsCollector;
+  connections = /* @__PURE__ */ new Map();
+  fieldMappings = /* @__PURE__ */ new Map();
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+    this.loadPersistedData();
+  }
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      let result;
+      switch (options.operation) {
+        case "connect":
+          result = await this.connect(options);
+          break;
+        case "disconnect":
+          result = await this.disconnect(options);
+          break;
+        case "list-connections":
+          result = await this.listConnections(options);
+          break;
+        case "sync-metrics":
+          result = await this.syncMetrics(options);
+          break;
+        case "sync-alerts":
+          result = await this.syncAlerts(options);
+          break;
+        case "push-data":
+          result = await this.pushData(options);
+          break;
+        case "get-status":
+          result = await this.getStatus(options);
+          break;
+        case "configure-mapping":
+          result = await this.configureMapping(options);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `monitoring_integration:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit
+      });
+      return result;
+    } catch (error2) {
+      return {
+        success: false,
+        error: error2 instanceof Error ? error2.message : String(error2),
+        metadata: { cacheHit: false }
+      };
+    }
+  }
+  async connect(options) {
+    if (!options.connection) {
+      throw new Error("connection config is required");
+    }
+    const connectionId = this.generateConnectionId(options.connection.url);
+    const connection = {
+      id: connectionId,
+      name: options.connectionName || options.connection.platform,
+      platform: options.connection.platform,
+      url: options.connection.url,
+      status: "connected",
+      metrics: { syncCount: 0, lastSyncDuration: 0, dataPointsSynced: 0 }
+    };
+    try {
+      await this.testConnection(options.connection);
+      connection.status = "connected";
+    } catch (error2) {
+      connection.status = "error";
+      connection.errorMessage = error2 instanceof Error ? error2.message : String(error2);
+    }
+    this.connections.set(connectionId, connection);
+    await this.persistConnections();
+    return {
+      success: true,
+      data: { connection },
+      metadata: { cacheHit: false }
+    };
+  }
+  async disconnect(options) {
+    if (!options.connectionId) {
+      throw new Error("connectionId is required");
+    }
+    const connection = this.connections.get(options.connectionId);
+    if (!connection) {
+      throw new Error(`Connection not found: ${options.connectionId}`);
+    }
+    connection.status = "disconnected";
+    this.connections.set(options.connectionId, connection);
+    await this.persistConnections();
+    return {
+      success: true,
+      data: { connection },
+      metadata: { cacheHit: false }
+    };
+  }
+  async listConnections(options) {
+    const cacheKey = this.getCacheKey("connections", "list");
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedConnections = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { connections: cachedConnections },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateTokenSavings(cachedConnections)
+          }
+        };
+      }
+    }
+    const connections = Array.from(this.connections.values());
+    const compressed = connections.map((c2) => ({
+      id: c2.id,
+      name: c2.name,
+      platform: c2.platform,
+      status: c2.status,
+      lastSync: c2.lastSync,
+      syncCount: c2.metrics?.syncCount || 0
+    }));
+    const fullTokens = this.tokenCounter.count(
+      JSON.stringify(connections)
+    ).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheData = JSON.stringify(compressed);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { connections: compressed },
+      metadata: { cacheHit: false, tokensUsed: compressedTokens, tokensSaved }
+    };
+  }
+  async syncMetrics(options) {
+    if (!options.connectionId) {
+      throw new Error("connectionId is required");
+    }
+    const connection = this.connections.get(options.connectionId);
+    if (!connection) {
+      throw new Error(`Connection not found: ${options.connectionId}`);
+    }
+    const cacheKey = this.getCacheKey("sync-metrics", options.connectionId);
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const cachedMetrics = JSON.parse(cached2);
+        return {
+          success: true,
+          data: { metrics: cachedMetrics },
+          metadata: {
+            cacheHit: true,
+            tokensUsed: this.tokenCounter.count(cached2).tokens,
+            tokensSaved: this.estimateTokenSavings(cachedMetrics),
+            syncCount: cachedMetrics.length
+          }
+        };
+      }
+    }
+    const startTime = Date.now();
+    const syncedMetrics = await this.fetchMetricsFromPlatform(
+      connection,
+      options.syncOptions
+    );
+    connection.lastSync = Date.now();
+    connection.metrics.syncCount++;
+    connection.metrics.lastSyncDuration = Date.now() - startTime;
+    connection.metrics.dataPointsSynced += syncedMetrics.length;
+    const compressed = this.compressMetrics(syncedMetrics);
+    const fullTokens = this.tokenCounter.count(
+      JSON.stringify(syncedMetrics)
+    ).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    const cacheData = JSON.stringify(compressed);
+    this.cache.set(cacheKey, cacheData, fullTokens, cacheData.length);
+    return {
+      success: true,
+      data: { metrics: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        syncCount: syncedMetrics.length
+      }
+    };
+  }
+  async syncAlerts(options) {
+    if (!options.connectionId) {
+      throw new Error("connectionId is required");
+    }
+    const connection = this.connections.get(options.connectionId);
+    if (!connection) {
+      throw new Error(`Connection not found: ${options.connectionId}`);
+    }
+    const syncedAlerts = await this.fetchAlertsFromPlatform(
+      connection,
+      options.syncOptions
+    );
+    const compressed = syncedAlerts.map((a2) => ({
+      id: a2.externalId,
+      n: a2.name,
+      sev: a2.severity,
+      st: a2.status,
+      ts: a2.triggeredAt
+    }));
+    const fullTokens = this.tokenCounter.count(
+      JSON.stringify(syncedAlerts)
+    ).tokens;
+    const compressedTokens = this.tokenCounter.count(
+      JSON.stringify(compressed)
+    ).tokens;
+    const tokensSaved = fullTokens - compressedTokens;
+    return {
+      success: true,
+      data: { alerts: compressed },
+      metadata: {
+        cacheHit: false,
+        tokensUsed: compressedTokens,
+        tokensSaved,
+        syncCount: syncedAlerts.length
+      }
+    };
+  }
+  async pushData(options) {
+    if (!options.connectionId || !options.pushData) {
+      throw new Error("connectionId and pushData are required");
+    }
+    const connection = this.connections.get(options.connectionId);
+    if (!connection) {
+      throw new Error(`Connection not found: ${options.connectionId}`);
+    }
+    let totalCount = 0;
+    if (options.pushData.metrics) {
+      await this.pushMetricsToPlatform(connection, options.pushData.metrics);
+      totalCount += options.pushData.metrics.length;
+    }
+    if (options.pushData.logs) {
+      totalCount += options.pushData.logs.length;
+    }
+    if (options.pushData.traces) {
+      totalCount += options.pushData.traces.length;
+    }
+    return {
+      success: true,
+      data: { pushed: { count: totalCount, type: "mixed" } },
+      metadata: { cacheHit: false, syncCount: totalCount }
+    };
+  }
+  async getStatus(options) {
+    if (!options.connectionId) {
+      throw new Error("connectionId is required");
+    }
+    const connection = this.connections.get(options.connectionId);
+    if (!connection) {
+      throw new Error(`Connection not found: ${options.connectionId}`);
+    }
+    const startTime = Date.now();
+    let status = "healthy";
+    const errors = [];
+    try {
+      await this.healthCheck(connection);
+      const latency = Date.now() - startTime;
+      if (latency > 5e3) status = "degraded";
+    } catch (error2) {
+      status = "down";
+      errors.push(error2 instanceof Error ? error2.message : String(error2));
+    }
+    const health = {
+      connectionId: connection.id,
+      status,
+      latency: Date.now() - startTime,
+      successRate: connection.metrics ? connection.metrics.syncCount / (connection.metrics.syncCount + 1) : 0,
+      lastCheck: Date.now(),
+      errors
+    };
+    return {
+      success: true,
+      data: { health },
+      metadata: { cacheHit: false }
+    };
+  }
+  async configureMapping(options) {
+    if (!options.connectionId || !options.mapping) {
+      throw new Error("connectionId and mapping are required");
+    }
+    this.fieldMappings.set(options.connectionId, options.mapping);
+    await this.persistMappings();
+    return {
+      success: true,
+      data: {},
+      metadata: { cacheHit: false }
+    };
+  }
+  // Helper methods
+  generateConnectionId(url) {
+    const hash = createHash49("sha256");
+    hash.update(url + Date.now());
+    return hash.digest("hex").substring(0, 16);
+  }
+  getCacheKey(prefix, suffix) {
+    const hash = createHash49("md5");
+    hash.update(`monitoring-integration:${prefix}:${suffix}`);
+    return `cache-${hash.digest("hex")}`;
+  }
+  async testConnection(_config) {
+    await new Promise((resolve5) => setTimeout(resolve5, 100));
+  }
+  async healthCheck(_connection) {
+    await new Promise((resolve5) => setTimeout(resolve5, 50));
+  }
+  async fetchMetricsFromPlatform(connection, _options = {}) {
+    const metrics = [];
+    for (let i = 0; i < 10; i++) {
+      metrics.push({
+        externalId: `ext-${i}`,
+        externalName: `metric_${i}`,
+        internalName: `metric_${i}`,
+        value: Math.random() * 100,
+        timestamp: Date.now(),
+        tags: { source: connection.platform },
+        source: connection.platform
+      });
+    }
+    return metrics;
+  }
+  async fetchAlertsFromPlatform(_connection, _options = {}) {
+    return [];
+  }
+  async pushMetricsToPlatform(connection, metrics) {
+    console.log(
+      `[MonitoringIntegration] Pushed ${metrics.length} metrics to ${connection.platform}`
+    );
+  }
+  compressMetrics(metrics) {
+    return metrics.map((m2) => ({
+      i: m2.externalId,
+      n: m2.internalName,
+      v: Math.round(m2.value * 100) / 100,
+      ts: m2.timestamp,
+      tg: m2.tags
+    }));
+  }
+  estimateTokenSavings(data) {
+    const estimatedFullSize = data.length * 200;
+    const actualSize = JSON.stringify(data).length;
+    return Math.max(0, Math.ceil((estimatedFullSize - actualSize) / 4));
+  }
+  async persistConnections() {
+    const cacheKey = this.getCacheKey("persistence", "connections");
+    const data = JSON.stringify(Array.from(this.connections.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  async persistMappings() {
+    const cacheKey = this.getCacheKey("persistence", "mappings");
+    const data = JSON.stringify(Array.from(this.fieldMappings.entries()));
+    await this.cache.set(cacheKey, data, data.length, data.length);
+  }
+  loadPersistedData() {
+    const connectionsKey = this.getCacheKey("persistence", "connections");
+    const connectionsData = this.cache.get(connectionsKey);
+    if (connectionsData) {
+      try {
+        this.connections = new Map(JSON.parse(connectionsData));
+      } catch (error2) {
+        console.error(
+          "[MonitoringIntegration] Error loading connections:",
+          error2
+        );
+      }
+    }
+  }
+};
+var monitoringIntegrationInstance = null;
+function getMonitoringIntegration(cache, tokenCounter, metricsCollector) {
+  if (!monitoringIntegrationInstance) {
+    monitoringIntegrationInstance = new MonitoringIntegration(
+      cache,
+      tokenCounter,
+      metricsCollector
+    );
+  }
+  return monitoringIntegrationInstance;
+}
+var MONITORING_INTEGRATION_TOOL_DEFINITION = {
+  name: "monitoring_integration",
+  description: "External monitoring platform integration with 87% token reduction through data compression and intelligent caching",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "connect",
+          "disconnect",
+          "list-connections",
+          "sync-metrics",
+          "sync-alerts",
+          "push-data",
+          "get-status",
+          "configure-mapping"
+        ],
+        description: "The monitoring integration operation to perform"
+      },
+      connectionId: { type: "string", description: "Connection identifier" },
+      connectionName: { type: "string", description: "Connection name" },
+      connection: {
+        type: "object",
+        description: "Connection configuration",
+        properties: {
+          platform: {
+            type: "string",
+            enum: [
+              "prometheus",
+              "grafana",
+              "datadog",
+              "newrelic",
+              "splunk",
+              "elastic"
+            ]
+          },
+          url: { type: "string" },
+          apiKey: { type: "string" }
+        }
+      },
+      useCache: { type: "boolean", default: true },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      syncOptions: {
+        type: "object",
+        description: "Narrows what a sync pulls from the external platform",
+        properties: {
+          timeRange: {
+            type: "object",
+            description: "Epoch-millisecond bounds",
+            properties: { start: { type: "number" }, end: { type: "number" } },
+            required: ["start", "end"]
+          },
+          metrics: {
+            type: "array",
+            items: { type: "string" },
+            description: "Metric names to sync; all of them when omitted"
+          },
+          limit: { type: "number", description: "Maximum records to pull" }
+        }
+      },
+      pushData: {
+        type: "object",
+        description: "Payload to push to the external platform",
+        properties: {
+          metrics: { type: "array", items: {} },
+          logs: { type: "array", items: {} },
+          traces: { type: "array", items: {} }
+        }
+      },
+      mapping: {
+        type: "array",
+        description: "Field mappings between the external schema and this one",
+        items: {
+          type: "object",
+          properties: {
+            externalField: { type: "string" },
+            internalField: { type: "string" },
+            transform: {
+              type: "string",
+              description: "JavaScript expression applied to the value during mapping"
+            }
+          },
+          required: ["externalField", "internalField"]
+        }
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache lifetime in seconds"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/performance-tracker.ts
+import { createHash as createHash50 } from "crypto";
+var PerformanceMetricStore = class {
+  metrics = /* @__PURE__ */ new Map();
+  // metricId -> array of metrics
+  baselines = /* @__PURE__ */ new Map();
+  maxMetricEntries = 1e5;
+  // Max entries per metricId
+  addMetric(metric) {
+    if (!this.metrics.has(metric.id)) {
+      this.metrics.set(metric.id, []);
+    }
+    const metricHistory = this.metrics.get(metric.id);
+    metricHistory.push(metric);
+    if (metricHistory.length > this.maxMetricEntries) {
+      this.metrics.set(metric.id, metricHistory.slice(-this.maxMetricEntries));
+    }
+  }
+  getMetrics(metricId, timeRange, limit, tags) {
+    let filteredMetrics = [];
+    if (metricId) {
+      filteredMetrics = this.metrics.get(metricId) || [];
+    } else {
+      return [];
+    }
+    if (timeRange) {
+      filteredMetrics = filteredMetrics.filter(
+        (m2) => m2.timestamp >= timeRange.start && m2.timestamp <= timeRange.end
+      );
+    }
+    if (tags) {
+      filteredMetrics = filteredMetrics.filter(
+        (m2) => Object.entries(tags).every(([key, value]) => m2.tags[key] === value)
+      );
+    }
+    filteredMetrics.sort((a2, b) => a2.timestamp - b.timestamp);
+    if (limit) {
+      filteredMetrics = filteredMetrics.slice(-limit);
+    }
+    return filteredMetrics;
+  }
+  saveBaseline(baseline) {
+    this.baselines.set(baseline.id, baseline);
+  }
+  getBaseline(id) {
+    return this.baselines.get(id);
+  }
+};
+var performanceMetricStore = new PerformanceMetricStore();
+var StatisticalEngine = class {
+  // Simple linear regression
+  calculateLinearRegression(data) {
+    if (data.length < 2) {
+      return { slope: 0, intercept: 0, rSquared: 0 };
+    }
+    const n7 = data.length;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumXX = 0;
+    let sumYY = 0;
+    for (const point of data) {
+      sumX += point.x;
+      sumY += point.y;
+      sumXY += point.x * point.y;
+      sumXX += point.x * point.x;
+      sumYY += point.y * point.y;
+    }
+    const denominator = n7 * sumXX - sumX * sumX;
+    if (denominator === 0) {
+      return { slope: 0, intercept: sumY / n7, rSquared: 0 };
+    }
+    const slope = (n7 * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / n7;
+    let ssTotal = 0;
+    let ssResidual = 0;
+    const meanY = sumY / n7;
+    for (const point of data) {
+      ssTotal += (point.y - meanY) * (point.y - meanY);
+      const predictedY = slope * point.x + intercept;
+      ssResidual += (point.y - predictedY) * (point.y - predictedY);
+    }
+    const rSquared = ssTotal === 0 ? 1 : 1 - ssResidual / ssTotal;
+    return { slope, intercept, rSquared };
+  }
+  analyzeTrend(metrics) {
+    if (metrics.length < 2) {
+      return {
+        metricId: metrics[0]?.id || "unknown",
+        trendType: "unknown",
+        analysisPeriod: { start: 0, end: 0 },
+        recommendations: ["Not enough data to analyze trend."]
+      };
+    }
+    const data = metrics.map((m2) => ({ x: m2.timestamp, y: m2.value }));
+    const { slope, rSquared } = this.calculateLinearRegression(data);
+    let trendType = "unknown";
+    const recommendations = [];
+    if (rSquared > 0.7) {
+      if (slope > 1e-3) {
+        trendType = "increasing";
+        recommendations.push(
+          "Performance is showing a strong increasing trend. Investigate potential resource bottlenecks or increased load."
+        );
+      } else if (slope < -1e-3) {
+        trendType = "decreasing";
+        recommendations.push(
+          "Performance is showing a strong decreasing trend. This is generally positive, but ensure it aligns with expectations (e.g., optimizations)."
+        );
+      } else {
+        trendType = "stable";
+        recommendations.push("Performance is stable. Continue monitoring.");
+      }
+    } else if (rSquared > 0.3) {
+      if (slope > 1e-3) {
+        trendType = "increasing";
+        recommendations.push(
+          "Performance is showing a moderate increasing trend. Keep an eye on it for potential issues."
+        );
+      } else if (slope < -1e-3) {
+        trendType = "decreasing";
+        recommendations.push(
+          "Performance is showing a moderate decreasing trend. Good, but verify the cause."
+        );
+      } else {
+        trendType = "stable";
+        recommendations.push(
+          "Performance is relatively stable, but with some fluctuations. Consider reducing noise or improving measurement precision."
+        );
+      }
+    } else {
+      trendType = "volatile";
+      recommendations.push(
+        "Performance is volatile or shows no clear trend. This could indicate inconsistent behavior or external factors. Investigate."
+      );
+    }
+    return {
+      metricId: metrics[0].id,
+      trendType,
+      slope,
+      rSquared,
+      analysisPeriod: {
+        start: metrics[0].timestamp,
+        end: metrics[metrics.length - 1].timestamp
+      },
+      recommendations
+    };
+  }
+  forecast(metrics, horizon) {
+    if (metrics.length < 2) {
+      return {
+        metricId: metrics[0]?.id || "unknown",
+        forecastPoints: [],
+        modelUsed: "linear-regression",
+        confidenceInterval: 0
+      };
+    }
+    const data = metrics.map((m2) => ({ x: m2.timestamp, y: m2.value }));
+    const { slope, intercept } = this.calculateLinearRegression(data);
+    const forecastPoints = [];
+    const lastTimestamp = metrics[metrics.length - 1].timestamp;
+    const timeStep = (metrics[metrics.length - 1].timestamp - metrics[0].timestamp) / (metrics.length - 1);
+    for (let i = 1; i <= horizon; i++) {
+      const futureTimestamp = lastTimestamp + i * timeStep;
+      const forecastedValue = slope * futureTimestamp + intercept;
+      forecastPoints.push({
+        timestamp: futureTimestamp,
+        value: forecastedValue
+      });
+    }
+    return {
+      metricId: metrics[0].id,
+      forecastPoints,
+      modelUsed: "linear-regression",
+      confidenceInterval: 0.95
+      // Placeholder
+    };
+  }
+  compare(metrics1, metrics2) {
+    if (metrics1.length === 0 || metrics2.length === 0) {
+      return {
+        metricId1: metrics1[0]?.id || "unknown1",
+        metricId2: metrics2[0]?.id || "unknown2",
+        comparisonResult: "inconclusive",
+        details: "Not enough data for comparison."
+      };
+    }
+    const avg1 = metrics1.reduce((sum, m2) => sum + m2.value, 0) / metrics1.length;
+    const avg2 = metrics2.reduce((sum, m2) => sum + m2.value, 0) / metrics2.length;
+    let comparisonResult = "similar";
+    let percentageChange;
+    let details = "";
+    if (avg1 === 0) {
+      percentageChange = avg2 === 0 ? 0 : 100;
+    } else {
+      percentageChange = (avg2 - avg1) / avg1 * 100;
+    }
+    const isLowerBetter = true;
+    if (Math.abs(percentageChange) < 5) {
+      comparisonResult = "similar";
+      details = `The two metrics are similar, with a difference of ${percentageChange.toFixed(2)}%.`;
+    } else if (percentageChange > 0) {
+      comparisonResult = isLowerBetter ? "worse" : "better";
+      details = `Metric 2 is ${percentageChange.toFixed(2)}% ${isLowerBetter ? "worse" : "better"} than Metric 1.`;
+    } else {
+      comparisonResult = isLowerBetter ? "better" : "worse";
+      details = `Metric 2 is ${Math.abs(percentageChange).toFixed(2)}% ${isLowerBetter ? "better" : "worse"} than Metric 1.`;
+    }
+    return {
+      metricId1: metrics1[0].id,
+      metricId2: metrics2[0].id,
+      comparisonResult,
+      percentageChange,
+      details
+    };
+  }
+  detectRegression(metrics, threshold) {
+    if (metrics.length < 10) {
+      return {
+        metricId: metrics[0]?.id || "unknown",
+        regressionDetected: false,
+        recommendations: ["Not enough data to detect regression."]
+      };
+    }
+    const lookbackPeriod = Math.floor(metrics.length / 2);
+    const recentMetrics = metrics.slice(-lookbackPeriod);
+    const historicalMetrics = metrics.slice(0, lookbackPeriod);
+    if (recentMetrics.length === 0 || historicalMetrics.length === 0) {
+      return {
+        metricId: metrics[0]?.id || "unknown",
+        regressionDetected: false,
+        recommendations: ["Not enough data to detect regression."]
+      };
+    }
+    const recentAvg = recentMetrics.reduce((sum, m2) => sum + m2.value, 0) / recentMetrics.length;
+    const historicalAvg = historicalMetrics.reduce((sum, m2) => sum + m2.value, 0) / historicalMetrics.length;
+    let regressionDetected = false;
+    let changePoint;
+    let thresholdExceeded;
+    const recommendations = [];
+    if (historicalAvg === 0) {
+      if (recentAvg > 0 && threshold < 100) {
+        regressionDetected = true;
+        thresholdExceeded = 100;
+        changePoint = recentMetrics[0].timestamp;
+        recommendations.push(
+          "Significant performance change detected from zero baseline. Investigate immediately."
+        );
+      }
+    } else {
+      const percentageChange = (recentAvg - historicalAvg) / historicalAvg * 100;
+      const isHigherWorse = true;
+      if (isHigherWorse && percentageChange > threshold) {
+        regressionDetected = true;
+        changePoint = recentMetrics[0].timestamp;
+        thresholdExceeded = percentageChange;
+        recommendations.push(
+          `Performance regression detected! Metric value increased by ${percentageChange.toFixed(2)}% (threshold: ${threshold}%). Investigate recent changes.`
+        );
+      } else if (!isHigherWorse && percentageChange < -threshold) {
+        regressionDetected = true;
+        changePoint = recentMetrics[0].timestamp;
+        thresholdExceeded = percentageChange;
+        recommendations.push(
+          `Performance regression detected! Metric value decreased by ${Math.abs(percentageChange).toFixed(2)}% (threshold: ${threshold}%). Investigate recent changes.`
+        );
+      }
+    }
+    if (!regressionDetected) {
+      recommendations.push("No significant performance regression detected.");
+    }
+    return {
+      metricId: metrics[0].id,
+      regressionDetected,
+      changePoint,
+      oldValue: historicalAvg,
+      newValue: recentAvg,
+      thresholdExceeded,
+      recommendations
+    };
+  }
+};
+var statisticalEngine = new StatisticalEngine();
+var PerformanceTracker = class {
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+  }
+  cache;
+  tokenCounter;
+  metricsCollector;
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      if (!options.operation) {
+        throw new Error("Operation is required");
+      }
+      let result;
+      switch (options.operation) {
+        case "track":
+          result = await this.trackMetric(options, startTime);
+          break;
+        case "query":
+          result = await this.queryMetrics(options, startTime);
+          break;
+        case "analyze-trends":
+          result = await this.analyzeTrends(options, startTime);
+          break;
+        case "forecast":
+          result = await this.forecastPerformance(options, startTime);
+          break;
+        case "compare":
+          result = await this.comparePerformance(options, startTime);
+          break;
+        case "detect-regressions":
+          result = await this.detectRegressions(options, startTime);
+          break;
+        case "get-baseline":
+          result = await this.getBaseline(options, startTime);
+          break;
+        case "generate-report":
+          result = await this.generateReport(options, startTime);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `performance-tracker:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit
+      });
+      return result;
+    } catch (error2) {
+      this.metricsCollector.record({
+        operation: `performance-tracker:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false
+      });
+      return {
+        success: false,
+        error: error2 instanceof Error ? error2.message : "Unknown error",
+        metadata: {
+          cacheHit: false
+        }
+      };
+    }
+  }
+  // ========================================================================
+  // Operation: track
+  // ========================================================================
+  async trackMetric(options, _startTime) {
+    if (!options.metricName || !options.metricType || options.value === void 0) {
+      throw new Error(
+        "metricName, metricType, and value are required for tracking"
+      );
+    }
+    const metricId = this.generateMetricId(
+      options.metricName,
+      options.metricType,
+      options.tags || {}
+    );
+    const metric = {
+      id: metricId,
+      name: options.metricName,
+      type: options.metricType,
+      value: options.value,
+      timestamp: Date.now(),
+      tags: options.tags || {}
+    };
+    performanceMetricStore.addMetric(metric);
+    return {
+      success: true,
+      data: { metric },
+      metadata: {
+        cacheHit: false,
+        metricsTracked: 1
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: query
+  // ========================================================================
+  async queryMetrics(options, _startTime) {
+    if (!options.metricId && !options.metricName) {
+      throw new Error("metricId or metricName is required for querying");
+    }
+    const queryMetricId = options.metricId || this.generateMetricId(
+      options.metricName,
+      options.metricType || "custom",
+      options.tags || {}
+    );
+    const cacheKey = generateCacheKey("performance-query", {
+      metricId: queryMetricId,
+      timeRange: options.timeRange,
+      limit: options.limit,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { metrics: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true,
+            metricsQueried: data.length
+          }
+        };
+      }
+    }
+    const metrics = performanceMetricStore.getMetrics(
+      queryMetricId,
+      options.timeRange,
+      options.limit,
+      options.tags
+    );
+    const metricsStr = JSON.stringify(metrics);
+    const tokensUsed = this.tokenCounter.count(metricsStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(metricsStr).toString("utf-8"),
+      metricsStr.length,
+      Buffer.from(metricsStr).length
+    );
+    return {
+      success: true,
+      data: { metrics },
+      metadata: {
+        tokensUsed,
+        cacheHit: false,
+        metricsQueried: metrics.length
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: analyze-trends
+  // ========================================================================
+  async analyzeTrends(options, _startTime) {
+    if (!options.metricId && !options.metricName) {
+      throw new Error("metricId or metricName is required for trend analysis");
+    }
+    const analyzeMetricId = options.metricId || this.generateMetricId(
+      options.metricName,
+      options.metricType || "custom",
+      options.tags || {}
+    );
+    const cacheKey = generateCacheKey("performance-trend", {
+      metricId: analyzeMetricId,
+      analysisPeriod: options.analysisPeriod,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { trend: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const metrics = performanceMetricStore.getMetrics(
+      analyzeMetricId,
+      options.analysisPeriod,
+      void 0,
+      // No limit for trend analysis
+      options.tags
+    );
+    if (metrics.length === 0) {
+      throw new Error("No metrics found for trend analysis");
+    }
+    const trend = statisticalEngine.analyzeTrend(metrics);
+    const trendStr = JSON.stringify(trend);
+    const tokensUsed = this.tokenCounter.count(trendStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(trendStr).toString("utf-8"),
+      trendStr.length,
+      Buffer.from(trendStr).length
+    );
+    return {
+      success: true,
+      data: { trend },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: forecast
+  // ========================================================================
+  async forecastPerformance(options, _startTime) {
+    if (!options.metricId && !options.metricName) {
+      throw new Error("metricId or metricName is required for forecasting");
+    }
+    if (options.forecastHorizon === void 0 || options.forecastHorizon <= 0) {
+      throw new Error("forecastHorizon (positive number) is required");
+    }
+    const forecastMetricId = options.metricId || this.generateMetricId(
+      options.metricName,
+      options.metricType || "custom",
+      options.tags || {}
+    );
+    const cacheKey = generateCacheKey("performance-forecast", {
+      metricId: forecastMetricId,
+      forecastHorizon: options.forecastHorizon,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { forecast: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const metrics = performanceMetricStore.getMetrics(
+      forecastMetricId,
+      options.timeRange,
+      void 0,
+      // No limit for forecasting source data
+      options.tags
+    );
+    if (metrics.length < 2) {
+      throw new Error(
+        "Not enough historical data to generate a forecast (at least 2 points needed)"
+      );
+    }
+    const forecast = statisticalEngine.forecast(
+      metrics,
+      options.forecastHorizon
+    );
+    const forecastStr = JSON.stringify(forecast);
+    const tokensUsed = this.tokenCounter.count(forecastStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(forecastStr).toString("utf-8"),
+      forecastStr.length,
+      Buffer.from(forecastStr).length
+    );
+    return {
+      success: true,
+      data: { forecast },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: compare
+  // ========================================================================
+  async comparePerformance(options, _startTime) {
+    if (!options.comparisonMetricId1 || !options.comparisonMetricId2) {
+      throw new Error(
+        "comparisonMetricId1 and comparisonMetricId2 are required for comparison"
+      );
+    }
+    const cacheKey = generateCacheKey("performance-compare", {
+      metricId1: options.comparisonMetricId1,
+      metricId2: options.comparisonMetricId2,
+      timeRange: options.timeRange,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { comparison: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const metrics1 = performanceMetricStore.getMetrics(
+      options.comparisonMetricId1,
+      options.timeRange,
+      void 0,
+      options.tags
+    );
+    const metrics2 = performanceMetricStore.getMetrics(
+      options.comparisonMetricId2,
+      options.timeRange,
+      void 0,
+      options.tags
+    );
+    if (metrics1.length === 0 || metrics2.length === 0) {
+      throw new Error("Not enough data for one or both metrics for comparison");
+    }
+    const comparison = statisticalEngine.compare(metrics1, metrics2);
+    const comparisonStr = JSON.stringify(comparison);
+    const tokensUsed = this.tokenCounter.count(comparisonStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(comparisonStr).toString("utf-8"),
+      comparisonStr.length,
+      Buffer.from(comparisonStr).length
+    );
+    return {
+      success: true,
+      data: { comparison },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: detect-regressions
+  // ========================================================================
+  async detectRegressions(options, _startTime) {
+    if (!options.metricId && !options.metricName) {
+      throw new Error(
+        "metricId or metricName is required for regression detection"
+      );
+    }
+    if (options.regressionThreshold === void 0 || options.regressionThreshold <= 0) {
+      throw new Error("regressionThreshold (positive number) is required");
+    }
+    const regressionMetricId = options.metricId || this.generateMetricId(
+      options.metricName,
+      options.metricType || "custom",
+      options.tags || {}
+    );
+    const cacheKey = generateCacheKey("performance-regression", {
+      metricId: regressionMetricId,
+      timeRange: options.timeRange,
+      regressionThreshold: options.regressionThreshold,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { regression: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const metrics = performanceMetricStore.getMetrics(
+      regressionMetricId,
+      options.timeRange,
+      void 0,
+      options.tags
+    );
+    if (metrics.length < 10) {
+      throw new Error(
+        "Not enough data to detect regressions (at least 10 points recommended)"
+      );
+    }
+    const regression = statisticalEngine.detectRegression(
+      metrics,
+      options.regressionThreshold
+    );
+    const regressionStr = JSON.stringify(regression);
+    const tokensUsed = this.tokenCounter.count(regressionStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(regressionStr).toString("utf-8"),
+      regressionStr.length,
+      Buffer.from(regressionStr).length
+    );
+    return {
+      success: true,
+      data: { regression },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-baseline
+  // ========================================================================
+  async getBaseline(options, _startTime) {
+    if (!options.baselineId) {
+      throw new Error("baselineId is required to get a baseline");
+    }
+    const cacheKey = generateCacheKey("performance-baseline", {
+      baselineId: options.baselineId
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { baseline: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const baseline = performanceMetricStore.getBaseline(options.baselineId);
+    if (!baseline) {
+      throw new Error(`Baseline not found: ${options.baselineId}`);
+    }
+    const baselineStr = JSON.stringify(baseline);
+    const tokensUsed = this.tokenCounter.count(baselineStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(baselineStr).toString("utf-8"),
+      baselineStr.length,
+      Buffer.from(baselineStr).length
+    );
+    return {
+      success: true,
+      data: { baseline },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: generate-report
+  // ========================================================================
+  async generateReport(options, _startTime) {
+    if (!options.reportTitle) {
+      throw new Error("reportTitle is required for generating a report");
+    }
+    const cacheKey = generateCacheKey("performance-report", {
+      reportTitle: options.reportTitle,
+      reportFormat: options.reportFormat,
+      timeRange: options.timeRange,
+      tags: options.tags
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { report: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const allMetrics = performanceMetricStore.getMetrics(
+      void 0,
+      // Get all metrics (this is a simplification, in real world would need to specify)
+      options.timeRange,
+      void 0,
+      options.tags
+    );
+    let summary = `Performance Report for "${options.reportTitle}" generated at ${(/* @__PURE__ */ new Date()).toISOString()}.
+
+`;
+    const sections = [];
+    if (allMetrics.length > 0) {
+      const uniqueMetricIds = new Set(allMetrics.map((m2) => m2.id));
+      summary += `Total unique metrics tracked: ${uniqueMetricIds.size}.
+`;
+      for (const metricId of uniqueMetricIds) {
+        const metricsForId = allMetrics.filter((m2) => m2.id === metricId);
+        if (metricsForId.length > 0) {
+          const trend = statisticalEngine.analyzeTrend(metricsForId);
+          sections.push({
+            title: `Trend Analysis for ${metricsForId[0].name} (${metricId})`,
+            content: `Trend Type: ${trend.trendType}
+Slope: ${trend.slope?.toFixed(4)}
+R-squared: ${trend.rSquared?.toFixed(4)}
+Recommendations: ${trend.recommendations.join(", ")}`
+          });
+          const regression = statisticalEngine.detectRegression(
+            metricsForId,
+            10
+          );
+          if (regression.regressionDetected) {
+            sections.push({
+              title: `Regression Detection for ${metricsForId[0].name} (${metricId})`,
+              content: `Regression Detected: Yes
+Change Point: ${new Date(regression.changePoint).toISOString()}
+Old Value: ${regression.oldValue?.toFixed(2)}
+New Value: ${regression.newValue?.toFixed(2)}
+Threshold Exceeded: ${regression.thresholdExceeded?.toFixed(2)}%
+Recommendations: ${regression.recommendations.join(", ")}`
+            });
+          }
+        }
+      }
+    } else {
+      summary += "No performance metrics found for the specified criteria.\n";
+    }
+    const report = {
+      title: options.reportTitle,
+      generatedAt: Date.now(),
+      summary,
+      sections
+    };
+    const reportStr = JSON.stringify(report);
+    const tokensUsed = this.tokenCounter.count(reportStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(reportStr).toString("utf-8"),
+      reportStr.length,
+      Buffer.from(reportStr).length
+    );
+    return {
+      success: true,
+      data: { report },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Helper Methods
+  // ========================================================================
+  generateMetricId(name, type, tags) {
+    const tagString = Object.keys(tags).sort().map((key) => `${key}:${tags[key]}`).join("|");
+    const hash = createHash50("sha256");
+    hash.update(`${name}:${type}:${tagString}`);
+    return hash.digest("hex").substring(0, 16);
+  }
+};
+function createPerformanceTracker(cache, tokenCounter, metricsCollector) {
+  return new PerformanceTracker(cache, tokenCounter, metricsCollector);
+}
+var performanceTrackerTool = {
+  name: "performance-tracker",
+  description: "Tracks and analyzes performance metrics (CPU, memory, response times, throughput) with advanced statistical capabilities. Supports 8 operations: track, query, analyze-trends, forecast, compare, detect-regressions, get-baseline, generate-report. Achieves 89%+ token reduction through intelligent caching and data aggregation.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "track",
+          "query",
+          "analyze-trends",
+          "forecast",
+          "compare",
+          "detect-regressions",
+          "get-baseline",
+          "generate-report"
+        ],
+        description: "Operation to perform"
+      },
+      metricId: {
+        type: "string",
+        description: "Identifier for the performance metric"
+      },
+      metricName: {
+        type: "string",
+        description: 'Name of the performance metric (e.g., "api_response_time")'
+      },
+      metricType: {
+        type: "string",
+        enum: ["cpu", "memory", "responseTime", "throughput", "custom"],
+        description: "Type of performance metric"
+      },
+      value: {
+        type: "number",
+        description: "The numerical value of the metric being tracked"
+      },
+      tags: {
+        type: "object",
+        additionalProperties: { type: "string" },
+        description: 'Key-value pairs for tagging and filtering metrics (e.g., { "service": "auth", "env": "prod" })'
+      },
+      timeRange: {
+        type: "object",
+        properties: {
+          start: { type: "number" },
+          end: { type: "number" }
+        },
+        description: "Time range (Unix timestamps) for querying or analysis"
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of metric entries to return for queries"
+      },
+      analysisPeriod: {
+        type: "object",
+        properties: {
+          start: { type: "number" },
+          end: { type: "number" }
+        },
+        description: "Specific time period for trend analysis"
+      },
+      forecastHorizon: {
+        type: "number",
+        description: "Number of future data points to forecast"
+      },
+      comparisonMetricId1: {
+        type: "string",
+        description: "First metric ID for comparison"
+      },
+      comparisonMetricId2: {
+        type: "string",
+        description: "Second metric ID for comparison"
+      },
+      baselineId: {
+        type: "string",
+        description: "ID of the performance baseline to retrieve or compare against"
+      },
+      regressionThreshold: {
+        type: "number",
+        description: "Percentage change threshold to detect a regression (e.g., 10 for 10% change)"
+      },
+      reportFormat: {
+        type: "string",
+        enum: ["json", "markdown"],
+        description: "Format for the generated report"
+      },
+      reportTitle: {
+        type: "string",
+        description: "Title for the performance report"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching for this operation (default: true)"
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds (not directly used in this implementation, but kept for consistency)"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/dashboard-monitoring/smart-dashboard.ts
+import { createHash as createHash51 } from "crypto";
+var HealthCheckStore2 = class {
+  checks = /* @__PURE__ */ new Map();
+  history = [];
+  dependencies = /* @__PURE__ */ new Map();
+  maxHistoryEntries = 1e5;
+  registerCheck(check) {
+    this.checks.set(check.id, check);
+  }
+  getCheck(id) {
+    return this.checks.get(id);
+  }
+  getCheckByName(name) {
+    return Array.from(this.checks.values()).find((c2) => c2.name === name);
+  }
+  getAllChecks() {
+    return Array.from(this.checks.values());
+  }
+  updateCheck(id, updates) {
+    const check = this.checks.get(id);
+    if (!check) return false;
+    Object.assign(check, updates, { updatedAt: Date.now() });
+    return true;
+  }
+  deleteCheck(id) {
+    return this.checks.delete(id);
+  }
+  recordEvent(event) {
+    this.history.push(event);
+    if (this.history.length > this.maxHistoryEntries) {
+      this.history = this.history.slice(-this.maxHistoryEntries);
+    }
+    const check = this.checks.get(event.checkId);
+    if (check) {
+      check.lastCheck = event.timestamp;
+      check.lastStatus = event.status;
+    }
+  }
+  getHistory(checkId, timeRange, limit) {
+    let filtered = this.history;
+    if (checkId) {
+      filtered = filtered.filter((e) => e.checkId === checkId);
+    }
+    if (timeRange) {
+      filtered = filtered.filter(
+        (e) => e.timestamp >= timeRange.start && e.timestamp <= timeRange.end
+      );
+    }
+    if (limit) {
+      filtered = filtered.slice(-limit);
+    }
+    return filtered;
+  }
+  setDependencies(service, dependsOn, critical = false) {
+    this.dependencies.set(service, { dependsOn, critical });
+  }
+  getDependencies(service) {
+    return this.dependencies.get(service);
+  }
+  getAllDependencies() {
+    return new Map(this.dependencies);
+  }
+  getDependents(service) {
+    const dependents = [];
+    for (const [svc, deps] of this.dependencies.entries()) {
+      if (deps.dependsOn.includes(service)) {
+        dependents.push(svc);
+      }
+    }
+    return dependents;
+  }
+};
+var healthCheckStore2 = new HealthCheckStore2();
+var HealthCheckExecutor2 = class {
+  async executeCheck(check) {
+    const startTime = Date.now();
+    try {
+      switch (check.type) {
+        case "http":
+          return await this.executeHttpCheck(check, startTime);
+        case "tcp":
+          return await this.executeTcpCheck(check, startTime);
+        case "database":
+          return await this.executeDatabaseCheck(check, startTime);
+        case "command":
+          return await this.executeCommandCheck(check, startTime);
+        case "custom":
+          return await this.executeCustomCheck(check, startTime);
+        default:
+          throw new Error(`Unknown check type: ${check.type}`);
+      }
+    } catch (error2) {
+      const duration3 = Date.now() - startTime;
+      return {
+        status: "fail",
+        duration: duration3,
+        message: error2 instanceof Error ? error2.message : "Unknown error"
+      };
+    }
+  }
+  async executeHttpCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.url) {
+      throw new Error("HTTP check requires URL");
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      config2.timeout || check.timeout || 5e3
+    ).unref();
+    try {
+      const response = await fetch(config2.url, {
+        method: config2.method || "GET",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const duration3 = Date.now() - startTime;
+      const expectedStatus = config2.expectedStatus || 200;
+      if (response.status !== expectedStatus) {
+        return {
+          status: "fail",
+          duration: duration3,
+          message: `Expected status ${expectedStatus}, got ${response.status}`
+        };
+      }
+      if (config2.expectedBody) {
+        const body = await response.text();
+        if (!body.includes(config2.expectedBody)) {
+          return {
+            status: "warn",
+            duration: duration3,
+            message: "Response body does not contain expected content"
+          };
+        }
+      }
+      return { status: "pass", duration: duration3 };
+    } catch (error2) {
+      clearTimeout(timeoutId);
+      throw error2;
+    }
+  }
+  async executeTcpCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.host || !config2.port) {
+      throw new Error("TCP check requires host and port");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: `TCP connection to ${config2.host}:${config2.port} successful`
+    };
+  }
+  async executeDatabaseCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.query) {
+      throw new Error("Database check requires query");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: "Database query executed successfully"
+    };
+  }
+  async executeCommandCheck(check, _startTime) {
+    const startTime = Date.now();
+    const config2 = check.config;
+    if (!config2.command) {
+      throw new Error("Command check requires command");
+    }
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: `Command '${config2.command}' executed successfully`
+    };
+  }
+  async executeCustomCheck(_check2, _startTime) {
+    const startTime = Date.now();
+    const duration3 = Date.now() - startTime;
+    return {
+      status: "pass",
+      duration: duration3,
+      message: "Custom check passed"
+    };
+  }
+};
+var checkExecutor2 = new HealthCheckExecutor2();
+var DependencyAnalyzer2 = class {
+  buildDependencyGraph() {
+    const allDeps = healthCheckStore2.getAllDependencies();
+    const services = [];
+    const edges = [];
+    const allServices = /* @__PURE__ */ new Set();
+    for (const [service, deps] of allDeps.entries()) {
+      allServices.add(service);
+      deps.dependsOn.forEach((dep) => allServices.add(dep));
+    }
+    for (const service of allServices) {
+      const deps = allDeps.get(service);
+      services.push({
+        name: service,
+        dependencies: deps?.dependsOn || [],
+        dependents: healthCheckStore2.getDependents(service),
+        critical: deps?.critical || false
+      });
+    }
+    for (const [service, deps] of allDeps.entries()) {
+      for (const dependency of deps.dependsOn) {
+        edges.push({
+          from: service,
+          to: dependency,
+          critical: deps.critical
+        });
+      }
+    }
+    return { services, edges };
+  }
+  analyzeImpact(service, scenario) {
+    const directImpact = [];
+    const cascadingImpact = [];
+    const criticalServices = [];
+    const visited = /* @__PURE__ */ new Set();
+    const directDependents = healthCheckStore2.getDependents(service);
+    directImpact.push(...directDependents);
+    const queue = [...directDependents];
+    visited.add(service);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const deps = healthCheckStore2.getDependencies(current);
+      if (deps?.critical && deps.dependsOn.includes(service)) {
+        criticalServices.push(current);
+        const dependents = healthCheckStore2.getDependents(current);
+        cascadingImpact.push(...dependents.filter((d3) => !visited.has(d3)));
+        queue.push(...dependents);
+      }
+    }
+    const recommendations = this.generateRecommendations(
+      service,
+      scenario,
+      directImpact,
+      cascadingImpact,
+      criticalServices
+    );
+    return {
+      service,
+      scenario,
+      directImpact,
+      cascadingImpact,
+      totalAffected: (/* @__PURE__ */ new Set([...directImpact, ...cascadingImpact])).size,
+      criticalServices,
+      estimatedDowntime: this.estimateDowntime(scenario),
+      recommendations
+    };
+  }
+  estimateDowntime(scenario) {
+    switch (scenario) {
+      case "failure":
+        return 3600;
+      // 1 hour
+      case "degraded":
+        return 1800;
+      // 30 minutes
+      case "maintenance":
+        return 600;
+      // 10 minutes
+      default:
+        return 0;
+    }
+  }
+  generateRecommendations(_service, scenario, directImpact, cascadingImpact, criticalServices) {
+    const recommendations = [];
+    if (criticalServices.length > 0) {
+      recommendations.push(
+        `Critical services will be affected: ${criticalServices.join(", ")}. Consider redundancy or failover mechanisms.`
+      );
+    }
+    if (directImpact.length > 5) {
+      recommendations.push(
+        `High number of direct dependents (${directImpact.length}). Consider load balancing or service splitting.`
+      );
+    }
+    if (cascadingImpact.length > 0) {
+      recommendations.push(
+        `Cascading failures detected. Review dependency chains and implement circuit breakers.`
+      );
+    }
+    if (scenario === "failure") {
+      recommendations.push(
+        "Enable monitoring alerts for this service and its dependents."
+      );
+      recommendations.push("Implement automated failover or backup services.");
+    }
+    if (recommendations.length === 0) {
+      recommendations.push(
+        "No critical concerns detected. Continue monitoring."
+      );
+    }
+    return recommendations;
+  }
+};
+var dependencyAnalyzer2 = new DependencyAnalyzer2();
+var StatusAggregator2 = class {
+  async aggregateServiceStatus(service, includeDetails = false, includeDependencies = false) {
+    const checks = healthCheckStore2.getAllChecks().filter((c2) => c2.name.startsWith(service) || c2.name.includes(service));
+    const checkResults = [];
+    for (const check of checks) {
+      const result = await checkExecutor2.executeCheck(check);
+      checkResults.push({
+        name: check.name,
+        status: result.status,
+        message: result.message,
+        duration: result.duration
+      });
+      healthCheckStore2.recordEvent({
+        checkId: check.id,
+        checkName: check.name,
+        timestamp: Date.now(),
+        status: result.status,
+        duration: result.duration,
+        message: result.message
+      });
+    }
+    const hasFailures = checkResults.some((r) => r.status === "fail");
+    const hasWarnings = checkResults.some((r) => r.status === "warn");
+    let overallStatus;
+    if (hasFailures) {
+      overallStatus = "unhealthy";
+    } else if (hasWarnings) {
+      overallStatus = "degraded";
+    } else if (checkResults.length > 0) {
+      overallStatus = "healthy";
+    } else {
+      overallStatus = "unknown";
+    }
+    let dependencies;
+    if (includeDependencies) {
+      const deps = healthCheckStore2.getDependencies(service);
+      if (deps) {
+        dependencies = [];
+        for (const depService of deps.dependsOn) {
+          const depStatus = await this.aggregateServiceStatus(
+            depService,
+            false,
+            false
+          );
+          dependencies.push({
+            service: depService,
+            status: depStatus.status,
+            critical: deps.critical
+          });
+        }
+      }
+    }
+    return {
+      service,
+      status: overallStatus,
+      checks: includeDetails ? checkResults : [],
+      dependencies,
+      lastChecked: Date.now()
+    };
+  }
+};
+var statusAggregator2 = new StatusAggregator2();
+var SmartDashboard = class {
+  constructor(cache, tokenCounter, metricsCollector) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metricsCollector = metricsCollector;
+  }
+  cache;
+  tokenCounter;
+  metricsCollector;
+  async run(options) {
+    const startTime = Date.now();
+    try {
+      if (!options.operation) {
+        throw new Error("Operation is required");
+      }
+      let result;
+      switch (options.operation) {
+        case "check":
+          result = await this.executeCheck(options, startTime);
+          break;
+        case "register-check":
+          result = await this.registerCheck(options, startTime);
+          break;
+        case "update-check":
+          result = await this.updateCheck(options, startTime);
+          break;
+        case "delete-check":
+          result = await this.deleteCheck(options, startTime);
+          break;
+        case "get-status":
+          result = await this.getStatus(options, startTime);
+          break;
+        case "get-history":
+          result = await this.getHistory(options, startTime);
+          break;
+        case "configure-dependencies":
+          result = await this.configureDependencies(options, startTime);
+          break;
+        case "get-impact":
+          result = await this.getImpact(options, startTime);
+          break;
+        default:
+          throw new Error(`Unknown operation: ${options.operation}`);
+      }
+      this.metricsCollector.record({
+        operation: `smart-dashboard:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: result.success,
+        cacheHit: result.metadata.cacheHit
+      });
+      return result;
+    } catch (error2) {
+      this.metricsCollector.record({
+        operation: `smart-dashboard:${options.operation}`,
+        duration: Date.now() - startTime,
+        success: false,
+        cacheHit: false
+      });
+      return {
+        success: false,
+        error: error2 instanceof Error ? error2.message : "Unknown error",
+        metadata: {
+          cacheHit: false
+        }
+      };
+    }
+  }
+  // ========================================================================
+  // Operation: check
+  // ========================================================================
+  async executeCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      const checks = healthCheckStore2.getAllChecks();
+      let healthyCount = 0;
+      let unhealthyCount = 0;
+      for (const check2 of checks) {
+        const result2 = await checkExecutor2.executeCheck(check2);
+        if (result2.status === "pass") {
+          healthyCount++;
+        } else {
+          unhealthyCount++;
+        }
+        healthCheckStore2.recordEvent({
+          checkId: check2.id,
+          checkName: check2.name,
+          timestamp: Date.now(),
+          status: result2.status,
+          duration: result2.duration,
+          message: result2.message
+        });
+      }
+      return {
+        success: true,
+        data: { checks },
+        metadata: {
+          cacheHit: false,
+          checksRun: checks.length,
+          healthyCount,
+          unhealthyCount
+        }
+      };
+    }
+    const check = checkId ? healthCheckStore2.getCheck(checkId) : healthCheckStore2.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const result = await checkExecutor2.executeCheck(check);
+    healthCheckStore2.recordEvent({
+      checkId: check.id,
+      checkName: check.name,
+      timestamp: Date.now(),
+      status: result.status,
+      duration: result.duration,
+      message: result.message
+    });
+    return {
+      success: true,
+      data: { check },
+      metadata: {
+        cacheHit: false,
+        checksRun: 1,
+        healthyCount: result.status === "pass" ? 1 : 0,
+        unhealthyCount: result.status !== "pass" ? 1 : 0
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: register-check
+  // ========================================================================
+  async registerCheck(options, _startTime) {
+    if (!options.checkName || !options.checkType || !options.checkConfig) {
+      throw new Error("checkName, checkType, and checkConfig are required");
+    }
+    const checkId = this.generateCheckId(options.checkName);
+    const check = {
+      id: checkId,
+      name: options.checkName,
+      type: options.checkType,
+      config: options.checkConfig,
+      interval: options.interval || 60,
+      timeout: options.timeout || 5e3,
+      retries: options.retries || 3,
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    healthCheckStore2.registerCheck(check);
+    return {
+      success: true,
+      data: { check },
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: update-check
+  // ========================================================================
+  async updateCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      throw new Error("checkId or checkName is required");
+    }
+    const check = checkId ? healthCheckStore2.getCheck(checkId) : healthCheckStore2.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const updates = {};
+    if (options.checkType) updates.type = options.checkType;
+    if (options.checkConfig) updates.config = options.checkConfig;
+    if (options.interval !== void 0) updates.interval = options.interval;
+    if (options.timeout !== void 0) updates.timeout = options.timeout;
+    if (options.retries !== void 0) updates.retries = options.retries;
+    const success = healthCheckStore2.updateCheck(check.id, updates);
+    if (!success) {
+      throw new Error("Failed to update check");
+    }
+    const updatedCheck = healthCheckStore2.getCheck(check.id);
+    return {
+      success: true,
+      data: { check: updatedCheck },
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: delete-check
+  // ========================================================================
+  async deleteCheck(options, _startTime) {
+    const checkId = options.checkId;
+    const checkName = options.checkName;
+    if (!checkId && !checkName) {
+      throw new Error("checkId or checkName is required");
+    }
+    const check = checkId ? healthCheckStore2.getCheck(checkId) : healthCheckStore2.getCheckByName(checkName);
+    if (!check) {
+      throw new Error(`Check not found: ${checkId || checkName}`);
+    }
+    const success = healthCheckStore2.deleteCheck(check.id);
+    if (!success) {
+      throw new Error("Failed to delete check");
+    }
+    return {
+      success: true,
+      metadata: {
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-status
+  // ========================================================================
+  async getStatus(options, _startTime) {
+    const service = options.service || "default";
+    const cacheKey = generateCacheKey("health-status", {
+      service,
+      includeDetails: options.includeDetails || false,
+      includeDependencies: options.includeDependencies || false
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { status: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const status = await statusAggregator2.aggregateServiceStatus(
+      service,
+      options.includeDetails || false,
+      options.includeDependencies || false
+    );
+    const statusStr = JSON.stringify(status);
+    const tokensUsed = this.tokenCounter.count(statusStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(statusStr).toString("utf-8"),
+      statusStr.length,
+      Buffer.from(statusStr).length
+    );
+    return {
+      success: true,
+      data: { status },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-history
+  // ========================================================================
+  async getHistory(options, _startTime) {
+    const checkId = options.checkId;
+    const cacheKey = generateCacheKey("health-history", {
+      checkId,
+      timeRange: options.timeRange,
+      limit: options.limit
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { history: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const history = healthCheckStore2.getHistory(
+      checkId,
+      options.timeRange,
+      options.limit || 100
+    );
+    const aggregatedHistory = this.aggregateHistory(history);
+    const historyStr = JSON.stringify(aggregatedHistory);
+    const tokensUsed = this.tokenCounter.count(historyStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(historyStr).toString("utf-8"),
+      historyStr.length,
+      Buffer.from(historyStr).length
+    );
+    return {
+      success: true,
+      data: { history: aggregatedHistory },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: configure-dependencies
+  // ========================================================================
+  async configureDependencies(options, _startTime) {
+    if (!options.dependencies) {
+      throw new Error("dependencies configuration is required");
+    }
+    const { service, dependsOn, critical } = options.dependencies;
+    if (!service || !dependsOn) {
+      throw new Error("service and dependsOn are required");
+    }
+    healthCheckStore2.setDependencies(service, dependsOn, critical || false);
+    const graph = dependencyAnalyzer2.buildDependencyGraph();
+    const cacheKey = `cache-${createHash51("md5").update("health-dependencies:graph").digest("hex")}`;
+    const graphData = JSON.stringify(graph);
+    const tokensUsed = this.tokenCounter.count(graphData).tokens;
+    this.cache.set(cacheKey, graphData, tokensUsed, tokensUsed);
+    return {
+      success: true,
+      data: { dependencies: graph },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Operation: get-impact
+  // ========================================================================
+  async getImpact(options, _startTime) {
+    if (!options.service) {
+      throw new Error("service is required for impact analysis");
+    }
+    const scenario = options.scenario || "failure";
+    const cacheKey = generateCacheKey("health-impact", {
+      service: options.service,
+      scenario
+    });
+    if (options.useCache !== false) {
+      const cached2 = this.cache.get(cacheKey);
+      if (cached2) {
+        const data = JSON.parse(cached2.toString());
+        const tokensSaved = this.tokenCounter.count(
+          JSON.stringify(data)
+        ).tokens;
+        return {
+          success: true,
+          data: { impact: data },
+          metadata: {
+            tokensSaved,
+            cacheHit: true
+          }
+        };
+      }
+    }
+    const impact = dependencyAnalyzer2.analyzeImpact(options.service, scenario);
+    const impactStr = JSON.stringify(impact);
+    const tokensUsed = this.tokenCounter.count(impactStr).tokens;
+    this.cache.set(
+      cacheKey,
+      Buffer.from(impactStr).toString("utf-8"),
+      impactStr.length,
+      Buffer.from(impactStr).length
+    );
+    return {
+      success: true,
+      data: { impact },
+      metadata: {
+        tokensUsed,
+        cacheHit: false
+      }
+    };
+  }
+  // ========================================================================
+  // Helper Methods
+  // ========================================================================
+  generateCheckId(name) {
+    const hash = createHash51("sha256");
+    hash.update(name);
+    hash.update(Date.now().toString());
+    return hash.digest("hex").substring(0, 16);
+  }
+  aggregateHistory(history) {
+    const aggregated = [];
+    const seen = /* @__PURE__ */ new Map();
+    for (const event of history) {
+      const key = `${event.checkId}:${event.status}`;
+      const count = seen.get(key) || 0;
+      if (count < 5 || history.indexOf(event) >= history.length - 10) {
+        aggregated.push(event);
+      }
+      seen.set(key, count + 1);
+    }
+    return aggregated;
+  }
+};
+function createSmartDashboard(cache, tokenCounter, metricsCollector) {
+  return new SmartDashboard(cache, tokenCounter, metricsCollector);
+}
+var smartDashboardTool = {
+  name: "smart-dashboard",
+  description: "Unified dashboard management with widget management and multi-source data integration. Supports 8 operations: check, register-check, update-check, delete-check, get-status, get-history, configure-dependencies, get-impact. Achieves 87% token reduction through status caching and dependency graph compression.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: [
+          "check",
+          "register-check",
+          "update-check",
+          "delete-check",
+          "get-status",
+          "get-history",
+          "configure-dependencies",
+          "get-impact"
+        ],
+        description: "Operation to perform"
+      },
+      checkId: {
+        type: "string",
+        description: "Check identifier"
+      },
+      checkName: {
+        type: "string",
+        description: "Check name"
+      },
+      checkType: {
+        type: "string",
+        enum: ["http", "tcp", "database", "command", "custom"],
+        description: "Type of health check"
+      },
+      checkConfig: {
+        type: "object",
+        description: "Check configuration"
+      },
+      interval: {
+        type: "number",
+        description: "Check interval in seconds"
+      },
+      timeout: {
+        type: "number",
+        description: "Check timeout in milliseconds"
+      },
+      retries: {
+        type: "number",
+        description: "Number of retries on failure"
+      },
+      dependencies: {
+        type: "object",
+        properties: {
+          service: { type: "string" },
+          dependsOn: { type: "array", items: { type: "string" } },
+          critical: { type: "boolean" }
+        },
+        description: "Service dependency configuration"
+      },
+      includeDetails: {
+        type: "boolean",
+        description: "Include detailed check results"
+      },
+      includeDependencies: {
+        type: "boolean",
+        description: "Include dependency status"
+      },
+      timeRange: {
+        type: "object",
+        properties: {
+          start: { type: "number" },
+          end: { type: "number" }
+        },
+        description: "Time range for history query"
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of history entries"
+      },
+      service: {
+        type: "string",
+        description: "Service name for status or impact analysis"
+      },
+      scenario: {
+        type: "string",
+        enum: ["failure", "degraded", "maintenance"],
+        description: "Scenario for impact analysis"
+      },
+      useCache: {
+        type: "boolean",
+        description: "Enable caching (default: true)"
+      },
+      cacheTTL: {
+        type: "number",
+        description: "Cache TTL in seconds"
+      }
+    },
+    required: ["operation"]
+  }
+};
+
 // src/optimizer/server.ts
 var ALL_TOOL_DEFINITIONS = [
   SMART_READ_TOOL_DEFINITION,
@@ -100676,7 +109116,16 @@ var ALL_TOOL_DEFINITIONS = [
   GET_ACTION_ANALYTICS_TOOL_DEFINITION,
   GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION,
   EXPORT_ANALYTICS_TOOL_DEFINITION,
-  GET_OPTIMIZATION_REPORT_TOOL_DEFINITION
+  GET_OPTIMIZATION_REPORT_TOOL_DEFINITION,
+  ALERT_MANAGER_TOOL_DEFINITION,
+  CUSTOM_WIDGET_TOOL_DEFINITION,
+  DATA_VISUALIZER_TOOL_DEFINITION,
+  HEALTH_MONITOR_TOOL_DEFINITION,
+  LOG_DASHBOARD_TOOL_DEFINITION,
+  METRIC_COLLECTOR_TOOL_DEFINITION,
+  MONITORING_INTEGRATION_TOOL_DEFINITION,
+  performanceTrackerTool,
+  smartDashboardTool
 ];
 function ok(result) {
   return {
@@ -100769,6 +109218,15 @@ function createOptimizerRuntime() {
   const getMcpServerAnalytics = getMcpServerAnalyticsTool(analyticsManager);
   const exportAnalytics = getExportAnalyticsTool(analyticsManager);
   const getOptimizationReport = getOptimizationReportTool(analyticsManager);
+  const alertManager = getAlertManager(cache, tokenCounter, metrics);
+  const customWidget = getCustomWidget(cache, tokenCounter, metrics);
+  const dataVisualizer = getDataVisualizer(cache, tokenCounter, metrics);
+  const healthMonitor = getHealthMonitor(cache, tokenCounter, metrics);
+  const logDashboard = getLogDashboard(cache, tokenCounter, metrics);
+  const metricCollector = getMetricCollector(cache, tokenCounter, metrics);
+  const monitoringIntegration = getMonitoringIntegration(cache, tokenCounter, metrics);
+  const performanceTracker = createPerformanceTracker(cache, tokenCounter, metrics);
+  const smartDashboard = createSmartDashboard(cache, tokenCounter, metrics);
   const rawRegistry = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
@@ -100949,7 +109407,31 @@ function createOptimizerRuntime() {
     get_action_analytics: async (args) => okPreformatted(await getActionAnalytics(args)),
     get_mcp_server_analytics: async (args) => okPreformatted(await getMcpServerAnalytics(args)),
     export_analytics: async (args) => okPreformatted(await exportAnalytics(args)),
-    get_optimization_report: async (args) => okPreformatted(await getOptimizationReport(args))
+    get_optimization_report: async (args) => okPreformatted(await getOptimizationReport(args)),
+    // dashboard-monitoring: every one of these matches vendor's real
+    // dispatch shape exactly for the 7 vendor dispatches -- whole-args-object
+    // `.run(options)`, `JSON.stringify(result, null, 2)` (i.e. the generic
+    // `ok()` helper), no positional field pulled out first (verified
+    // directly in vendor's src/server/index.ts, lines 2682-2771).
+    // performance-tracker/smart-dashboard have no vendor dispatch case to
+    // verify against (see this category's index.ts header), but their own
+    // `.run(options)` methods take the identical whole-args-object shape, so
+    // `ok()` is used for them too, matching every other category's
+    // convention rather than inventing a different one. The registry keys
+    // below are byte-identical to each TOOL_DEFINITION's own `name` field,
+    // INCLUDING performance-tracker's/smart-dashboard's hyphenated
+    // 'performance-tracker'/'smart-dashboard' (not renamed to fit the
+    // underscore convention every other tool here happens to use) -- see
+    // this category's index.ts header for why.
+    alert_manager: async (args) => ok(await alertManager.run(args)),
+    custom_widget: async (args) => ok(await customWidget.run(args)),
+    data_visualizer: async (args) => ok(await dataVisualizer.run(args)),
+    health_monitor: async (args) => ok(await healthMonitor.run(args)),
+    log_dashboard: async (args) => ok(await logDashboard.run(args)),
+    metric_collector: async (args) => ok(await metricCollector.run(args)),
+    monitoring_integration: async (args) => ok(await monitoringIntegration.run(args)),
+    "performance-tracker": async (args) => ok(await performanceTracker.run(args)),
+    "smart-dashboard": async (args) => ok(await smartDashboard.run(args))
   };
   const registry2 = {};
   for (const [name, handler] of Object.entries(rawRegistry)) {

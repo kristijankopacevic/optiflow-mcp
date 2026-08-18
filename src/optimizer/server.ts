@@ -83,7 +83,48 @@
 // vendor's real "one place every tool result passes through" breadth,
 // in an honest no-fabricated-savings degraded mode (no
 // discloseResult()/mcpEvidence baseline pipeline ported — out of scope).
-// Still-deferred: dashboard-monitoring (no tools copied or wired yet).
+// dashboard-monitoring (this checkpoint) is now 9 of 10 real tools wired
+// (alert_manager/custom_widget/data_visualizer/health_monitor/log_dashboard/
+// metric_collector/monitoring_integration/performance-tracker/
+// smart-dashboard) -- see src/optimizer/tools/dashboard-monitoring/index.ts's
+// header for: the dual-signal dispatch verification (7 of the 10 confirmed
+// via vendor's real src/server/index.ts dispatch, matching this merge's
+// established shared-instance `.run(options)` convention exactly); the
+// non-vendor-dispatched-but-still-wired precedent applied to
+// performance-tracker/smart-dashboard (matching smart_workflow/
+// knowledge_graph/sentiment_analysis's own precedent -- a real, complete,
+// compiling tool definition is the wiring bar here, not whether vendor's own
+// server happened to dispatch it); the one genuinely deferred tool,
+// report-generator (no name/inputSchema/factory anywhere in that file --
+// nothing to wire without inventing a schema, unlike smart_typescript's
+// "complete tool vendor never dispatched" precedent); the real hyphenated-
+// name mismatch on performance-tracker/smart-dashboard's own tool
+// definitions (ported as-is, not silently renamed to fit every other tool's
+// underscore convention); and the five-plus-two type-name collisions
+// resolved via aliased re-exports (smart-dashboard.ts is a near-verbatim
+// clone of health-monitor.ts's health-check subsystem).
+//
+// A DEAD END DOCUMENTED, NOT PORTED: output-formatting's other 6 vendor
+// files (smart-diff/smart-export/smart-format/smart-log/smart-report/
+// smart-stream.ts, beyond the already-merged smart-pretty.ts) were
+// evaluated for this same checkpoint and found to be genuinely unportable,
+// not merely deferred -- verified directly, not assumed: `smart-export.ts`/
+// `smart-format.ts`/`smart-report.ts` are literally ONE LINE (a header
+// comment only, zero code, matching vendor's own category index.ts note
+// "Implementation pending"); `smart-diff.ts`/`smart-log.ts`/
+// `smart-stream.ts` have substantial `SmartDiff`/`SmartLog`/`SmartStream`
+// classes but every one is a TRUNCATED, non-compilable fragment -- each
+// ends mid-statement on the identical phrase "// measured, not assumed: a
+// multiplier here would invent a saving" with zero `import` lines, not a
+// complete file. None of the 6 has an exported `TOOL_DEFINITION`/schema or
+// factory function, and none is dispatched anywhere in vendor's real
+// server -- in fact vendor's real dispatch for `case 'smart_diff'`/
+// `case 'smart_log'` explicitly constructs and calls the DIFFERENT,
+// already-merged file-operations `SmartDiff`/`SmartLog` classes instead, so
+// even wiring these under their own literal names would collide with tools
+// that already exist and are already correct. output-formatting's real,
+// complete state is therefore unchanged at 1 tool (smart_pretty) -- no new
+// files were copied in for it this checkpoint.
 // It replaces
 // token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
@@ -217,6 +258,21 @@ import { getSmartSystemMetrics, SMART_SYSTEM_METRICS_TOOL_DEFINITION } from "./t
 import { getSmartTestTool, SMART_TEST_TOOL_DEFINITION } from "./tools/build-systems/smart-test.js";
 import { getSmartTypeCheckTool, SMART_TYPECHECK_TOOL_DEFINITION } from "./tools/build-systems/smart-typecheck.js";
 
+// dashboard-monitoring: 9 of 10 real tools wired -- see
+// src/optimizer/tools/dashboard-monitoring/index.ts's header for the
+// dual-signal dispatch verification, the non-vendor-dispatched-but-wired
+// precedent applied to performance-tracker/smart-dashboard, and the one
+// deferred tool (report-generator, no schema to wire).
+import { getAlertManager, ALERT_MANAGER_TOOL_DEFINITION } from "./tools/dashboard-monitoring/alert-manager.js";
+import { getCustomWidget, CUSTOM_WIDGET_TOOL_DEFINITION } from "./tools/dashboard-monitoring/custom-widget.js";
+import { getDataVisualizer, DATA_VISUALIZER_TOOL_DEFINITION } from "./tools/dashboard-monitoring/data-visualizer.js";
+import { getHealthMonitor, HEALTH_MONITOR_TOOL_DEFINITION } from "./tools/dashboard-monitoring/health-monitor.js";
+import { getLogDashboard, LOG_DASHBOARD_TOOL_DEFINITION } from "./tools/dashboard-monitoring/log-dashboard.js";
+import { getMetricCollector, METRIC_COLLECTOR_TOOL_DEFINITION } from "./tools/dashboard-monitoring/metric-collector.js";
+import { getMonitoringIntegration, MONITORING_INTEGRATION_TOOL_DEFINITION } from "./tools/dashboard-monitoring/monitoring-integration.js";
+import { createPerformanceTracker, performanceTrackerTool } from "./tools/dashboard-monitoring/performance-tracker.js";
+import { createSmartDashboard, smartDashboardTool } from "./tools/dashboard-monitoring/smart-dashboard.js";
+
 /** All tools currently wired into the dispatch table (not just copied-in). */
 export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_READ_TOOL_DEFINITION,
@@ -286,6 +342,15 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   GET_MCP_SERVER_ANALYTICS_TOOL_DEFINITION,
   EXPORT_ANALYTICS_TOOL_DEFINITION,
   GET_OPTIMIZATION_REPORT_TOOL_DEFINITION,
+  ALERT_MANAGER_TOOL_DEFINITION,
+  CUSTOM_WIDGET_TOOL_DEFINITION,
+  DATA_VISUALIZER_TOOL_DEFINITION,
+  HEALTH_MONITOR_TOOL_DEFINITION,
+  LOG_DASHBOARD_TOOL_DEFINITION,
+  METRIC_COLLECTOR_TOOL_DEFINITION,
+  MONITORING_INTEGRATION_TOOL_DEFINITION,
+  performanceTrackerTool,
+  smartDashboardTool,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -462,6 +527,25 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const getMcpServerAnalytics = getMcpServerAnalyticsTool(analyticsManager);
   const exportAnalytics = getExportAnalyticsTool(analyticsManager);
   const getOptimizationReport = getOptimizationReportTool(analyticsManager);
+
+  // dashboard-monitoring: all 9 wired tools take the same
+  // (cache, tokenCounter, metrics) triple every other shared-instance
+  // category here uses -- verified per-factory against vendor's real
+  // dispatch construction (src/server/index.ts lines 457-467) for the 7
+  // vendor dispatches; performance-tracker/smart-dashboard's own factories
+  // (never dispatched upstream) take the identical 3-arg shape by their own
+  // declared signature. report-generator has no factory to instantiate --
+  // see tools/dashboard-monitoring/index.ts's header for why it stays
+  // deferred.
+  const alertManager = getAlertManager(cache, tokenCounter, metrics);
+  const customWidget = getCustomWidget(cache, tokenCounter, metrics);
+  const dataVisualizer = getDataVisualizer(cache, tokenCounter, metrics);
+  const healthMonitor = getHealthMonitor(cache, tokenCounter, metrics);
+  const logDashboard = getLogDashboard(cache, tokenCounter, metrics);
+  const metricCollector = getMetricCollector(cache, tokenCounter, metrics);
+  const monitoringIntegration = getMonitoringIntegration(cache, tokenCounter, metrics);
+  const performanceTracker = createPerformanceTracker(cache, tokenCounter, metrics);
+  const smartDashboard = createSmartDashboard(cache, tokenCounter, metrics);
 
   const rawRegistry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
@@ -657,6 +741,31 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     get_mcp_server_analytics: async (args) => okPreformatted(await getMcpServerAnalytics(args as any)),
     export_analytics: async (args) => okPreformatted(await exportAnalytics(args as any)),
     get_optimization_report: async (args) => okPreformatted(await getOptimizationReport(args as any)),
+
+    // dashboard-monitoring: every one of these matches vendor's real
+    // dispatch shape exactly for the 7 vendor dispatches -- whole-args-object
+    // `.run(options)`, `JSON.stringify(result, null, 2)` (i.e. the generic
+    // `ok()` helper), no positional field pulled out first (verified
+    // directly in vendor's src/server/index.ts, lines 2682-2771).
+    // performance-tracker/smart-dashboard have no vendor dispatch case to
+    // verify against (see this category's index.ts header), but their own
+    // `.run(options)` methods take the identical whole-args-object shape, so
+    // `ok()` is used for them too, matching every other category's
+    // convention rather than inventing a different one. The registry keys
+    // below are byte-identical to each TOOL_DEFINITION's own `name` field,
+    // INCLUDING performance-tracker's/smart-dashboard's hyphenated
+    // 'performance-tracker'/'smart-dashboard' (not renamed to fit the
+    // underscore convention every other tool here happens to use) -- see
+    // this category's index.ts header for why.
+    alert_manager: async (args) => ok(await alertManager.run(args as any)),
+    custom_widget: async (args) => ok(await customWidget.run(args as any)),
+    data_visualizer: async (args) => ok(await dataVisualizer.run(args as any)),
+    health_monitor: async (args) => ok(await healthMonitor.run(args as any)),
+    log_dashboard: async (args) => ok(await logDashboard.run(args as any)),
+    metric_collector: async (args) => ok(await metricCollector.run(args as any)),
+    monitoring_integration: async (args) => ok(await monitoringIntegration.run(args as any)),
+    "performance-tracker": async (args) => ok(await performanceTracker.run(args as any)),
+    "smart-dashboard": async (args) => ok(await smartDashboard.run(args as any)),
   };
 
   // ARCHITECTURAL DECISION (Part 1 of this checkpoint -- see
