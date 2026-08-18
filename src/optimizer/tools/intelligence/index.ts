@@ -20,3 +20,17 @@ export * from './pattern-recognition.js';
 export * from './predictive-analytics.js';
 export * from './recommendation-engine.js';
 export * from './smart-summarization.js';
+
+// vendor/token-optimizer-mcp/src/tools/intelligence/auto-remediation.ts
+// (the 13th file in vendor's own category) is deliberately NOT ported here.
+// Verified directly: it references `CacheEngine`/`TokenCounter`/
+// `MetricsCollector` (inside its own `runAutoRemediation` wrapper) with NO
+// import statement for any of them anywhere in the file -- it would not
+// compile if anything actually imported it. Confirmed nothing does: grepping
+// the whole vendor/token-optimizer-mcp/src and /plugin trees for
+// "AutoRemediation" finds only the file referencing itself. Vendor's own
+// src/server/index.ts never dispatches it either. This is genuinely dead,
+// broken code in vendor's own source (not excluded via vendor's tsconfig,
+// just never wired to anything) -- the same category of gap as
+// output-formatting's stub/truncated files, not an oversight to silently fix
+// by writing the missing imports ourselves.
