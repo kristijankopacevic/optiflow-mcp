@@ -113,11 +113,17 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "smart_system_metrics",
         "smart_test",
         "smart_typecheck",
-        // code-analysis (only 3 of 9 real tools wired -- see
+        // code-analysis (8 of 9 real tools wired -- smart_typescript is
+        // the one left deferred; see
         // src/optimizer/tools/code-analysis/index.ts's header)
         "smart_ast_grep",
         "smart_security",
         "smart_dependencies",
+        "smart_complexity",
+        "smart_refactor",
+        "smart_imports",
+        "smart_exports",
+        "smart_symbols",
       ].sort()
     );
   });
@@ -751,6 +757,198 @@ describe("code-analysis tools (real end-to-end)", () => {
     // parse error); the valid file is still analyzed for real.
     expect(parsed.graph.nodes).toContain("good.ts");
     expect(parsed.graph.nodes).not.toContain("broken.ts");
+  });
+
+  it("smart_complexity computes a real, hand-verifiable cyclomatic complexity via @babel/parser (proves the classic-Compiler-API port)", async () => {
+    const src = `
+function f(a, b) {
+  if (a && b) {
+    return 1;
+  } else if (a) {
+    return 2;
+  }
+  for (let i = 0; i < 10; i++) {}
+  return 0;
+}
+`;
+    const result = await runtime.registry.smart_complexity({
+      fileContent: src,
+      force: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.functions.length).toBe(1);
+    expect(parsed.functions[0].name).toBe("f");
+    // base(1) + if + else-if(also an IfStatement) + for + `&&` = 5, hand
+    // counted against the if/for/&&/catch decision-point rule this tool
+    // implements -- not just "returns something".
+    expect(parsed.functions[0].complexity.cyclomatic).toBe(5);
+  });
+
+  it("smart_complexity throws a real SyntaxError on malformed input instead of ts.createSourceFile's old silent recovery (documented behavior difference)", async () => {
+    // SmartComplexityTool.run() throws synchronously on @babel/parser's own
+    // parse failure (ported behavior); createOptimizerServer()'s CallTool
+    // handler is what turns that into an isError result for a real MCP
+    // client -- calling the raw registry handler directly, the promise
+    // rejects, matching this file's established convention for error paths
+    // (see smart_read's identical-shape test above).
+    await expect(
+      runtime.registry.smart_complexity({
+        fileContent: "function broken( { return )",
+        force: true,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("smart_refactor flags deep if-nesting, single-letter variables, and repeated magic numbers from real @babel/parser AST shape (not fabricated)", async () => {
+    const src = `
+function f(a, b, c) {
+  if (a) {
+    if (b) {
+      if (c) {
+        return 1;
+      }
+    }
+  }
+  const p = 77; const q = 77; const r = 77;
+  return p + q + r;
+}
+`;
+    const result = await runtime.registry.smart_refactor({
+      fileContent: src,
+      force: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(
+      parsed.suggestions.some(
+        (s: any) =>
+          s.type === "simplify-conditional" && s.message.includes("nested")
+      )
+    ).toBe(true);
+    expect(
+      parsed.suggestions.some((s: any) => s.type === "improve-naming")
+    ).toBe(true);
+    expect(
+      parsed.suggestions.some((s: any) => s.type === "extract-constant")
+    ).toBe(true);
+  });
+
+  it("smart_imports extracts import/require/dynamic-import statements and flags a real unused import via real @babel/parser AST (not typescript-estree)", async () => {
+    const src = `import def, { a as b, c } from './mod.js';
+import * as ns from './mod2.js';
+const r = require('./mod3.js');
+async function f() { await import('./dyn.js'); }
+console.log(def, ns, r);
+`;
+    const result = await runtime.registry.smart_imports({
+      fileContent: src,
+      force: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.imports.length).toBe(4);
+    const named = parsed.imports.find((i: any) => i.module === "./mod.js");
+    // Local/exported-name inversion (Babel's local vs. imported) resolved
+    // correctly: `b` is the local binding, `a` the aliased original name.
+    expect(named.imports).toEqual(
+      expect.arrayContaining([
+        { name: "def", isDefault: true },
+        { name: "b", alias: "a" },
+      ])
+    );
+    expect(parsed.imports.find((i: any) => i.type === "dynamic")?.module).toBe(
+      "./dyn.js"
+    );
+    // `c` is never referenced anywhere in the source -- a real unused-import
+    // finding computed from the used-symbol walk, not fabricated.
+    const unusedNames = parsed.imports.flatMap(
+      (i: any) => i.unusedImports || []
+    );
+    expect(unusedNames).toContain("c");
+    expect(unusedNames).not.toContain("def");
+    // Line numbers are exactly right (catches the ts 0-based/Babel
+    // 1-based `+1` off-by-one trap this port had to avoid).
+    expect(named.location.line).toBe(1);
+  });
+
+  it("smart_exports extracts named/default/reexport/namespace exports with correct aliasing via real @babel/parser AST", async () => {
+    const src = `export interface Foo { a: number; }
+export function f(a, b) {}
+export const x = 1, y = 2;
+export default function baz() {}
+export { a as b } from './x.js';
+export * from './y.js';
+export * as ns from './z.js';
+`;
+    const result = await runtime.registry.smart_exports({
+      fileContent: src,
+      force: true,
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    const byName = (n: string) =>
+      parsed.exports.find((e: any) => e.name === n);
+    expect(byName("Foo")?.kind).toBe("interface");
+    expect(byName("f")?.kind).toBe("function");
+    expect(byName("x")?.kind).toBe("variable");
+    expect(byName("baz")?.type).toBe("default");
+    // Babel's local/exported fields are the mirror image of ts's
+    // name/propertyName -- verified this port didn't get them backwards.
+    const reexport = parsed.exports.find(
+      (e: any) => e.name === "b" && e.fromModule === "./x.js"
+    );
+    expect(reexport.originalName).toBe("a");
+    expect(reexport.type).toBe("reexport");
+    expect(
+      parsed.exports.find(
+        (e: any) => e.name === "*" && e.fromModule === "./y.js"
+      )?.type
+    ).toBe("namespace");
+    expect(
+      parsed.exports.find(
+        (e: any) => e.name === "ns" && e.fromModule === "./z.js"
+      )?.type
+    ).toBe("namespace");
+  });
+
+  it("smart_symbols extracts declared symbols with scope/exported/documentation but WITHOUT type or references (documented capability loss, not silently faked)", async () => {
+    writeFileSync(
+      path.join(workDir, "symbols.ts"),
+      `
+/** A documented function. */
+export function documented() {}
+
+class C {
+  method() {}
+  prop = 1;
+}
+
+export interface Foo { a: number; }
+`,
+      "utf-8"
+    );
+
+    const result = await runtime.registry.smart_symbols({
+      filePath: path.join(workDir, "symbols.ts"),
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text);
+    const documented = parsed.symbols.find((s: any) => s.name === "documented");
+    expect(documented.exported).toBe(true);
+    expect(documented.kind).toBe("function");
+    expect(documented.documentation).toBe("A documented function.");
+    // The real capability loss this checkpoint documented rather than
+    // faked: no type checker means no `type` field and no scope-aware
+    // `references` count -- verified genuinely absent, not just unset.
+    expect("type" in documented).toBe(false);
+    expect("references" in documented).toBe(false);
+    const method = parsed.symbols.find((s: any) => s.name === "method");
+    expect(method.kind).toBe("method");
+    expect(method.scope).toBe("class");
+    const iface = parsed.symbols.find((s: any) => s.name === "Foo");
+    expect(iface.kind).toBe("interface");
+    expect(iface.exported).toBe(true);
   });
 });
 

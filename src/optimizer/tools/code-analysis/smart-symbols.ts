@@ -4,9 +4,42 @@
  * Extracts and analyzes TypeScript/JavaScript symbols with intelligent caching:
  * - Identifies all declarations (variables, functions, classes, interfaces, types, enums)
  * - Tracks scope, exports, and documentation
- * - Counts references using TypeScript's language service
  * - Git-aware cache invalidation
  * - 75-85% token reduction through summarization
+ *
+ * BABEL PORT (see code-analysis/index.ts's header "THE BLOCKER") -- REAL
+ * CAPABILITY LOSS, DOCUMENTED RATHER THAN APPROXIMATED:
+ *
+ * Declaration enumeration (name/kind/location/scope/exported) is pure
+ * syntax and ports faithfully. Two fields the original computed via
+ * `ts.createLanguageService(...).getProgram()!.getTypeChecker()` do NOT:
+ *
+ * - `type` (via `typeChecker.getTypeOfSymbolAtLocation` +
+ *   `typeChecker.typeToString`): resolving a declaration's TYPE requires a
+ *   type checker. `@babel/parser` produces a syntax tree only. This field
+ *   is REMOVED (not approximated from syntax -- e.g. inferring "probably a
+ *   string" from a literal initializer would be a real, if crude, syntax
+ *   fact; resolving an arbitrary declaration's full inferred/annotated
+ *   type is not, and this port does not fabricate one).
+ * - `references` (via `languageService.findReferences`, which is
+ *   scope-aware -- it does not count an unrelated same-named identifier in
+ *   a different scope, or a shadowed variable, as a reference to THIS
+ *   declaration): a same-name-text occurrence count would silently
+ *   overcount shadowed/unrelated symbols and present a number that LOOKS
+ *   like a scope-resolved reference count but isn't. Per this checkpoint's
+ *   explicit instruction not to "claim to resolve" what was only
+ *   inferred, this field is REMOVED rather than replaced with a misleading
+ *   approximation.
+ *
+ * `documentation` (JSDoc comment text) IS kept: Babel attaches
+ * `leadingComments` to the enclosing declaration node as a genuine syntax
+ * fact (a comment block immediately preceding a declaration), not
+ * something inferred -- the same class of fact as the interface/kind
+ * fields already extracted from AST shape.
+ *
+ * `SMART_SYMBOLS_TOOL_DEFINITION.description` and this class's own JSDoc
+ * are updated below to match (no longer promising type/reference
+ * information this port cannot honestly produce).
  */
 
 import { CacheEngine } from '../../core/cache-engine.js';
@@ -15,11 +48,43 @@ import { TokenCounter } from '../../core/token-counter.js';
 import { createHash } from 'crypto';
 import { readFileSync, existsSync } from 'fs';
 import { join, relative, isAbsolute } from 'path';
-import * as ts from 'typescript';
+import { parse } from '@babel/parser';
 // PATH RECONCILIATION (see src/optimizer/paths.ts's header): vendor's CLI
 // default here was `join(homedir(), '.hypercontext', 'cache')` -- replaced
 // with optiflow's own `~/.optiflow/optimizer/cache` convention.
 import { getOptimizerCacheDbPath } from '../../paths.js';
+import { type AnyNode, walk, forEachChild, locOf } from './babel-ast-utils.js';
+
+function parseSource(content: string): AnyNode {
+  const ast = parse(content, {
+    sourceType: 'module',
+    plugins: ['jsx', 'typescript'],
+  });
+  return ast.program as unknown as AnyNode;
+}
+
+/**
+ * A JSDoc-style leading block comment immediately preceding `node`, as
+ * genuine syntax (a comment block is either there or it isn't) rather than
+ * the classic API's `symbol.getDocumentationComment(checker)` (which is
+ * itself just reading the same source comments, resolved via the symbol
+ * table instead of AST position -- same underlying fact, different
+ * plumbing to reach it).
+ */
+function extractDocComment(node: AnyNode): string | undefined {
+  const comments = node.leadingComments as
+    | Array<{ type: string; value: string }>
+    | undefined;
+  if (!comments || comments.length === 0) return undefined;
+  const last = comments[comments.length - 1];
+  if (last.type !== 'CommentBlock') return undefined;
+  const text = last.value
+    .split('\n')
+    .map((line) => line.replace(/^\s*\*\s?/, '').trim())
+    .filter((line) => line.length > 0)
+    .join('\n');
+  return text.length > 0 ? text : undefined;
+}
 
 export interface SmartSymbolsOptions {
   /**
@@ -75,9 +140,11 @@ export interface SymbolInfo {
   location: { line: number; column: number };
   scope: 'global' | 'module' | 'block' | 'function' | 'class';
   exported: boolean;
-  type?: string;
   documentation?: string;
-  references: number;
+  // `type` (resolved via the classic Compiler API's TypeChecker) and
+  // `references` (via the LanguageService's scope-aware findReferences)
+  // are DELIBERATELY ABSENT, not approximated -- see this file's
+  // top-of-file BABEL PORT comment for exactly why.
 }
 
 export interface SmartSymbolsResult {
@@ -194,29 +261,19 @@ export class SmartSymbolsTool {
       }
     }
 
-    // Parse file and extract symbols
-    const sourceFile = ts.createSourceFile(
-      absolutePath,
-      readFileSync(absolutePath, 'utf-8'),
-      ts.ScriptTarget.Latest,
-      true
-    );
-
-    // Create language service for reference counting
-    const host = this.createLanguageServiceHost(absolutePath, sourceFile);
-    const languageService = ts.createLanguageService(host);
+    // Parse file and extract symbols. See this file's top-of-file BABEL
+    // PORT comment: unlike ts.createSourceFile, this throws on malformed
+    // syntax rather than silently recovering; there is no language
+    // service/type checker here at all (see the same comment for exactly
+    // which fields that removes: `type` and `references`).
+    const program = parseSource(readFileSync(absolutePath, 'utf-8'));
 
     // Extract symbols
-    const symbols = this.extractSymbols(
-      sourceFile,
-      languageService,
-      symbolTypes,
-      includeExported
-    );
+    const symbols = this.extractSymbols(program, symbolTypes, includeExported);
 
     // Extract imports if requested
     const imports = includeImported
-      ? this.extractImports(sourceFile)
+      ? this.extractImports(program)
       : undefined;
 
     // Build result
@@ -263,39 +320,11 @@ export class SmartSymbolsTool {
   /**
    * Create language service host for reference counting
    */
-  private createLanguageServiceHost(
-    fileName: string,
-    sourceFile: ts.SourceFile
-  ): ts.LanguageServiceHost {
-    return {
-      getScriptFileNames: () => [fileName],
-      getScriptVersion: () => '0',
-      getScriptSnapshot: (name) => {
-        if (name === fileName) {
-          return ts.ScriptSnapshot.fromString(sourceFile.text);
-        }
-        return undefined;
-      },
-      getCurrentDirectory: () => this.projectRoot,
-      getCompilationSettings: () => ({
-        module: ts.ModuleKind.ESNext,
-        target: ts.ScriptTarget.Latest,
-      }),
-      getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options),
-      fileExists: ts.sys.fileExists,
-      readFile: ts.sys.readFile,
-      readDirectory: ts.sys.readDirectory,
-      directoryExists: ts.sys.directoryExists,
-      getDirectories: ts.sys.getDirectories,
-    };
-  }
-
   /**
    * Extract symbols from source file
    */
   private extractSymbols(
-    sourceFile: ts.SourceFile,
-    languageService: ts.LanguageService,
+    program: AnyNode,
     symbolTypes?: string[],
     includeExported = false
   ): SymbolInfo[] {
@@ -311,219 +340,162 @@ export class SmartSymbolsTool {
       ]
     );
 
-    const visit = (node: ts.Node, scope: SymbolInfo['scope'] = 'module') => {
+    // `commentSource` is the node leading comments actually attach to --
+    // for an exported declaration that's the ExportNamedDeclaration/
+    // ExportDefaultDeclaration WRAPPER, not the unwrapped declaration
+    // itself (see this file's top-of-file BABEL PORT comment).
+    const visit = (
+      node: AnyNode,
+      scope: SymbolInfo['scope'] = 'module',
+      exportedOverride?: boolean,
+      commentSource?: AnyNode
+    ): void => {
+      // Unwrap Babel's export wrapper nodes (the classic API instead put
+      // an ExportKeyword modifier directly on the declaration, checked
+      // below via `exportedOverride`) and recurse into the real
+      // declaration once, carrying the wrapper as the comment source.
+      if (
+        (node.type === 'ExportNamedDeclaration' ||
+          node.type === 'ExportDefaultDeclaration') &&
+        node.declaration
+      ) {
+        visit(node.declaration, scope, true, node);
+        return;
+      }
+
+      const exported = exportedOverride ?? false;
+      const docNode = commentSource ?? node;
+
       // Variables
-      if (allTypes.has('variable') && ts.isVariableStatement(node)) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
+      if (allTypes.has('variable') && node.type === 'VariableDeclaration') {
         if (!includeExported || exported) {
-          node.declarationList.declarations.forEach((decl) => {
-            if (ts.isIdentifier(decl.name)) {
-              const symbol = this.createSymbolInfo(
-                decl.name,
-                'variable',
-                sourceFile,
-                languageService,
-                scope,
-                exported
+          for (const decl of node.declarations) {
+            if (decl.id?.type === 'Identifier') {
+              symbols.push(
+                this.createSymbolInfo(
+                  decl.id,
+                  'variable',
+                  docNode,
+                  scope,
+                  exported
+                )
               );
-              if (symbol) symbols.push(symbol);
             }
-          });
+          }
         }
       }
 
       // Functions
       if (
         allTypes.has('function') &&
-        ts.isFunctionDeclaration(node) &&
-        node.name
+        node.type === 'FunctionDeclaration' &&
+        node.id
       ) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
         if (!includeExported || exported) {
-          const symbol = this.createSymbolInfo(
-            node.name,
-            'function',
-            sourceFile,
-            languageService,
-            scope,
-            exported
+          symbols.push(
+            this.createSymbolInfo(node.id, 'function', docNode, scope, exported)
           );
-          if (symbol) symbols.push(symbol);
         }
       }
 
       // Classes
-      if (allTypes.has('class') && ts.isClassDeclaration(node) && node.name) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
+      if (allTypes.has('class') && node.type === 'ClassDeclaration' && node.id) {
         if (!includeExported || exported) {
-          const symbol = this.createSymbolInfo(
-            node.name,
-            'class',
-            sourceFile,
-            languageService,
-            scope,
-            exported
+          symbols.push(
+            this.createSymbolInfo(node.id, 'class', docNode, scope, exported)
           );
-          if (symbol) symbols.push(symbol);
 
-          // Extract class members
-          node.members.forEach((member) => {
+          // Extract class members. Babel splits TS's single
+          // `MethodDeclaration`/`PropertyDeclaration` into `ClassMethod`/
+          // `ClassProperty` (`ClassProperty` is parsed under the
+          // `typescript` plugin as `ClassProperty` for JS-style fields;
+          // TS-specific field declarations parse as the same node type).
+          for (const member of node.body?.body || []) {
             if (
-              (ts.isMethodDeclaration(member) ||
-                ts.isPropertyDeclaration(member)) &&
-              ts.isIdentifier(member.name)
+              (member.type === 'ClassMethod' ||
+                member.type === 'ClassProperty') &&
+              member.key?.type === 'Identifier'
             ) {
-              const kind = ts.isMethodDeclaration(member)
-                ? 'method'
-                : 'property';
-              const memberSymbol = this.createSymbolInfo(
-                member.name,
-                kind,
-                sourceFile,
-                languageService,
-                'class',
-                false
+              const kind = member.type === 'ClassMethod' ? 'method' : 'property';
+              symbols.push(
+                this.createSymbolInfo(member.key, kind, member, 'class', false)
               );
-              if (memberSymbol) symbols.push(memberSymbol);
             }
-          });
+          }
         }
       }
 
       // Interfaces
-      if (allTypes.has('interface') && ts.isInterfaceDeclaration(node)) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
+      if (allTypes.has('interface') && node.type === 'TSInterfaceDeclaration') {
         if (!includeExported || exported) {
-          const symbol = this.createSymbolInfo(
-            node.name,
-            'interface',
-            sourceFile,
-            languageService,
-            scope,
-            exported
+          symbols.push(
+            this.createSymbolInfo(node.id, 'interface', docNode, scope, exported)
           );
-          if (symbol) symbols.push(symbol);
         }
       }
 
       // Type Aliases
-      if (allTypes.has('type') && ts.isTypeAliasDeclaration(node)) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
+      if (allTypes.has('type') && node.type === 'TSTypeAliasDeclaration') {
         if (!includeExported || exported) {
-          const symbol = this.createSymbolInfo(
-            node.name,
-            'type',
-            sourceFile,
-            languageService,
-            scope,
-            exported
+          symbols.push(
+            this.createSymbolInfo(node.id, 'type', docNode, scope, exported)
           );
-          if (symbol) symbols.push(symbol);
         }
       }
 
       // Enums
-      if (allTypes.has('enum') && ts.isEnumDeclaration(node)) {
-        const exported =
-          node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-          false;
+      if (allTypes.has('enum') && node.type === 'TSEnumDeclaration') {
         if (!includeExported || exported) {
-          const symbol = this.createSymbolInfo(
-            node.name,
-            'enum',
-            sourceFile,
-            languageService,
-            scope,
-            exported
+          symbols.push(
+            this.createSymbolInfo(node.id, 'enum', docNode, scope, exported)
           );
-          if (symbol) symbols.push(symbol);
         }
       }
 
-      // Update scope for nested nodes
+      // Update scope for nested nodes. Matches the original's exact
+      // coverage: FunctionDeclaration/MethodDeclaration/ArrowFunction only
+      // -- plain (non-method) FunctionExpression was never included
+      // either, preserved as-is.
       let newScope = scope;
       if (
-        ts.isFunctionDeclaration(node) ||
-        ts.isMethodDeclaration(node) ||
-        ts.isArrowFunction(node)
+        node.type === 'FunctionDeclaration' ||
+        node.type === 'ClassMethod' ||
+        node.type === 'ObjectMethod' ||
+        node.type === 'ArrowFunctionExpression'
       ) {
         newScope = 'function';
-      } else if (ts.isClassDeclaration(node)) {
+      } else if (node.type === 'ClassDeclaration') {
         newScope = 'class';
-      } else if (ts.isBlock(node)) {
+      } else if (node.type === 'BlockStatement') {
         newScope = 'block';
       }
 
-      ts.forEachChild(node, (child) => visit(child, newScope));
+      forEachChild(node, (child) => visit(child, newScope));
     };
 
-    visit(sourceFile);
+    visit(program);
     return symbols;
   }
 
   /**
-   * Create symbol info from identifier
+   * Create symbol info from identifier. Does NOT resolve `type` or
+   * `references` -- see this file's top-of-file BABEL PORT comment for
+   * exactly why those fields are gone rather than approximated.
    */
   private createSymbolInfo(
-    identifier: ts.Identifier,
+    identifier: AnyNode,
     kind: SymbolInfo['kind'],
-    sourceFile: ts.SourceFile,
-    languageService: ts.LanguageService,
+    docNode: AnyNode,
     scope: SymbolInfo['scope'],
     exported: boolean
-  ): SymbolInfo | null {
-    const pos = sourceFile.getLineAndCharacterOfPosition(identifier.getStart());
-
-    // Get type information
-    const typeChecker = languageService.getProgram()?.getTypeChecker();
-    let typeString: string | undefined;
-    let documentation: string | undefined;
-
-    if (typeChecker) {
-      const symbol = typeChecker.getSymbolAtLocation(identifier);
-      if (symbol) {
-        const type = typeChecker.getTypeOfSymbolAtLocation(symbol, identifier);
-        typeString = typeChecker.typeToString(type);
-
-        // Extract documentation
-        const docs = symbol.getDocumentationComment(typeChecker);
-        if (docs.length > 0) {
-          documentation = docs.map((d) => d.text).join('\n');
-        }
-      }
-    }
-
-    // Count references
-    const references = languageService.findReferences(
-      sourceFile.fileName,
-      identifier.getStart()
-    );
-    const referenceCount = references
-      ? references.reduce((count, ref) => count + ref.references.length, 0)
-      : 0;
-
+  ): SymbolInfo {
     return {
-      name: identifier.text,
+      name: identifier.name as string,
       kind,
-      location: {
-        line: pos.line + 1,
-        column: pos.character,
-      },
+      location: locOf(identifier),
       scope,
       exported,
-      type: typeString,
-      documentation,
-      references: referenceCount,
+      documentation: extractDocComment(docNode),
     };
   }
 
@@ -531,47 +503,30 @@ export class SmartSymbolsTool {
    * Extract imports from source file
    */
   private extractImports(
-    sourceFile: ts.SourceFile
+    program: AnyNode
   ): Array<{ module: string; symbols: string[] }> {
     const imports: Array<{ module: string; symbols: string[] }> = [];
 
-    const visit = (node: ts.Node) => {
-      if (ts.isImportDeclaration(node)) {
-        const moduleSpecifier = node.moduleSpecifier;
-        if (ts.isStringLiteral(moduleSpecifier)) {
-          const symbols: string[] = [];
+    walk(program, (node) => {
+      if (node.type !== 'ImportDeclaration') return;
+      const moduleSpecifier = node.source;
+      if (moduleSpecifier?.type !== 'StringLiteral') return;
 
-          if (node.importClause) {
-            // Default import
-            if (node.importClause.name) {
-              symbols.push(node.importClause.name.text);
-            }
-
-            // Named imports
-            if (node.importClause.namedBindings) {
-              if (ts.isNamedImports(node.importClause.namedBindings)) {
-                node.importClause.namedBindings.elements.forEach((element) => {
-                  symbols.push(element.name.text);
-                });
-              } else if (
-                ts.isNamespaceImport(node.importClause.namedBindings)
-              ) {
-                symbols.push(node.importClause.namedBindings.name.text);
-              }
-            }
-          }
-
-          imports.push({
-            module: moduleSpecifier.text,
-            symbols,
-          });
+      const symbols: string[] = [];
+      for (const spec of node.specifiers || []) {
+        if (
+          spec.type === 'ImportDefaultSpecifier' ||
+          spec.type === 'ImportNamespaceSpecifier'
+        ) {
+          symbols.push(spec.local.name);
+        } else if (spec.type === 'ImportSpecifier') {
+          symbols.push(spec.local.name);
         }
       }
 
-      ts.forEachChild(node, visit);
-    };
+      imports.push({ module: moduleSpecifier.value as string, symbols });
+    });
 
-    visit(sourceFile);
     return imports;
   }
 
@@ -586,11 +541,12 @@ export class SmartSymbolsTool {
     compactedTokens: number;
     reductionPercentage: number;
   } {
-    // Original: Full symbol details with types, docs, references
+    // Original: Full symbol details with docs (no `type`/`references` --
+    // see this file's top-of-file BABEL PORT comment for why those two
+    // fields no longer exist to size here).
     let originalSize = 0;
     symbols.forEach((sym) => {
       originalSize += 100; // Base symbol info
-      originalSize += sym.type?.length || 0;
       originalSize += sym.documentation?.length || 0;
       originalSize += 20; // Location, scope, etc.
     });
@@ -766,11 +722,11 @@ export async function runSmartSymbols(
       output += `Top Symbols (showing ${topSymbols.length} of ${result.symbols.length}):\n`;
       topSymbols.forEach((sym) => {
         const exportMark = sym.exported ? ' [exported]' : '';
-        const refMark = sym.references > 0 ? ` (${sym.references} refs)` : '';
-        output += `  ${sym.kind} ${sym.name}${exportMark}${refMark}\n`;
+        output += `  ${sym.kind} ${sym.name}${exportMark}\n`;
         output += `    Location: line ${sym.location.line}, scope: ${sym.scope}\n`;
-        if (sym.type) {
-          output += `    Type: ${sym.type.slice(0, 60)}${sym.type.length > 60 ? '...' : ''}\n`;
+        if (sym.documentation) {
+          const doc = sym.documentation.split('\n')[0];
+          output += `    Doc: ${doc.slice(0, 60)}${doc.length > 60 ? '...' : ''}\n`;
         }
       });
       output += '\n';
@@ -801,8 +757,13 @@ export async function runSmartSymbols(
 // MCP Tool definition
 export const SMART_SYMBOLS_TOOL_DEFINITION = {
   name: 'smart_symbols',
+  // NOT "type, and reference information" -- see this file's top-of-file
+  // BABEL PORT comment: resolving a declaration's type or scope-aware
+  // reference count needs a type checker, which this Babel-based port
+  // does not have. This tool reports name/kind/location/scope/exported/
+  // documentation only.
   description:
-    'Extract and analyze TypeScript/JavaScript symbols with scope, type, and reference information (75-85% token reduction)',
+    'Extract and analyze TypeScript/JavaScript symbols with scope, export status, and JSDoc documentation (75-85% token reduction). Does NOT resolve types or reference counts (no type checker).',
   inputSchema: {
     type: 'object',
     properties: {

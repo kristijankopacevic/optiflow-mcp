@@ -5,9 +5,46 @@
  * Provides export tracking, unused export detection, and optimization suggestions.
  *
  * Token Reduction: 75-85% through summarization of export analysis
+ *
+ * BABEL PORT (see code-analysis/index.ts's header "THE BLOCKER"): export
+ * statements are a pure syntax-level concept, so this is a faithful,
+ * no-capability-loss port to `@babel/parser` + the manual
+ * `@babel/types`-`VISITOR_KEYS` walk in ./babel-ast-utils.ts. Same
+ * malformed-syntax difference as the other ported files in this directory
+ * (throws instead of `ts.createSourceFile`'s silent recovery).
+ *
+ * Real AST-SHAPE difference worth documenting precisely (see advisor trap
+ * #4/#5 from this checkpoint's own review): the classic Compiler API
+ * represents an exported declaration (`export function f() {}`) as the
+ * SAME node kind as a non-exported one, with an `ExportKeyword` (and,
+ * for defaults, also a `DefaultKeyword`) MODIFIER attached directly to
+ * it -- `export default function foo() {}` keeps its own
+ * `FunctionDeclaration` kind, name and all. Babel/ESTree instead wraps
+ * exported declarations in a separate `ExportNamedDeclaration` /
+ * `ExportDefaultDeclaration` PARENT node holding the real declaration in
+ * `.declaration`. Because of this, the classic API's `export default
+ * expr;` (e.g. `export default 42;`) and TypeScript's CommonJS-style
+ * `export = expr;` are BOTH represented as one node kind
+ * (`ts.isExportAssignment`, distinguished only by an `isExportEquals`
+ * flag the original code never actually checked -- it reported both
+ * identically as `{ type: 'default', name: 'default', kind:
+ * 'expression' }`). Babel gives these two constructs genuinely different
+ * node types (`TSExportAssignment` vs. `ExportDefaultDeclaration` with a
+ * non-declaration `.declaration`). This port keeps the ORIGINAL's
+ * observable output for both (same `{ type: 'default', name: 'default',
+ * kind: 'expression' }` shape) even though two different Babel node types
+ * feed into it now -- preserving behavior, not the original's (arguably
+ * accidental) AST-shape conflation.
+ *
+ * Also preserved as-is (not silently "fixed"): the original silently
+ * DROPPED anonymous default exports of functions/classes (`export default
+ * function () {}` / `export default class {}`) because its `if (name)`
+ * gate at the end of that branch never fires when there's no `.name`.
+ * Same drop happens here for the same reason (`declaration.id` is `null`
+ * for those Babel nodes too).
  */
 
-import * as ts from 'typescript';
+import { parse } from '@babel/parser';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
@@ -18,6 +55,15 @@ import { TokenCounter } from '../../core/token-counter.js';
 // default here was `join(homedir(), '.hypercontext', 'cache')` -- replaced
 // with optiflow's own `~/.optiflow/optimizer/cache` convention.
 import { getOptimizerCacheDbPath } from '../../paths.js';
+import { type AnyNode, walk, locOf } from './babel-ast-utils.js';
+
+function parseSource(content: string): AnyNode {
+  const ast = parse(content, {
+    sourceType: 'module',
+    plugins: ['jsx', 'typescript'],
+  });
+  return ast.program as unknown as AnyNode;
+}
 
 /**
  * Export statement information
@@ -218,16 +264,14 @@ export class SmartExportsTool {
       }
     }
 
-    // Parse file
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    // Parse file. See this file's top-of-file BABEL PORT comment: unlike
+    // ts.createSourceFile, this throws on malformed syntax rather than
+    // silently recovering.
+    const program = parseSource(content);
+    void fileName; // no longer needed for parsing; kept for branch parity
 
     // Analyze exports
-    const exports = this.extractExports(sourceFile);
+    const exports = this.extractExports(program);
     const dependencies =
       checkUsage && filePath
         ? this.findExportDependencies(filePath, exports, projectRoot, scanDepth)
@@ -281,170 +325,150 @@ export class SmartExportsTool {
   /**
    * Extract export statements from source file
    */
-  private extractExports(sourceFile: ts.SourceFile): ExportInfo[] {
+  private extractExports(program: AnyNode): ExportInfo[] {
     const exports: ExportInfo[] = [];
 
-    const visit = (node: ts.Node) => {
-      // Export declarations (export const, export function, etc.)
-      if (ts.isExportAssignment(node)) {
-        // export = something (CommonJS style)
-        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+    walk(program, (node) => {
+      // `export = something` (TS CommonJS-style export assignment). See
+      // this file's top-of-file BABEL PORT comment for why this and
+      // `export default <non-declaration expr>` deliberately produce the
+      // SAME output shape below, matching the classic API's original
+      // (accidental) conflation of the two.
+      if (node.type === 'TSExportAssignment') {
         exports.push({
           type: 'default',
           name: 'default',
-          location: {
-            line: pos.line + 1,
-            column: pos.character,
-          },
+          location: locOf(node),
           kind: 'expression',
         });
+        return;
       }
 
-      // Export named declarations
-      if (
-        ts.isVariableStatement(node) ||
-        ts.isFunctionDeclaration(node) ||
-        ts.isClassDeclaration(node) ||
-        ts.isInterfaceDeclaration(node) ||
-        ts.isTypeAliasDeclaration(node) ||
-        ts.isEnumDeclaration(node)
-      ) {
-        const hasExport = node.modifiers?.some(
-          (m) => m.kind === ts.SyntaxKind.ExportKeyword
-        );
+      // `export default ...`
+      if (node.type === 'ExportDefaultDeclaration') {
+        const decl = node.declaration;
+        const pos = locOf(node);
 
-        if (hasExport) {
-          const isDefault = node.modifiers?.some(
-            (m) => m.kind === ts.SyntaxKind.DefaultKeyword
-          );
-
-          let name: string | undefined;
-          let kind: string | undefined;
-
-          if (ts.isVariableStatement(node)) {
-            kind = 'variable';
-            node.declarationList.declarations.forEach((decl) => {
-              if (ts.isIdentifier(decl.name)) {
-                name = decl.name.text;
-                const pos = sourceFile.getLineAndCharacterOfPosition(
-                  node.getStart()
-                );
-                exports.push({
-                  type: isDefault ? 'default' : 'named',
-                  name,
-                  location: {
-                    line: pos.line + 1,
-                    column: pos.character,
-                  },
-                  kind,
-                });
-              }
-            });
-            return;
-          } else if (ts.isFunctionDeclaration(node)) {
-            kind = 'function';
-            name = node.name?.text;
-          } else if (ts.isClassDeclaration(node)) {
-            kind = 'class';
-            name = node.name?.text;
-          } else if (ts.isInterfaceDeclaration(node)) {
-            kind = 'interface';
-            name = node.name?.text;
-          } else if (ts.isTypeAliasDeclaration(node)) {
-            kind = 'type';
-            name = node.name?.text;
-          } else if (ts.isEnumDeclaration(node)) {
-            kind = 'enum';
-            name = node.name?.text;
-          }
-
+        if (decl?.type === 'FunctionDeclaration' || decl?.type === 'ClassDeclaration') {
+          const name = decl.id?.name;
+          // Anonymous default function/class exports are silently dropped
+          // here, matching the original's `if (name)` gate -- see this
+          // file's top-of-file BABEL PORT comment.
           if (name) {
-            const pos = sourceFile.getLineAndCharacterOfPosition(
-              node.getStart()
-            );
             exports.push({
-              type: isDefault ? 'default' : 'named',
+              type: 'default',
               name,
-              location: {
-                line: pos.line + 1,
-                column: pos.character,
-              },
-              kind,
+              location: pos,
+              kind: decl.type === 'FunctionDeclaration' ? 'function' : 'class',
             });
           }
+        } else {
+          // `export default <expr>` -- same bucket as `export = expr`.
+          exports.push({
+            type: 'default',
+            name: 'default',
+            location: pos,
+            kind: 'expression',
+          });
         }
+        return;
       }
 
-      // Export { ... } statements
-      if (ts.isExportDeclaration(node)) {
-        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+      // `export const/function/class/interface/type/enum ...` (non-default
+      // -- Babel never wraps a default export in ExportNamedDeclaration).
+      if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+        const decl = node.declaration;
+        const pos = locOf(node);
 
-        // export * from 'module'
-        if (!node.exportClause) {
-          const moduleSpecifier = node.moduleSpecifier;
-          if (moduleSpecifier && ts.isStringLiteral(moduleSpecifier)) {
-            exports.push({
-              type: 'namespace',
-              name: '*',
-              fromModule: moduleSpecifier.text,
-              location: {
-                line: pos.line + 1,
-                column: pos.character,
-              },
-              kind: 'reexport',
-            });
+        if (decl.type === 'VariableDeclaration') {
+          for (const varDecl of decl.declarations) {
+            if (varDecl.id?.type === 'Identifier') {
+              exports.push({
+                type: 'named',
+                name: varDecl.id.name,
+                location: pos,
+                kind: 'variable',
+              });
+            }
           }
           return;
         }
 
-        // export { a, b as c } from 'module'
-        if (ts.isNamedExports(node.exportClause)) {
-          const moduleSpecifier = node.moduleSpecifier;
-          const fromModule =
-            moduleSpecifier && ts.isStringLiteral(moduleSpecifier)
-              ? moduleSpecifier.text
-              : undefined;
+        const KIND_BY_TYPE: Record<string, string> = {
+          FunctionDeclaration: 'function',
+          ClassDeclaration: 'class',
+          TSInterfaceDeclaration: 'interface',
+          TSTypeAliasDeclaration: 'type',
+          TSEnumDeclaration: 'enum',
+        };
+        const kind = KIND_BY_TYPE[decl.type];
+        const name = decl.id?.name;
+        if (kind && name) {
+          exports.push({
+            type: 'named',
+            name,
+            location: pos,
+            kind,
+          });
+        }
+        return;
+      }
 
-          node.exportClause.elements.forEach((element) => {
-            const name = element.name.text;
-            const originalName = element.propertyName?.text;
+      // `export { a, b as c } [from 'module']` / `export * as ns from
+      // 'module'` -- Babel represents both as ExportNamedDeclaration
+      // WITHOUT a `.declaration`, distinguished by specifier node type.
+      if (node.type === 'ExportNamedDeclaration' && !node.declaration) {
+        const pos = locOf(node);
+        const fromModule =
+          node.source?.type === 'StringLiteral' ? node.source.value : undefined;
 
+        for (const spec of node.specifiers || []) {
+          if (spec.type === 'ExportSpecifier') {
+            // Babel's `.exported` is the PUBLIC name (ts's element.name);
+            // `.local` is the original/local name (ts's element.propertyName,
+            // only reported when it differs from the exported name).
+            const name =
+              spec.exported?.type === 'Identifier'
+                ? spec.exported.name
+                : spec.exported?.value;
+            const localName = spec.local?.name;
             exports.push({
               type: fromModule ? 'reexport' : 'named',
               name,
-              originalName,
+              originalName:
+                localName && localName !== name ? localName : undefined,
               fromModule,
-              location: {
-                line: pos.line + 1,
-                column: pos.character,
-              },
+              location: pos,
               kind: fromModule ? 'reexport' : 'named',
             });
-          });
-        }
-
-        // export * as name from 'module'
-        if (ts.isNamespaceExport(node.exportClause)) {
-          const moduleSpecifier = node.moduleSpecifier;
-          if (moduleSpecifier && ts.isStringLiteral(moduleSpecifier)) {
+          } else if (spec.type === 'ExportNamespaceSpecifier' && fromModule) {
             exports.push({
               type: 'namespace',
-              name: node.exportClause.name.text,
-              fromModule: moduleSpecifier.text,
-              location: {
-                line: pos.line + 1,
-                column: pos.character,
-              },
+              name: spec.exported?.name,
+              fromModule,
+              location: pos,
               kind: 'reexport',
             });
           }
         }
+        return;
       }
 
-      ts.forEachChild(node, visit);
-    };
+      // `export * from 'module'` (bare, no `as`)
+      if (node.type === 'ExportAllDeclaration') {
+        const pos = locOf(node);
+        if (node.source?.type === 'StringLiteral') {
+          exports.push({
+            type: 'namespace',
+            name: '*',
+            fromModule: node.source.value,
+            location: pos,
+            kind: 'reexport',
+          });
+        }
+      }
+    });
 
-    visit(sourceFile);
     return exports;
   }
 
@@ -467,15 +491,10 @@ export class SmartExportsTool {
 
       try {
         const content = readFileSync(file, 'utf-8');
-        const sourceFile = ts.createSourceFile(
-          file,
-          content,
-          ts.ScriptTarget.Latest,
-          true
-        );
+        const program = parseSource(content);
 
         // Find imports from our file
-        const imports = this.extractImportsFromFile(sourceFile, filePath);
+        const imports = this.extractImportsFromFile(program, file, filePath);
 
         for (const imp of imports) {
           // Check if imported symbol matches our exports
@@ -549,7 +568,8 @@ export class SmartExportsTool {
    * Extract imports from a file that might import from our target file
    */
   private extractImportsFromFile(
-    sourceFile: ts.SourceFile,
+    program: AnyNode,
+    importingFile: string,
     targetFilePath: string
   ): Array<{ type: 'named' | 'default' | 'namespace'; symbols: string[] }> {
     const imports: Array<{
@@ -557,59 +577,52 @@ export class SmartExportsTool {
       symbols: string[];
     }> = [];
 
-    const visit = (node: ts.Node) => {
-      if (ts.isImportDeclaration(node)) {
-        const moduleSpecifier = node.moduleSpecifier;
-        if (!ts.isStringLiteral(moduleSpecifier)) {
-          ts.forEachChild(node, visit);
-          return;
-        }
+    walk(program, (node) => {
+      if (node.type !== 'ImportDeclaration') return;
+      const moduleSpecifier = node.source;
+      if (moduleSpecifier?.type !== 'StringLiteral') return;
 
-        const importPath = moduleSpecifier.text;
+      const importPath = moduleSpecifier.value as string;
 
-        // Check if this import is from our target file
-        const resolved = this.resolveImportPath(
-          sourceFile.fileName,
-          importPath,
-          targetFilePath
-        );
+      // Check if this import is from our target file
+      const resolved = this.resolveImportPath(
+        importingFile,
+        importPath,
+        targetFilePath
+      );
 
-        if (resolved) {
-          const importClause = node.importClause;
-          if (importClause) {
-            const symbols: string[] = [];
-            let type: 'named' | 'default' | 'namespace' = 'named';
+      if (!resolved) return;
 
-            // Default import
-            if (importClause.name) {
-              symbols.push(importClause.name.text);
-              type = 'default';
-            }
+      const symbols: string[] = [];
+      let type: 'named' | 'default' | 'namespace' = 'named';
 
-            // Named imports
-            if (importClause.namedBindings) {
-              if (ts.isNamespaceImport(importClause.namedBindings)) {
-                symbols.push(importClause.namedBindings.name.text);
-                type = 'namespace';
-              } else if (ts.isNamedImports(importClause.namedBindings)) {
-                importClause.namedBindings.elements.forEach((element) => {
-                  symbols.push(element.propertyName?.text || element.name.text);
-                });
-                type = 'named';
-              }
-            }
-
-            if (symbols.length > 0) {
-              imports.push({ type, symbols });
-            }
-          }
+      for (const spec of node.specifiers || []) {
+        if (spec.type === 'ImportDefaultSpecifier') {
+          symbols.push(spec.local.name);
+          type = 'default';
+        } else if (spec.type === 'ImportNamespaceSpecifier') {
+          symbols.push(spec.local.name);
+          type = 'namespace';
+        } else if (spec.type === 'ImportSpecifier') {
+          // The ORIGINAL exported name (ts's `propertyName?.text ||
+          // name.text` -- propertyName only set when aliased, else falls
+          // back to the local name, which is the same as the original
+          // when there's no alias). Babel's `imported` is always populated
+          // with exactly that value already.
+          symbols.push(
+            spec.imported?.type === 'Identifier'
+              ? spec.imported.name
+              : spec.imported?.value
+          );
+          type = 'named';
         }
       }
 
-      ts.forEachChild(node, visit);
-    };
+      if (symbols.length > 0) {
+        imports.push({ type, symbols });
+      }
+    });
 
-    visit(sourceFile);
     return imports;
   }
 

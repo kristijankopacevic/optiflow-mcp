@@ -18,31 +18,40 @@
 // Windows CVE-2024-27980 spawn workaround five of these already carried,
 // and for a known projectRoot-staleness divergence across three of them
 // that was ported as-is rather than silently patched), and code-analysis
-// (only 3 of 9 real tools wired: smart_ast_grep/security/dependencies —
-// see src/optimizer/tools/code-analysis/index.ts's header for the full
-// explanation, but in short: the other 6
-// (smart_typescript/symbols/complexity/refactor/imports/exports) all
+// (8 of 9 real tools wired: smart_ast_grep/security/dependencies/
+// complexity/refactor/imports/exports/symbols — see
+// src/optimizer/tools/code-analysis/index.ts's header for the full
+// explanation, but in short: 6 of these 9 originally
 // `import * as ts from 'typescript'` for the classic Compiler API
-// (createSourceFile, SyntaxKind, node type guards, ...), and this repo's
-// typescript@^7.0.2 is the native/Go-rewritten compiler whose package no
-// longer ships that API under its public exports at all — a real,
-// repo-wide dependency question, not something this checkpoint decided
-// unilaterally. Those 6 files are copied to disk with path reconciliation
-// (and, for smart_typescript/symbols, a projectRoot-staleness fix) already
-// applied, but excluded from tsconfig.json's compile graph and NOT wired
-// here until the coordinator resolves that question. Of the 3 that ARE
-// wired: smart_security had the same projectRoot-staleness bug class
-// checkpoint 4 found in build-systems, fixed live here; smart_dependencies
-// also got a real dependency substitution
+// (createSourceFile, SyntaxKind, node type guards, ...), which this repo's
+// typescript@^7.0.2 (the native/Go-rewritten compiler) no longer ships
+// under its public exports at all. This checkpoint resolved that by
+// porting 5 of those 6 (complexity/refactor/imports/exports were pure
+// syntax-level analysis with no capability loss; symbols lost exactly two
+// fields -- `type`/`references`, both genuinely type-checker-dependent,
+// removed rather than approximated, see smart-symbols.ts's own header) to
+// `@babel/parser` + a hand-written `@babel/types`-`VISITOR_KEYS` walk
+// (see code-analysis/babel-ast-utils.ts's header for why not
+// `@babel/traverse`). The 6th, smart_typescript, stays deferred: its
+// entire output IS type-check diagnostics from a real type checker, which
+// a syntax-only parser has no honest substitute for (see its own file's
+// header). Of the 3 wired earlier: smart_security had the same
+// projectRoot-staleness bug class checkpoint 4 found in build-systems,
+// fixed live at that time; smart_dependencies also got a real dependency
+// substitution
 // (@typescript-eslint/typescript-estree dropped for the same TS-7 peer
 // conflict, replaced by routing its parsing entirely through the
 // already-added @babel/parser) and a vendor dispatch-shape improvement
 // (its own free-function CLI helper's double-JSON-encoding-a-string defect
 // is not replicated; dispatched via a shared instance like every other
-// category here instead). Still-deferred categories (advanced-caching,
-// analytics tools — blocked on the separate src/analytics/ persistence
-// merge —, dashboard-monitoring) have no tools copied or wired yet. It
-// replaces token-optimizer-mcp's own
+// category here instead) -- smart_symbols gets the same dispatch-shape
+// improvement now (vendor's `runSmartSymbols` returns a pre-formatted
+// report string that vendor's own dispatch re-JSON.stringifies; this
+// dispatches via the shared instance's `.run(args)` instead, a real result
+// object). Still-deferred categories (advanced-caching, analytics tools —
+// blocked on the separate src/analytics/ persistence merge —,
+// dashboard-monitoring) have no tools copied or wired yet. It replaces
+// token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
 // are copied-but-not-yet-wired) with a small, real dispatch table built
@@ -109,15 +118,21 @@ import { getSmartSchema, SMART_SCHEMA_TOOL_DEFINITION } from "./tools/api-databa
 import { getSmartSql, SMART_SQL_TOOL_DEFINITION } from "./tools/api-database/smart-sql.js";
 import { getSmartWebSocket, SMART_WEBSOCKET_TOOL_DEFINITION } from "./tools/api-database/smart-websocket.js";
 
-// code-analysis: only 3 of 9 real tools are wired -- see
-// src/optimizer/tools/code-analysis/index.ts's header for why the other 6
-// (smart_typescript/symbols/complexity/refactor/imports/exports) are
-// deferred (a repo-wide typescript@^7 Compiler-API-removal blocker, not a
-// code-analysis-local issue) and excluded from tsconfig.json's compile
-// graph rather than wired here.
+// code-analysis: 8 of 9 real tools are now wired -- see
+// src/optimizer/tools/code-analysis/index.ts's header for the full port
+// history (classic TS Compiler API -> @babel/parser, this checkpoint).
+// Only smart_typescript stays deferred (see its own file's header: its
+// entire output IS type-check diagnostics from a real type checker, which
+// a syntax-only parser cannot honestly substitute) and stays excluded from
+// tsconfig.json's compile graph.
 import { getSmartAstGrepTool, SMART_AST_GREP_TOOL_DEFINITION } from "./tools/code-analysis/smart-ast-grep.js";
 import { getSmartSecurityTool, SMART_SECURITY_TOOL_DEFINITION } from "./tools/code-analysis/smart-security.js";
 import { getSmartDependenciesTool, SMART_DEPENDENCIES_TOOL_DEFINITION } from "./tools/code-analysis/smart-dependencies.js";
+import { getSmartComplexityTool, SMART_COMPLEXITY_TOOL_DEFINITION } from "./tools/code-analysis/smart-complexity.js";
+import { getSmartRefactorTool, SMART_REFACTOR_TOOL_DEFINITION } from "./tools/code-analysis/smart-refactor.js";
+import { getSmartImportsTool, SMART_IMPORTS_TOOL_DEFINITION } from "./tools/code-analysis/smart-imports.js";
+import { getSmartExportsTool, SMART_EXPORTS_TOOL_DEFINITION } from "./tools/code-analysis/smart-exports.js";
+import { getSmartSymbolsTool, SMART_SYMBOLS_TOOL_DEFINITION } from "./tools/code-analysis/smart-symbols.js";
 
 import { getSmartBuildTool, SMART_BUILD_TOOL_DEFINITION } from "./tools/build-systems/smart-build.js";
 import { getSmartDocker, SMART_DOCKER_TOOL_DEFINITION } from "./tools/build-systems/smart-docker.js";
@@ -179,6 +194,11 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_AST_GREP_TOOL_DEFINITION,
   SMART_SECURITY_TOOL_DEFINITION,
   SMART_DEPENDENCIES_TOOL_DEFINITION,
+  SMART_COMPLEXITY_TOOL_DEFINITION,
+  SMART_REFACTOR_TOOL_DEFINITION,
+  SMART_IMPORTS_TOOL_DEFINITION,
+  SMART_EXPORTS_TOOL_DEFINITION,
+  SMART_SYMBOLS_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -284,17 +304,25 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const smartTest = getSmartTestTool(cache, tokenCounter, metrics);
   const smartTypeCheck = getSmartTypeCheckTool(cache, tokenCounter, metrics);
 
-  // code-analysis: only 3 of 9 real tools wired (see
-  // src/optimizer/tools/code-analysis/index.ts's header -- 6 more depend on
-  // a typescript@^7 Compiler API this repo's version no longer ships, a
-  // repo-wide dependency question deferred to the coordinator, not decided
-  // here). Each gets ONE shared instance, matching this function's own
+  // code-analysis: 8 of 9 real tools wired (see
+  // src/optimizer/tools/code-analysis/index.ts's header -- smart_typescript
+  // is the one tool left deferred, its entire output being type-check
+  // diagnostics from a real type checker Babel cannot substitute for).
+  // Each gets ONE shared instance, matching this function's own
   // established convention -- NOT vendor's real dispatch, which for these
-  // 3 mostly calls a standalone `runSmartXxx(args)` CLI helper that builds
+  // mostly calls a standalone `runSmartXxx(args)` CLI helper that builds
   // its own throwaway cache/tokenCounter/metrics per call instead.
+  // getSmartComplexityTool takes no projectRoot param (unlike refactor/
+  // imports/exports, which do) -- verified by reading its factory
+  // signature, not assumed from the sibling tools' shape.
   const smartAstGrep = getSmartAstGrepTool(cache, tokenCounter, metrics);
   const smartSecurity = getSmartSecurityTool(cache, tokenCounter, metrics);
   const smartDependencies = getSmartDependenciesTool(cache, tokenCounter, metrics);
+  const smartComplexity = getSmartComplexityTool(cache, tokenCounter, metrics);
+  const smartRefactor = getSmartRefactorTool(cache, tokenCounter, metrics);
+  const smartImports = getSmartImportsTool(cache, tokenCounter, metrics);
+  const smartExports = getSmartExportsTool(cache, tokenCounter, metrics);
+  const smartSymbols = getSmartSymbolsTool(cache, tokenCounter, metrics);
 
   const registry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
@@ -434,18 +462,30 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     smart_typecheck: async (args) => ok(await smartTypeCheck.run(args as any)),
 
     // code-analysis: whole-args-object `.run(args)` for smart_security/
-    // smart_dependencies (`.run()` on SmartDependenciesTool is a plain alias
-    // of `.analyze()`), matching every other already-wired category's
-    // shared-instance dispatch style. smart_ast_grep is the one
-    // positional-arg case, matching file-operations' smart_grep
-    // destructuring style. The other 6 code-analysis tools are deferred --
-    // see src/optimizer/tools/code-analysis/index.ts's header.
+    // smart_dependencies/smart_complexity/smart_refactor/smart_imports/
+    // smart_exports/smart_symbols (`.run()` on SmartDependenciesTool is a
+    // plain alias of `.analyze()`), matching every other already-wired
+    // category's shared-instance dispatch style AND matching vendor's own
+    // real dispatch for these -- verified directly in
+    // vendor/token-optimizer-mcp/src/server/index.ts: every one of
+    // smart_complexity/smart_exports/smart_imports/smart_refactor/
+    // smart_symbols passes `args as any` straight through there too (only
+    // the CLI helper vs. shared-instance plumbing differs, not the
+    // argument shape). smart_ast_grep is the one positional-arg case,
+    // matching file-operations' smart_grep destructuring style.
+    // smart_typescript is the one code-analysis tool still deferred -- see
+    // src/optimizer/tools/code-analysis/index.ts's header.
     smart_ast_grep: async (args) => {
       const { pattern, ...options } = args as { pattern: string };
       return ok(await smartAstGrep.grep(pattern, options as any));
     },
     smart_security: async (args) => ok(await smartSecurity.run(args as any)),
     smart_dependencies: async (args) => ok(await smartDependencies.run(args as any)),
+    smart_complexity: async (args) => ok(await smartComplexity.run(args as any)),
+    smart_refactor: async (args) => ok(await smartRefactor.run(args as any)),
+    smart_imports: async (args) => ok(await smartImports.run(args as any)),
+    smart_exports: async (args) => ok(await smartExports.run(args as any)),
+    smart_symbols: async (args) => ok(await smartSymbols.run(args as any)),
   };
 
   return { registry, cache, close: () => cache.close() };

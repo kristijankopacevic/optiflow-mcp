@@ -4,9 +4,20 @@
  * Provides intelligent refactoring suggestions with code examples
  * Analyzes code patterns and suggests improvements
  * Target: 75-85% token reduction through suggestion summarization
+ *
+ * BABEL PORT (see code-analysis/index.ts's header "THE BLOCKER"): every
+ * suggestion this tool generates comes from AST SHAPE (nesting depth,
+ * operator counts, identifier text, literal repetition) or from
+ * `SmartComplexityTool`'s own already-ported metrics -- never from resolved
+ * type information -- so this is a faithful, no-capability-loss port to
+ * `@babel/parser` + the manual `@babel/types`-`VISITOR_KEYS` walk in
+ * ./babel-ast-utils.ts (see that file's header for why not `@babel/traverse`).
+ * Same real behavior difference as smart-complexity.ts: `@babel/parser`
+ * throws on malformed syntax instead of `ts.createSourceFile`'s silent
+ * recovery.
  */
 
-import * as ts from 'typescript';
+import { parse } from '@babel/parser';
 import { existsSync, readFileSync } from 'fs';
 import { join, isAbsolute } from 'path';
 import { createHash } from 'crypto';
@@ -21,6 +32,7 @@ import {
 // default here was `join(homedir(), '.hypercontext', 'cache')` -- replaced
 // with optiflow's own `~/.optiflow/optimizer/cache` convention.
 import { getOptimizerCacheDbPath } from '../../paths.js';
+import { type AnyNode, walk, locOf, textOf } from './babel-ast-utils.js';
 
 export interface SmartRefactorOptions {
   filePath?: string;
@@ -169,13 +181,14 @@ export class SmartRefactorTool {
       }
     }
 
-    // Parse TypeScript/JavaScript
-    const sourceFile = ts.createSourceFile(
-      filePath || 'anonymous.ts',
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    // Parse TypeScript/JavaScript. See this file's top-of-file BABEL PORT
+    // comment: unlike ts.createSourceFile, this throws on malformed syntax
+    // rather than silently recovering.
+    const ast = parse(content, {
+      sourceType: 'module',
+      plugins: ['jsx', 'typescript'],
+    });
+    const program = ast.program as unknown as AnyNode;
 
     // Get complexity metrics
     const complexityResult = await this.complexityTool.run({
@@ -198,19 +211,21 @@ export class SmartRefactorTool {
           );
           break;
         case 'simplify-conditional':
-          suggestions.push(...this.suggestSimplifyConditional(sourceFile));
+          suggestions.push(...this.suggestSimplifyConditional(program));
           break;
         case 'remove-duplication':
-          suggestions.push(...this.suggestRemoveDuplication(sourceFile));
+          suggestions.push(
+            ...this.suggestRemoveDuplication(program, content)
+          );
           break;
         case 'improve-naming':
-          suggestions.push(...this.suggestImproveNaming(sourceFile));
+          suggestions.push(...this.suggestImproveNaming(program));
           break;
         case 'reduce-complexity':
           suggestions.push(...this.suggestReduceComplexity(complexityResult));
           break;
         case 'extract-constant':
-          suggestions.push(...this.suggestExtractConstant(sourceFile));
+          suggestions.push(...this.suggestExtractConstant(program));
           break;
       }
     }
@@ -306,21 +321,19 @@ export class SmartRefactorTool {
     return suggestions;
   }
 
-  private suggestSimplifyConditional(
-    sourceFile: ts.SourceFile
-  ): RefactorSuggestion[] {
+  private suggestSimplifyConditional(program: AnyNode): RefactorSuggestion[] {
     const suggestions: RefactorSuggestion[] = [];
 
-    const visit = (node: ts.Node) => {
+    walk(program, (node) => {
       // Nested if statements
-      if (ts.isIfStatement(node)) {
+      if (node.type === 'IfStatement') {
         const nestedIfs = this.countNestedIfs(node);
         if (nestedIfs > 2) {
-          const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const pos = locOf(node);
           suggestions.push({
             type: 'simplify-conditional',
             severity: 'warning',
-            location: { line: pos.line + 1, column: pos.character },
+            location: pos,
             message: `Deeply nested if statements (${nestedIfs} levels). Consider using early returns or guard clauses.`,
             suggestion:
               'Use early returns or extract conditions into well-named variables.',
@@ -338,15 +351,17 @@ export class SmartRefactorTool {
         }
       }
 
-      // Complex boolean expressions
-      if (ts.isBinaryExpression(node)) {
+      // Complex boolean expressions. TS's classic API models &&/|| as
+      // BinaryExpression; Babel gives them a separate LogicalExpression
+      // node type instead.
+      if (node.type === 'LogicalExpression') {
         const complexity = this.countLogicalOperators(node);
         if (complexity > 3) {
-          const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const pos = locOf(node);
           suggestions.push({
             type: 'simplify-conditional',
             severity: 'warning',
-            location: { line: pos.line + 1, column: pos.character },
+            location: pos,
             message: `Complex boolean expression with ${complexity} logical operators. Consider extracting into well-named variables.`,
             suggestion:
               'Extract complex conditions into descriptively named boolean variables.',
@@ -362,32 +377,33 @@ export class SmartRefactorTool {
           });
         }
       }
+    });
 
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
     return suggestions;
   }
 
   private suggestRemoveDuplication(
-    sourceFile: ts.SourceFile
+    program: AnyNode,
+    content: string
   ): RefactorSuggestion[] {
     const suggestions: RefactorSuggestion[] = [];
     const codeBlocks = new Map<
       string,
-      Array<{ location: ts.TextRange; text: string }>
+      Array<{ location: { line: number; column: number }; text: string }>
     >();
 
-    const visit = (node: ts.Node) => {
-      // Look for duplicate blocks (functions, if statements, etc.)
+    walk(program, (node) => {
+      // Look for duplicate blocks (functions, if statements, etc.). Babel
+      // splits TS's single `MethodDeclaration` into `ClassMethod`/
+      // `ObjectMethod` -- see smart-complexity.ts's identical note.
       if (
-        ts.isFunctionDeclaration(node) ||
-        ts.isMethodDeclaration(node) ||
-        ts.isIfStatement(node) ||
-        ts.isBlock(node)
+        node.type === 'FunctionDeclaration' ||
+        node.type === 'ClassMethod' ||
+        node.type === 'ObjectMethod' ||
+        node.type === 'IfStatement' ||
+        node.type === 'BlockStatement'
       ) {
-        const text = node.getText(sourceFile).trim();
+        const text = textOf(node, content).trim();
         if (text.length > 100) {
           // Only consider substantial blocks
           const hash = createHash('md5').update(text).digest('hex');
@@ -395,28 +411,21 @@ export class SmartRefactorTool {
             codeBlocks.set(hash, []);
           }
           codeBlocks.get(hash)!.push({
-            location: { pos: node.getStart(), end: node.getEnd() },
+            location: locOf(node),
             text,
           });
         }
       }
-
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
+    });
 
     // Report duplicates
     for (const [_hash, blocks] of codeBlocks) {
       if (blocks.length > 1) {
         const firstBlock = blocks[0];
-        const pos = sourceFile.getLineAndCharacterOfPosition(
-          firstBlock.location.pos
-        );
         suggestions.push({
           type: 'remove-duplication',
           severity: 'warning',
-          location: { line: pos.line + 1, column: pos.character },
+          location: firstBlock.location,
           message: `Found ${blocks.length} duplicate or very similar code blocks.`,
           suggestion:
             'Extract common logic into a reusable function or utility.',
@@ -431,25 +440,23 @@ export class SmartRefactorTool {
     return suggestions;
   }
 
-  private suggestImproveNaming(
-    sourceFile: ts.SourceFile
-  ): RefactorSuggestion[] {
+  private suggestImproveNaming(program: AnyNode): RefactorSuggestion[] {
     const suggestions: RefactorSuggestion[] = [];
 
-    const visit = (node: ts.Node) => {
-      if (ts.isIdentifier(node)) {
-        const name = node.text;
+    walk(program, (node) => {
+      if (node.type === 'Identifier') {
+        const name = node.name as string;
 
         // Check for single-letter variables (except common ones like i, j, k in loops)
         if (
           name.length === 1 &&
           !['i', 'j', 'k', 'x', 'y', 'z'].includes(name)
         ) {
-          const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const pos = locOf(node);
           suggestions.push({
             type: 'improve-naming',
             severity: 'info',
-            location: { line: pos.line + 1, column: pos.character },
+            location: pos,
             message: `Single-letter variable '${name}' is not descriptive.`,
             suggestion:
               "Use a descriptive name that explains the variable's purpose.",
@@ -472,11 +479,11 @@ export class SmartRefactorTool {
           'arr',
         ];
         if (genericNames.includes(name.toLowerCase())) {
-          const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const pos = locOf(node);
           suggestions.push({
             type: 'improve-naming',
             severity: 'info',
-            location: { line: pos.line + 1, column: pos.character },
+            location: pos,
             message: `Generic variable name '${name}' lacks clarity.`,
             suggestion:
               'Use a more specific name that describes what this variable contains or represents.',
@@ -490,11 +497,11 @@ export class SmartRefactorTool {
         // Check for inconsistent naming conventions
         if (name.includes('_') && name.includes(name.toUpperCase())) {
           // Mix of snake_case and SCREAMING_CASE
-          const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const pos = locOf(node);
           suggestions.push({
             type: 'improve-naming',
             severity: 'info',
-            location: { line: pos.line + 1, column: pos.character },
+            location: pos,
             message: `Inconsistent naming convention in '${name}'.`,
             suggestion:
               'Use consistent naming: camelCase for variables/functions, PascalCase for classes, SCREAMING_CASE for constants.',
@@ -505,11 +512,8 @@ export class SmartRefactorTool {
           });
         }
       }
+    });
 
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
     return suggestions;
   }
 
@@ -544,34 +548,31 @@ export class SmartRefactorTool {
     return suggestions;
   }
 
-  private suggestExtractConstant(
-    sourceFile: ts.SourceFile
-  ): RefactorSuggestion[] {
+  private suggestExtractConstant(program: AnyNode): RefactorSuggestion[] {
     const suggestions: RefactorSuggestion[] = [];
     const magicNumbers = new Map<string, number>();
 
-    const visit = (node: ts.Node) => {
-      if (ts.isNumericLiteral(node)) {
-        const value = node.text;
+    walk(program, (node) => {
+      if (node.type === 'NumericLiteral') {
+        // Raw source text (not the parsed numeric value), matching
+        // ts.NumericLiteral.text -- see smart-complexity.ts's identical
+        // Halstead-operand note for why.
+        const value = String(node.extra?.raw ?? node.value);
         // Skip common non-magic numbers
         if (!['0', '1', '-1', '2'].includes(value)) {
           magicNumbers.set(value, (magicNumbers.get(value) || 0) + 1);
         }
       }
 
-      if (ts.isStringLiteral(node)) {
-        const value = node.text;
+      if (node.type === 'StringLiteral') {
+        const value = node.value as string;
         // Look for repeated string literals that might be constants
         if (value.length > 5) {
           // Skip very short strings
           magicNumbers.set(value, (magicNumbers.get(value) || 0) + 1);
         }
       }
-
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
+    });
 
     // Report values that appear multiple times
     for (const [value, count] of magicNumbers) {
@@ -597,16 +598,16 @@ export class SmartRefactorTool {
     return suggestions;
   }
 
-  private countNestedIfs(node: ts.IfStatement, depth = 1): number {
-    if (ts.isIfStatement(node.thenStatement)) {
-      return this.countNestedIfs(
-        node.thenStatement as ts.IfStatement,
-        depth + 1
-      );
+  /** `node.thenStatement` -> Babel's `node.consequent`;
+   * `ts.isBlock` -> Babel's `BlockStatement`. */
+  private countNestedIfs(node: AnyNode, depth = 1): number {
+    const consequent = node.consequent;
+    if (consequent?.type === 'IfStatement') {
+      return this.countNestedIfs(consequent, depth + 1);
     }
-    if (ts.isBlock(node.thenStatement)) {
-      for (const statement of node.thenStatement.statements) {
-        if (ts.isIfStatement(statement)) {
+    if (consequent?.type === 'BlockStatement') {
+      for (const statement of consequent.body) {
+        if (statement.type === 'IfStatement') {
           return this.countNestedIfs(statement, depth + 1);
         }
       }
@@ -614,22 +615,20 @@ export class SmartRefactorTool {
     return depth;
   }
 
-  private countLogicalOperators(node: ts.Node): number {
+  /** TS's classic API models &&/|| as BinaryExpression; Babel's is a
+   * dedicated LogicalExpression node type instead. */
+  private countLogicalOperators(node: AnyNode): number {
     let count = 0;
 
-    const visit = (n: ts.Node) => {
-      if (ts.isBinaryExpression(n)) {
-        if (
-          n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-          n.operatorToken.kind === ts.SyntaxKind.BarBarToken
-        ) {
-          count++;
-        }
+    walk(node, (n) => {
+      if (
+        n.type === 'LogicalExpression' &&
+        (n.operator === '&&' || n.operator === '||')
+      ) {
+        count++;
       }
-      ts.forEachChild(n, visit);
-    };
+    });
 
-    visit(node);
     return count;
   }
 

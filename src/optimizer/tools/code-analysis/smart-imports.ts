@@ -5,9 +5,28 @@
  * Provides import optimization suggestions, unused import detection, and circular dependency analysis.
  *
  * Token Reduction: 75-85% through summarization of import analysis
+ *
+ * BABEL PORT (see code-analysis/index.ts's header "THE BLOCKER"): import/
+ * require/dynamic-import statements are a pure syntax-level concept, so
+ * this is a faithful, no-capability-loss port to `@babel/parser` + the
+ * manual `@babel/types`-`VISITOR_KEYS` walk in ./babel-ast-utils.ts. Two
+ * real, documented differences from the classic-API version:
+ *
+ * 1. `@babel/parser` throws on malformed syntax instead of
+ *    `ts.createSourceFile`'s silent recovery (same difference already
+ *    documented in smart-complexity.ts/smart-refactor.ts).
+ * 2. `collectUsedSymbols`'s original filter (`ts.isImportSpecifier(parent)
+ *    || ts.isImportClause(parent) || ts.isNamespaceImport(parent)`) relies
+ *    on `node.parent`, which `ts.createSourceFile(..., true)` attaches
+ *    automatically but `@babel/parser` never does. This port gets the same
+ *    result WITHOUT parent pointers by collecting the exact import-binding
+ *    Identifier node objects up front (`collectImportBindingIdentifiers`)
+ *    and skipping those specific node references during the used-symbol
+ *    walk -- same filtered set, verified by identity rather than by
+ *    walking upward through a parent chain that doesn't exist here.
  */
 
-import * as ts from 'typescript';
+import { parse } from '@babel/parser';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
@@ -18,6 +37,15 @@ import { TokenCounter } from '../../core/token-counter.js';
 // default here was `join(homedir(), '.hypercontext', 'cache')` -- replaced
 // with optiflow's own `~/.optiflow/optimizer/cache` convention.
 import { getOptimizerCacheDbPath } from '../../paths.js';
+import { type AnyNode, walk, locOf } from './babel-ast-utils.js';
+
+function parseSource(content: string): AnyNode {
+  const ast = parse(content, {
+    sourceType: 'module',
+    plugins: ['jsx', 'typescript'],
+  });
+  return ast.program as unknown as AnyNode;
+}
 
 /**
  * Import statement information
@@ -236,19 +264,17 @@ export class SmartImportsTool {
       }
     }
 
-    // Parse file
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    // Parse file. See this file's top-of-file BABEL PORT comment: unlike
+    // ts.createSourceFile, this throws on malformed syntax rather than
+    // silently recovering.
+    const program = parseSource(content);
+    void fileName; // no longer needed for parsing; kept for cache-key parity
 
     // Analyze imports
-    const imports = this.extractImports(sourceFile);
-    const unusedImports = this.detectUnusedImports(imports, sourceFile);
+    const imports = this.extractImports(program);
+    const unusedImports = this.detectUnusedImports(imports, program);
     const missingImports = suggestMissing
-      ? this.detectMissingImports(sourceFile, imports)
+      ? this.detectMissingImports(program, imports)
       : [];
     const optimizations = this.generateOptimizations(imports);
     const circularDependencies =
@@ -300,144 +326,115 @@ export class SmartImportsTool {
   /**
    * Extract import statements from source file
    */
-  private extractImports(sourceFile: ts.SourceFile): ImportInfo[] {
+  private extractImports(program: AnyNode): ImportInfo[] {
     const imports: ImportInfo[] = [];
 
-    const visit = (node: ts.Node) => {
+    walk(program, (node) => {
       // ES6 import statements
-      if (ts.isImportDeclaration(node)) {
-        const moduleSpecifier = node.moduleSpecifier;
-        if (!ts.isStringLiteral(moduleSpecifier)) {
-          ts.forEachChild(node, visit);
-          return;
-        }
+      if (node.type === 'ImportDeclaration') {
+        const moduleSpecifier = node.source;
+        if (moduleSpecifier?.type !== 'StringLiteral') return;
 
-        const module = moduleSpecifier.text;
-        const importClause = node.importClause;
+        const module = moduleSpecifier.value as string;
         const importList: ImportInfo['imports'] = [];
 
-        if (importClause) {
-          // Default import
-          if (importClause.name) {
+        for (const spec of node.specifiers || []) {
+          if (spec.type === 'ImportDefaultSpecifier') {
+            // Default import
+            importList.push({ name: spec.local.name, isDefault: true });
+          } else if (spec.type === 'ImportNamespaceSpecifier') {
+            // import * as name
+            importList.push({ name: spec.local.name, isNamespace: true });
+          } else if (spec.type === 'ImportSpecifier') {
+            // import { a, b as c }. Babel's `imported` is ALWAYS present
+            // (equal to `local` when there's no alias); ts's `propertyName`
+            // is only present when the source actually wrote `as`, hence
+            // the name-comparison rather than a plain presence check.
+            const importedName =
+              spec.imported?.type === 'Identifier'
+                ? spec.imported.name
+                : spec.imported?.value;
             importList.push({
-              name: importClause.name.text,
-              isDefault: true,
+              name: spec.local.name,
+              alias:
+                importedName && importedName !== spec.local.name
+                  ? importedName
+                  : undefined,
             });
-          }
-
-          // Named imports
-          if (importClause.namedBindings) {
-            if (ts.isNamespaceImport(importClause.namedBindings)) {
-              // import * as name
-              importList.push({
-                name: importClause.namedBindings.name.text,
-                isNamespace: true,
-              });
-            } else if (ts.isNamedImports(importClause.namedBindings)) {
-              // import { a, b as c }
-              importClause.namedBindings.elements.forEach((element) => {
-                importList.push({
-                  name: element.name.text,
-                  alias: element.propertyName?.text,
-                });
-              });
-            }
           }
         }
 
-        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
         imports.push({
           type: 'import',
           module,
           imports: importList,
-          location: {
-            line: pos.line + 1,
-            column: pos.character,
-          },
+          location: locOf(node),
           used: false,
         });
       }
 
       // CommonJS require
-      if (ts.isVariableStatement(node)) {
-        node.declarationList.declarations.forEach((decl) => {
-          if (decl.initializer && ts.isCallExpression(decl.initializer)) {
-            const expr = decl.initializer.expression;
-            if (ts.isIdentifier(expr) && expr.text === 'require') {
-              const arg = decl.initializer.arguments[0];
-              if (ts.isStringLiteral(arg)) {
-                const module = arg.text;
-                const importList: ImportInfo['imports'] = [];
+      if (node.type === 'VariableDeclaration') {
+        for (const decl of node.declarations) {
+          const init = decl.init;
+          if (
+            init?.type === 'CallExpression' &&
+            init.callee?.type === 'Identifier' &&
+            init.callee.name === 'require'
+          ) {
+            const arg = init.arguments[0];
+            if (arg?.type === 'StringLiteral') {
+              const module = arg.value as string;
+              const importList: ImportInfo['imports'] = [];
 
-                if (ts.isIdentifier(decl.name)) {
-                  importList.push({
-                    name: decl.name.text,
-                    isDefault: true,
-                  });
-                } else if (ts.isObjectBindingPattern(decl.name)) {
-                  decl.name.elements.forEach((element) => {
-                    if (
-                      ts.isBindingElement(element) &&
-                      ts.isIdentifier(element.name)
-                    ) {
-                      importList.push({
-                        name: element.name.text,
-                        alias:
-                          element.propertyName &&
-                          ts.isIdentifier(element.propertyName)
-                            ? element.propertyName.text
-                            : undefined,
-                      });
-                    }
-                  });
+              if (decl.id.type === 'Identifier') {
+                importList.push({ name: decl.id.name, isDefault: true });
+              } else if (decl.id.type === 'ObjectPattern') {
+                for (const prop of decl.id.properties) {
+                  if (
+                    prop.type === 'ObjectProperty' &&
+                    !prop.computed &&
+                    prop.value?.type === 'Identifier' &&
+                    prop.key?.type === 'Identifier'
+                  ) {
+                    importList.push({
+                      name: prop.value.name,
+                      alias:
+                        prop.key.name !== prop.value.name
+                          ? prop.key.name
+                          : undefined,
+                    });
+                  }
                 }
-
-                const pos = sourceFile.getLineAndCharacterOfPosition(
-                  node.getStart()
-                );
-                imports.push({
-                  type: 'require',
-                  module,
-                  imports: importList,
-                  location: {
-                    line: pos.line + 1,
-                    column: pos.character,
-                  },
-                  used: false,
-                });
               }
-            }
-          }
-        });
-      }
 
-      // Dynamic imports
-      if (ts.isCallExpression(node)) {
-        const expr = node.expression;
-        if (expr.kind === ts.SyntaxKind.ImportKeyword) {
-          const arg = node.arguments[0];
-          if (ts.isStringLiteral(arg)) {
-            const pos = sourceFile.getLineAndCharacterOfPosition(
-              node.getStart()
-            );
-            imports.push({
-              type: 'dynamic',
-              module: arg.text,
-              imports: [],
-              location: {
-                line: pos.line + 1,
-                column: pos.character,
-              },
-              used: true, // Dynamic imports are always considered used
-            });
+              imports.push({
+                type: 'require',
+                module,
+                imports: importList,
+                location: locOf(node),
+                used: false,
+              });
+            }
           }
         }
       }
 
-      ts.forEachChild(node, visit);
-    };
+      // Dynamic imports
+      if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
+        const arg = node.arguments[0];
+        if (arg?.type === 'StringLiteral') {
+          imports.push({
+            type: 'dynamic',
+            module: arg.value as string,
+            imports: [],
+            location: locOf(node),
+            used: true, // Dynamic imports are always considered used
+          });
+        }
+      }
+    });
 
-    visit(sourceFile);
     return imports;
   }
 
@@ -446,10 +443,10 @@ export class SmartImportsTool {
    */
   private detectUnusedImports(
     imports: ImportInfo[],
-    sourceFile: ts.SourceFile
+    program: AnyNode
   ): ImportInfo[] {
     const unused: ImportInfo[] = [];
-    const usedSymbols = this.collectUsedSymbols(sourceFile);
+    const usedSymbols = this.collectUsedSymbols(program);
 
     for (const imp of imports) {
       if (imp.type === 'dynamic') {
@@ -481,34 +478,44 @@ export class SmartImportsTool {
     return unused;
   }
 
+  /** Every import-binding Identifier node (default/namespace/named local
+   * AND, for aliased named imports, the original `imported` name too) --
+   * see this file's top-of-file BABEL PORT note #2 for why this replaces
+   * the original's `node.parent`-based filter. */
+  private collectImportBindingIdentifiers(program: AnyNode): Set<AnyNode> {
+    const skip = new Set<AnyNode>();
+    walk(program, (node) => {
+      if (node.type !== 'ImportDeclaration') return;
+      for (const spec of node.specifiers || []) {
+        if (
+          spec.type === 'ImportDefaultSpecifier' ||
+          spec.type === 'ImportNamespaceSpecifier'
+        ) {
+          if (spec.local) skip.add(spec.local);
+        } else if (spec.type === 'ImportSpecifier') {
+          if (spec.local) skip.add(spec.local);
+          if (spec.imported?.type === 'Identifier') skip.add(spec.imported);
+        }
+      }
+    });
+    return skip;
+  }
+
   /**
    * Collect all symbols used in the file
    */
-  private collectUsedSymbols(sourceFile: ts.SourceFile): Set<string> {
+  private collectUsedSymbols(program: AnyNode): Set<string> {
     const used = new Set<string>();
+    const importBindings = this.collectImportBindingIdentifiers(program);
 
-    const visit = (node: ts.Node) => {
-      // Identifiers
-      if (ts.isIdentifier(node)) {
+    walk(program, (node) => {
+      if (node.type === 'Identifier') {
         // Skip if it's part of an import declaration
-        const parent = node.parent;
-        if (
-          parent &&
-          (ts.isImportSpecifier(parent) ||
-            ts.isImportClause(parent) ||
-            ts.isNamespaceImport(parent))
-        ) {
-          ts.forEachChild(node, visit);
-          return;
-        }
-
-        used.add(node.text);
+        if (importBindings.has(node)) return;
+        used.add(node.name as string);
       }
+    });
 
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
     return used;
   }
 
@@ -516,11 +523,11 @@ export class SmartImportsTool {
    * Detect missing imports
    */
   private detectMissingImports(
-    sourceFile: ts.SourceFile,
+    program: AnyNode,
     existingImports: ImportInfo[]
   ): MissingImport[] {
     const missing: MissingImport[] = [];
-    const usedSymbols = this.collectUsedSymbols(sourceFile);
+    const usedSymbols = this.collectUsedSymbols(program);
     const importedSymbols = new Set<string>();
 
     // Collect all imported symbols
@@ -551,7 +558,7 @@ export class SmartImportsTool {
     // Check for potential missing imports
     for (const symbol of usedSymbols) {
       if (!importedSymbols.has(symbol) && commonSymbols.has(symbol)) {
-        const pos = this.findSymbolLocation(sourceFile, symbol);
+        const pos = this.findSymbolLocation(program, symbol);
         if (pos) {
           missing.push({
             symbol,
@@ -569,27 +576,18 @@ export class SmartImportsTool {
    * Find location of a symbol in source file
    */
   private findSymbolLocation(
-    sourceFile: ts.SourceFile,
+    program: AnyNode,
     symbolName: string
   ): { line: number; column: number } | null {
     let result: { line: number; column: number } | null = null;
 
-    const visit = (node: ts.Node) => {
+    walk(program, (node) => {
       if (result) return;
-
-      if (ts.isIdentifier(node) && node.text === symbolName) {
-        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-        result = {
-          line: pos.line + 1,
-          column: pos.character,
-        };
-        return;
+      if (node.type === 'Identifier' && node.name === symbolName) {
+        result = locOf(node);
       }
+    });
 
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
     return result;
   }
 
@@ -796,13 +794,7 @@ export class SmartImportsTool {
 
     try {
       const content = readFileSync(filePath, 'utf-8');
-      const sourceFile = ts.createSourceFile(
-        filePath,
-        content,
-        ts.ScriptTarget.Latest,
-        true
-      );
-      return this.extractImports(sourceFile);
+      return this.extractImports(parseSource(content));
     } catch {
       return [];
     }

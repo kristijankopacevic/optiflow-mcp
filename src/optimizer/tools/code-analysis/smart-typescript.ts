@@ -7,6 +7,25 @@
  * - Caches compilation results and type information
  * - <5s cache invalidation on file changes
  * - Provides actionable type error summaries
+ *
+ * STILL DEFERRED (see code-analysis/index.ts's header "THE BLOCKER"),
+ * UNLIKE THE OTHER 5 -- this is the one tool of the six where a Babel port
+ * would be dishonest, not just lossy. Its entire output IS type-check
+ * diagnostics: `run()` calls `ts.createProgram(...)`, then
+ * `program.getSemanticDiagnostics(sourceFile)` -- the classic Compiler
+ * API's actual type checker, producing real "Type 'X' is not assignable to
+ * type 'Y'" / "Property does not exist" errors, plus
+ * `program.getTypeChecker()` for the optional `includeTypeInfo` export-type
+ * summaries. `@babel/parser` has no type checker at all; there is no
+ * syntax-level substitute for "does this program type-check" the way
+ * cyclomatic complexity or import/export enumeration have syntax-level
+ * substitutes for what they compute. Faking this (e.g. reporting "0
+ * errors" or omitting `diagnosticsByCategory` while still returning
+ * `summary.success: true`) would be actively misleading -- a caller
+ * reading a false "no type errors" result is worse than a caller getting a
+ * clear "this tool is unavailable" signal. Left excluded from
+ * tsconfig.json's compile graph and NOT wired into server.ts for that
+ * reason, not because porting it was skipped for time.
  */
 
 import { CacheEngine } from '../../core/cache-engine.js';

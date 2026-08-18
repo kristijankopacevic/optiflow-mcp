@@ -20,11 +20,6 @@
     "plugin/dist",
     "vendor",
     "fixtures",
-    "src/optimizer/tools/code-analysis/smart-typescript.ts",
-    "src/optimizer/tools/code-analysis/smart-symbols.ts",
-    "src/optimizer/tools/code-analysis/smart-complexity.ts",
-    "src/optimizer/tools/code-analysis/smart-refactor.ts",
-    "src/optimizer/tools/code-analysis/smart-imports.ts",
-    "src/optimizer/tools/code-analysis/smart-exports.ts"
+    "src/optimizer/tools/code-analysis/smart-typescript.ts"
   ]
 }

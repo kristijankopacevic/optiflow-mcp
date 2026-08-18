@@ -4,9 +4,27 @@
  * Analyzes code complexity metrics with intelligent caching
  * Calculates cyclomatic, cognitive, and Halstead metrics
  * Target: 70-80% token reduction through metric summarization
+ *
+ * BABEL PORT (see code-analysis/index.ts's header "THE BLOCKER"): this file
+ * originally used the classic TypeScript Compiler API
+ * (`ts.createSourceFile`/`ts.isIfStatement`/`ts.forEachChild`/etc.), which
+ * this repo's `typescript@^7` no longer exposes. Every metric this tool
+ * computes (cyclomatic, cognitive, Halstead, maintainability index,
+ * LOC/LLOC) is derived purely from AST SHAPE -- decision-point node types,
+ * operator tokens, identifier/literal counts -- never from resolved type
+ * information, so this is a faithful, no-capability-loss port to
+ * `@babel/parser` + a manual `@babel/types`-`VISITOR_KEYS` walk (see
+ * ./babel-ast-utils.ts's header for why that walk, not `@babel/traverse`,
+ * is used). One real, intentional behavior difference: `ts.createSourceFile`
+ * recovers from malformed syntax silently (returns a best-effort AST with
+ * error nodes); `@babel/parser`'s `parse()` throws a `SyntaxError` on
+ * invalid input instead. A file that used to silently analyze as
+ * (likely wrong, since it never really parsed) now surfaces a real error
+ * through this tool's caller instead -- a stricter, arguably more honest
+ * failure mode, but a real difference from vendor's, not silently patched.
  */
 
-import * as ts from 'typescript';
+import { parse } from '@babel/parser';
 import { existsSync, readFileSync } from 'fs';
 import { join, isAbsolute } from 'path';
 import { createHash } from 'crypto';
@@ -17,6 +35,47 @@ import { TokenCounter } from '../../core/token-counter.js';
 // default here was `join(homedir(), '.hypercontext', 'cache')` -- replaced
 // with optiflow's own `~/.optiflow/optimizer/cache` convention.
 import { getOptimizerCacheDbPath } from '../../paths.js';
+import { type AnyNode, walk, forEachChild, locOf, textOf } from './babel-ast-utils.js';
+
+/** Node types this tool treats as "a function", matching the union of
+ * `ts.isFunctionDeclaration`/`isMethodDeclaration`/`isArrowFunction`/
+ * `isFunctionExpression` -- TS's classic API represents BOTH class methods
+ * and object-literal shorthand methods as `MethodDeclaration`; Babel splits
+ * those into `ClassMethod` and `ObjectMethod`, so both are included here to
+ * match the original's combined coverage. */
+const FUNCTION_LIKE_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ClassMethod',
+  'ObjectMethod',
+]);
+
+/** Decision-point statement types for cyclomatic complexity, matching
+ * `ts.isIfStatement`/`isForStatement`/`isForInStatement`/`isForOfStatement`/
+ * `isWhileStatement`/`isDoStatement`/`isCatchClause` 1:1 (Babel's
+ * `DoWhileStatement` is TS's `DoStatement` under a different name). */
+const CYCLOMATIC_STATEMENT_TYPES = new Set([
+  'IfStatement',
+  'ConditionalExpression',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'CatchClause',
+]);
+
+/** Cognitive-complexity nesting-increasing statement types, matching the
+ * original's identical list (`ts.isForStatement`/`isForInStatement`/
+ * `isForOfStatement`/`isWhileStatement`/`isDoStatement`). */
+const COGNITIVE_LOOP_TYPES = new Set([
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+]);
 
 export interface SmartComplexityOptions {
   filePath?: string;
@@ -169,23 +228,26 @@ export class SmartComplexityTool {
       }
     }
 
-    // Parse TypeScript/JavaScript
-    const sourceFile = ts.createSourceFile(
-      filePath || 'anonymous.ts',
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    // Parse TypeScript/JavaScript. See this file's top-of-file BABEL PORT
+    // comment: unlike ts.createSourceFile, this throws on malformed syntax
+    // rather than silently recovering.
+    const ast = parse(content, {
+      sourceType: 'module',
+      plugins: ['jsx', 'typescript'],
+    });
+    const program = ast.program as unknown as AnyNode;
 
     // Calculate metrics
     const functions = this.analyzeFunctions(
-      sourceFile,
+      program,
       threshold,
       includeHalstead,
-      includeMaintainability
+      includeMaintainability,
+      content
     );
     const fileMetrics = this.calculateFileMetrics(
-      sourceFile,
+      program,
+      content,
       includeHalstead,
       includeMaintainability
     );
@@ -267,25 +329,21 @@ export class SmartComplexityTool {
   }
 
   private analyzeFunctions(
-    sourceFile: ts.SourceFile,
+    program: AnyNode,
     threshold: { cyclomatic?: number; cognitive?: number },
     includeHalstead: boolean,
-    includeMaintainability: boolean
+    includeMaintainability: boolean,
+    content: string
   ): FunctionComplexity[] {
     const functions: FunctionComplexity[] = [];
 
-    const visit = (node: ts.Node) => {
-      if (
-        ts.isFunctionDeclaration(node) ||
-        ts.isMethodDeclaration(node) ||
-        ts.isArrowFunction(node) ||
-        ts.isFunctionExpression(node)
-      ) {
+    walk(program, (node) => {
+      if (FUNCTION_LIKE_TYPES.has(node.type)) {
         const name = this.getFunctionName(node);
-        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+        const pos = locOf(node);
         const complexity = this.calculateComplexity(
           node,
-          sourceFile,
+          content,
           includeHalstead,
           includeMaintainability
         );
@@ -298,41 +356,47 @@ export class SmartComplexityTool {
 
         functions.push({
           name,
-          location: { line: pos.line + 1, column: pos.character },
+          location: pos,
           complexity,
           aboveThreshold,
         });
       }
+    });
 
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
     return functions;
   }
 
-  private getFunctionName(node: ts.Node): string {
-    if (ts.isFunctionDeclaration(node) && node.name) {
-      return node.name.text;
+  /** Matches the original's coverage: `ts.isMethodDeclaration` covers BOTH
+   * class methods and object-literal shorthand methods in the classic
+   * Compiler API; Babel splits those into `ClassMethod`/`ObjectMethod`,
+   * both handled the same way here. Arrow functions never had name
+   * extraction in the original either (only Function/Method Declarations
+   * and named Function Expressions did) -- preserved as-is. */
+  private getFunctionName(node: AnyNode): string {
+    if (node.type === 'FunctionDeclaration' && node.id?.name) {
+      return node.id.name;
     }
-    if (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name)) {
-      return node.name.text;
+    if (
+      (node.type === 'ClassMethod' || node.type === 'ObjectMethod') &&
+      node.key?.type === 'Identifier'
+    ) {
+      return node.key.name;
     }
-    if (ts.isFunctionExpression(node) && node.name) {
-      return node.name.text;
+    if (node.type === 'FunctionExpression' && node.id?.name) {
+      return node.id.name;
     }
     return '<anonymous>';
   }
 
   private calculateComplexity(
-    node: ts.Node,
-    sourceFile: ts.SourceFile,
+    node: AnyNode,
+    content: string,
     includeHalstead: boolean,
     includeMaintainability: boolean
   ): ComplexityMetrics {
     const cyclomatic = this.calculateCyclomaticComplexity(node);
     const cognitive = this.calculateCognitiveComplexity(node, 0);
-    const { loc, lloc } = this.countLines(node, sourceFile);
+    const { loc, lloc } = this.countLines(node, content);
 
     const metrics: ComplexityMetrics = {
       cyclomatic,
@@ -356,150 +420,151 @@ export class SmartComplexityTool {
     return metrics;
   }
 
-  private calculateCyclomaticComplexity(node: ts.Node): number {
+  private calculateCyclomaticComplexity(node: AnyNode): number {
     let complexity = 1; // Base complexity
 
-    const visit = (n: ts.Node) => {
-      // Decision points that increase complexity
+    walk(node, (n) => {
+      // Decision points that increase complexity. `ts.isCaseClause`
+      // explicitly excludes the `default:` clause; Babel's `SwitchCase`
+      // covers both `case`/`default`, distinguished by `n.test` being
+      // non-null only for real `case` clauses.
       if (
-        ts.isIfStatement(n) ||
-        ts.isConditionalExpression(n) ||
-        ts.isForStatement(n) ||
-        ts.isForInStatement(n) ||
-        ts.isForOfStatement(n) ||
-        ts.isWhileStatement(n) ||
-        ts.isDoStatement(n) ||
-        ts.isCaseClause(n) ||
-        ts.isCatchClause(n)
+        CYCLOMATIC_STATEMENT_TYPES.has(n.type) ||
+        (n.type === 'SwitchCase' && n.test !== null)
       ) {
         complexity++;
       }
 
-      // Logical operators
-      if (ts.isBinaryExpression(n)) {
-        if (
-          n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-          n.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
-          n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
-        ) {
-          complexity++;
-        }
+      // Logical operators. TS's classic API models &&/||/?? as
+      // BinaryExpression; Babel gives them their own LogicalExpression
+      // node type instead, so that's what's checked here.
+      if (
+        n.type === 'LogicalExpression' &&
+        (n.operator === '&&' || n.operator === '||' || n.operator === '??')
+      ) {
+        complexity++;
       }
+    });
 
-      ts.forEachChild(n, visit);
-    };
-
-    visit(node);
     return complexity;
   }
 
   private calculateCognitiveComplexity(
-    node: ts.Node,
+    node: AnyNode,
     nestingLevel: number
   ): number {
     let complexity = 0;
 
-    const visit = (n: ts.Node, level: number) => {
+    const visit = (n: AnyNode, level: number): void => {
       // Structures that increase cognitive complexity
-      if (ts.isIfStatement(n)) {
+      if (n.type === 'IfStatement') {
         complexity += 1 + level;
-        ts.forEachChild(n, (child) => visit(child, level + 1));
+        forEachChild(n, (child) => visit(child, level + 1));
         return;
       }
 
-      if (ts.isConditionalExpression(n)) {
+      if (n.type === 'ConditionalExpression') {
         complexity += 1 + level;
-        ts.forEachChild(n, (child) => visit(child, level + 1));
+        forEachChild(n, (child) => visit(child, level + 1));
         return;
       }
 
+      if (COGNITIVE_LOOP_TYPES.has(n.type)) {
+        complexity += 1 + level;
+        forEachChild(n, (child) => visit(child, level + 1));
+        return;
+      }
+
+      if (n.type === 'SwitchStatement') {
+        complexity += 1 + level;
+        forEachChild(n, (child) => visit(child, level + 1));
+        return;
+      }
+
+      if (n.type === 'CatchClause') {
+        complexity += 1 + level;
+        forEachChild(n, (child) => visit(child, level + 1));
+        return;
+      }
+
+      // Logical operators (but not nested ones at the same level) -- only
+      // &&/||, matching the original (?? was never included here).
       if (
-        ts.isForStatement(n) ||
-        ts.isForInStatement(n) ||
-        ts.isForOfStatement(n) ||
-        ts.isWhileStatement(n) ||
-        ts.isDoStatement(n)
+        n.type === 'LogicalExpression' &&
+        (n.operator === '&&' || n.operator === '||')
       ) {
-        complexity += 1 + level;
-        ts.forEachChild(n, (child) => visit(child, level + 1));
-        return;
-      }
-
-      if (ts.isSwitchStatement(n)) {
-        complexity += 1 + level;
-        ts.forEachChild(n, (child) => visit(child, level + 1));
-        return;
-      }
-
-      if (ts.isCatchClause(n)) {
-        complexity += 1 + level;
-        ts.forEachChild(n, (child) => visit(child, level + 1));
-        return;
-      }
-
-      // Logical operators (but not nested ones at the same level)
-      if (ts.isBinaryExpression(n)) {
-        if (
-          n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-          n.operatorToken.kind === ts.SyntaxKind.BarBarToken
-        ) {
-          complexity += 1;
-        }
+        complexity += 1;
       }
 
       // Continue with children at the same level
-      ts.forEachChild(n, (child) => visit(child, level));
+      forEachChild(n, (child) => visit(child, level));
     };
 
     visit(node, nestingLevel);
     return complexity;
   }
 
-  private calculateHalsteadMetrics(node: ts.Node): HalsteadMetrics {
+  private calculateHalsteadMetrics(node: AnyNode): HalsteadMetrics {
     const operators = new Set<string>();
     const operands = new Set<string>();
     let totalOperators = 0;
     let totalOperands = 0;
 
-    const visit = (n: ts.Node) => {
-      // Operators
-      if (ts.isBinaryExpression(n)) {
-        const op = n.operatorToken.getText();
-        operators.add(op);
+    walk(node, (n) => {
+      // Operators. TS's classic API models &&/||/?? as BinaryExpression
+      // (hence one shared operatorToken.getText() call there); Babel splits
+      // those into LogicalExpression, so both node types are checked here
+      // to preserve the original's combined operator-token counting.
+      if (n.type === 'BinaryExpression' || n.type === 'LogicalExpression') {
+        operators.add(n.operator);
         totalOperators++;
       }
 
-      if (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) {
-        const op = n.operator.toString();
-        operators.add(op);
+      // UnaryExpression (!x, -x, typeof x, ...) and UpdateExpression
+      // (++x/x++/--x/x--) together cover what TS split into
+      // isPrefixUnaryExpression/isPostfixUnaryExpression.
+      if (n.type === 'UnaryExpression' || n.type === 'UpdateExpression') {
+        operators.add(n.operator);
         totalOperators++;
       }
 
-      if (ts.isCallExpression(n) || ts.isNewExpression(n)) {
+      if (n.type === 'CallExpression' || n.type === 'NewExpression') {
         operators.add('()');
         totalOperators++;
       }
 
-      if (ts.isPropertyAccessExpression(n)) {
+      // Dot access only (`a.b`), matching ts.isPropertyAccessExpression --
+      // NOT computed member access (`a[b]`), which TS's classic API
+      // represents as a separate ElementAccessExpression the original
+      // never checked either.
+      if (n.type === 'MemberExpression' && n.computed === false) {
         operators.add('.');
         totalOperators++;
       }
 
       // Operands
-      if (ts.isIdentifier(n)) {
-        operands.add(n.text);
+      if (n.type === 'Identifier') {
+        operands.add(n.name);
         totalOperands++;
       }
 
-      if (ts.isStringLiteral(n) || ts.isNumericLiteral(n)) {
-        operands.add(n.text);
+      // StringLiteral: dedupe by unescaped VALUE (ts.StringLiteral.text is
+      // quote-independent) so "hi" and 'hi' count as the same operand, as
+      // they did under the classic API.
+      if (n.type === 'StringLiteral') {
+        operands.add(String(n.value));
         totalOperands++;
       }
 
-      ts.forEachChild(n, visit);
-    };
-
-    visit(node);
+      // NumericLiteral: dedupe by RAW source text (ts.NumericLiteral.text
+      // is the raw text, e.g. "0x10" stays distinct from "16") rather than
+      // the parsed numeric value, which would collapse distinct source
+      // spellings Babel's own `.value` would otherwise merge.
+      if (n.type === 'NumericLiteral') {
+        operands.add(String(n.extra?.raw ?? n.value));
+        totalOperands++;
+      }
+    });
 
     const n1 = operators.size; // Distinct operators
     const n2 = operands.size; // Distinct operands
@@ -552,10 +617,10 @@ export class SmartComplexityTool {
   }
 
   private countLines(
-    node: ts.Node,
-    sourceFile: ts.SourceFile
+    node: AnyNode,
+    content: string
   ): { loc: number; lloc: number } {
-    const text = node.getText(sourceFile);
+    const text = textOf(node, content);
     const lines = text.split('\n');
     const loc = lines.length;
 
@@ -577,13 +642,14 @@ export class SmartComplexityTool {
   }
 
   private calculateFileMetrics(
-    sourceFile: ts.SourceFile,
+    program: AnyNode,
+    content: string,
     includeHalstead: boolean,
     includeMaintainability: boolean
   ): ComplexityMetrics {
     return this.calculateComplexity(
-      sourceFile,
-      sourceFile,
+      program,
+      content,
       includeHalstead,
       includeMaintainability
     );
