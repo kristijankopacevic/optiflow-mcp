@@ -628,3 +628,218 @@ plugin/commands/
 fixtures/hooks/
 ├── precompact-basic.json / sessionend-basic.json / pretooluse-activity-read.json
 ```
+
+## Module 5c — wiring the native compression layer in (`src/native/**` consumers, `optiflow ccr-retrieve`)
+
+Phases 1-4 of the v2 plan built four real, independently-tested compression
+modules under `src/native/` (`smart-crusher.ts`, `code-compressor.ts`,
+`kompress.ts`/`kompress-model.ts`, `ccr-store.ts`) — but none of them were
+actually called from anywhere that ships; each was only imported by its own
+test file. This module documents where each one was wired in for real, and
+why, once that gap was found and closed.
+
+### SmartCrusher, into `src/chop/filters/generic.ts`
+
+`generic.ts`'s JSON path already had one decision-chain precedent to extend:
+TOON conversion, tried first on a uniform JSON array, guarded by measured
+token savings (`src/toon/guard.ts`'s `evaluateGuard`), falling back to
+head+tail truncation when TOON declines. SmartCrusher (the real
+headroom-core algorithm, WASM-compiled) is inserted as an ADDITIONAL attempt,
+in two places:
+
+- **Uniform-array path**: tried right after TOON declines, right before the
+  Phase-3 head+tail truncation fallback. Evidence for this ordering came
+  from `native/headroom-core/src/transforms/smart_crusher/crusher.rs`'s own
+  doc comments: SmartCrusher's lossy path (`smart_sample`/`top_n`/`cluster`/
+  `time_series` strategies) is designed for exactly this shape — arrays of
+  broadly-similar objects — and is strictly smarter than dumb head+tail
+  truncation (importance-scored row selection, plus CCR-retrievability for
+  whatever it drops, vs. truncation's non-retrievable "N items omitted").
+  TOON stays first because it's lossless over the full array when it
+  applies; SmartCrusher is the smarter LOSSY fallback, truncation the
+  dumbest lossy fallback of last resort.
+- **Generic non-uniform JSON path** (`formatHint: "json"`, previously left
+  completely untouched): also tried, because `crusher.rs`'s
+  `smart_crush_content` genuinely operates on ANY JSON value — it recurses
+  into arrays at every depth of an arbitrary document (e.g. a `kubectl get
+  pods -o json` object with metadata plus a large `.items` array) and
+  substitutes long opaque string blobs (base64/HTML) with CCR markers too.
+  This is real structure-preserving compression via parse-transform-
+  reserialize, never a raw string slice, so it doesn't violate the
+  "never string-slice a non-uniform JSON value" invariant the pre-existing
+  tests pin.
+- **Deliberately NOT attempted** on the line-oriented log/plain-text path
+  (`truncateLogLines`). Confirmed directly in `crusher.rs`
+  (`smart_crush_content_with_hook`'s `serde_json::from_str` gate): non-JSON
+  content is handed back completely untouched, `wasModified: false`, no
+  processing at all. Calling it there would only ever burn a WASM call for
+  zero possible benefit — `src/native/smart-crusher.test.ts`'s own "passes
+  through non-JSON content without crashing" case is exactly this behavior.
+
+Both JSON-path attempts go through the same measured-savings guard
+convention as TOON (`evaluateGuard`, reused directly — not reimplemented),
+gated by a new `smartCrusher.minSavingsPercent` config value (separate from
+`toon.minSavingsPercent` since it's a distinct decision point in the same
+chain). `smartCrusher.enabled` defaults to `true` (unlike `kompress`,
+SmartCrusher has no comparable cost — no network access, no model
+download, just a WASM module already shipped with the plugin).
+
+**A build hazard found and fixed along the way**: `smart-crusher.ts`
+originally did a static top-level ESM import of the wasm-pack-generated
+glue module. That's unsafe once actually wired into a real call site,
+because `esbuild.config.mjs` bundles the filter chain into entry points at
+DIFFERENT depths (`plugin/hooks/*.mjs` is 2 directories deep from the repo
+root; `plugin/dist/chop/wrapper.js` is 3) — confirmed empirically by running
+`npm run build` before wiring anything in. A static import failure can't be
+caught, and even a successful bundle would break the glue module's own
+`` `${__dirname}/headroom_wasm_bg.wasm` `` binary lookup once inlined (its
+`__dirname` would resolve to the bundle's own output directory, not
+`native/headroom-wasm/pkg/`). `smart-crusher.ts` now resolves the glue
+module's absolute path at runtime by walking up from its own real
+`import.meta.url` until `native/headroom-wasm/pkg/headroom_wasm.js` is
+found, then loads it via a dynamically-computed (non-literal) `require()`
+call — which esbuild cannot statically bundle/inline, so the glue file (and
+its own correct `__dirname`) is always loaded for real from its true
+on-disk location, regardless of which entry point pulled it in or how deep
+that entry's bundle output sits. If the module still can't be found or
+fails to load/execute for any reason, `compress()` degrades to a
+`strategy: "unavailable:*"` passthrough instead of throwing.
+
+### The CCR marker problem: hash extraction + Node-side storage
+
+`compress()` can emit a `<<ccr:HASH ...>>` marker referring to content that
+was dropped, in one of two textual shapes (both a 12-char lowercase-hex
+SHA-256 prefix): `<<ccr:HASH N_rows_offloaded>>` (row-drop, hash over the
+dropped-FROM array's own canonical JSON) or `<<ccr:HASH,KIND,SIZE>>`
+(opaque-blob substitution, hash over the blob string). Until this phase,
+nothing stored what the hash referred to, so the marker was a dangling
+reference.
+
+`src/native/smart-crusher.ts` gained two pure helpers: `extractCcrHashes`
+(pulls every distinct hash out of a compressed result's text, matching both
+marker shapes) and `ccrMarkerHashFor` (computes the same 12-char hex prefix
+a caller's own canonical JSON string would hash to). `generic.ts`'s
+`storeCcrMarkers` combines these with `src/native/ccr-store.ts`'s existing
+`putCcr`:
+
+- For each hash found, if it byte-matches `ccrMarkerHashFor(JSON.stringify(topLevelParsedValue))`
+  — i.e. the marker refers to EXACTLY the top-level value `compress()` was
+  asked to crush — store those exact bytes. Verified empirically (not
+  assumed) against the real WASM module for the uniform-array case: Rust's
+  `canonical_array_json` + `hash_canonical` produce a hash byte-identical to
+  `sha256(JSON.stringify(parsedArray)).slice(0,12)`, because both sides
+  preserve object-key insertion order the same way. A retrieval in this
+  case is PROVABLY the same content the marker's hash was computed from.
+- Otherwise (the marker refers to a NESTED sub-array or opaque blob hashed
+  at some other point in the tree — confirmed empirically too, via a
+  `{apiVersion, kind, items: [...60 rows...]}` fixture where the marker's
+  hash matches the nested `items` array's hash, not the document's own),
+  fall back to storing the whole top-level ORIGINAL text. This is a
+  deliberate superset guarantee: the dropped content is necessarily a
+  subset of the original document, so retrieval always returns something
+  that CONTAINS whatever was lost, even when it isn't the byte-exact
+  minimal excerpt. Reproducing headroom-core's exact recursive per-node
+  hashing on the Node side (to get an exact match in every case) was
+  judged out of this wiring's scope — it would mean re-implementing
+  `crusher.rs`'s own traversal logic in TypeScript, not consuming it.
+
+Both `smart-crusher.test.ts` and `generic.test.ts` include a real
+dropped-then-retrieved round trip (store via the real WASM module's output,
+retrieve via `getCcr`, assert equality) for both the exact-match and
+superset cases.
+
+### Retrieval: CLI only, not an MCP tool
+
+`optiflow ccr-retrieve <hash>` (`src/cli/commands/ccr-retrieve.ts`) is the
+one retrieval surface. An MCP tool wrapping the same `getCcr` lookup was
+considered — and would be a reasonable follow-up — but this phase's file
+scope explicitly excludes adding new files under `src/optimizer/tools/**`
+beyond `smart-read.ts`, so it isn't one today. The CLI command follows
+`src/cli/commands/toon.ts`'s exact pattern: thin commander wiring
+(`registerCcrRetrieveCommand`) around a directly-testable pure-ish core
+(`runCcrRetrieveCli`) that validates the hash shape (12 lowercase hex
+chars) before ever touching the store, prints the retrieved content to
+stdout on a hit, and a clear stderr message plus a non-zero exit code on a
+miss or malformed hash.
+
+### CodeCompressor + Kompress, into `smart_read` (`src/optimizer/tools/file-operations/smart-read.ts`)
+
+Before this phase, `smart_read`'s large-file branch (`rawContent.length >
+maxSize`) had exactly two behaviors: a minified-file truncation, or a
+generic `truncateContent` head+tail line-based cut (which can — and does —
+sever a function mid-body, since it has no idea what a "function" is).
+Medium files (above `chunkSize` but within `maxSize`) were unaffected by
+this phase and still get paginated via `chunkBySyntax`, unchanged.
+
+Two structure-aware strategies are now tried, in order, before that
+fallback:
+
+1. **CodeCompressor** (`compressCode`) — only adopted when it detects a
+   real recognized language (`language !== "unknown"`), actually modified
+   the content, AND measurably reduces both byte length and token count
+   (this file's own token counter, matching its existing metrics
+   convention rather than importing TOON's guard). Preserves imports,
+   type/class/function signatures, and decorators verbatim; only function
+   bodies beyond their allocated line budget are elided with a
+   `[N lines omitted]` placeholder — never a byte offset that can land
+   mid-statement.
+2. **Kompress** (`compressWithKompress`) — tried only when CodeCompressor
+   declined (i.e. not a language it recognizes — exactly the case its
+   ONNX word-level keep/drop is suited to: prose/log/config text, not
+   source code where dropping arbitrary words breaks syntax). Gated by
+   the pre-existing `kompress.enabled`/`allowDownload`/`variant` config
+   section from Phase 4 (no new config key needed) — `enabled` defaults to
+   `false`, so this is a no-op unless a project opts in, and even when
+   enabled it downloads nothing without `allowDownload: true`. An
+   additional local guard (`compressionRatio < 1.0`) is required beyond
+   Kompress's own `available: true` before its output is adopted, since
+   Kompress itself returns `available: true` even for a real inference
+   that ended up keeping every word.
+
+If neither strategy applies (declines, disabled, or the WASM/ONNX layer is
+unavailable for any reason), the file's pre-existing `truncateContent`
+behavior runs completely unchanged — non-code files, and any file whose
+compression attempt fails for any reason, are unaffected. If a strategy DID
+apply but its output still exceeds `maxSize`, the same `truncateContent` cut
+runs again on top of the already-compressed content (not the raw original).
+
+A new `metadata.compressionStrategy` field (`"truncated"` |
+`"minified-truncated"` | `"code-compressed"` | `"kompressed"`) was added
+alongside the pre-existing `truncated: true` boolean specifically so a
+caller can tell these apart — `truncated: true` alone doesn't say whether
+the file was dumbly cut or compressed structurally, and this codebase
+treats an unlabeled/misleading saving as a defect class of its own (see
+this file's chunking-fix comments for the precedent).
+
+### Kompress config: no new key needed
+
+Unlike SmartCrusher, `kompress`'s config section already existed from
+Phase 4 (`enabled`/`allowDownload`/`variant`, all in `src/config/schema.ts`
+and `defaults.ts`) — it was defined but never consumed by any real call
+site until this phase wired `smart-read.ts` to actually read it.
+
+## Module 5c file map
+
+```
+src/native/
+├── smart-crusher.ts       — compress() (fail-open WASM wrapper, depth-agnostic
+│                            runtime module resolution), extractCcrHashes,
+│                            ccrMarkerHashFor, resetWasmModuleCacheForTests/
+│                            setWasmModuleOverrideForTests (test-only)
+├── smart-crusher.test.ts  — real-WASM-module tests + fail-open/hash-extraction tests
+├── ccr-store.ts / ccr-store.test.ts — hash -> original content store (pre-existing, unmodified)
+├── code-compressor.ts / kompress.ts / kompress-model.ts — unmodified; now actually consumed
+src/chop/filters/
+├── generic.ts             — trySmartCrusher, storeCcrMarkers, wired into both
+│                            the uniform-array and generic-JSON decision paths
+├── generic.test.ts        — SmartCrusher wiring tests, incl. a real dropped-then-
+│                            retrieved CCR round trip (exact-match and superset cases)
+src/cli/commands/
+├── ccr-retrieve.ts / ccr-retrieve.test.ts — `optiflow ccr-retrieve <hash>`
+src/optimizer/tools/file-operations/
+├── smart-read.ts           — CodeCompressor + Kompress tried before truncateContent
+├── smart-read.test.ts      — real-module tests (Python code-compression, prose
+│                            fallback, Kompress fail-open-without-network)
+src/config/
+├── schema.ts / defaults.ts — new `smartCrusher: { enabled, minSavingsPercent }` section
+```
