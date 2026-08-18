@@ -1,0 +1,316 @@
+[package]
+name = "headroom-core"
+version = "0.1.0"
+# Forked into optiflow-mcp as a standalone crate (native/headroom-core/) —
+# no longer a member of headroom's Cargo workspace, so the `*.workspace =
+# true` inheritance that used to resolve against
+# `vendor/headroom/Cargo.toml`'s `[workspace.package]` no longer has a
+# workspace to resolve against. Literal values copied from that same
+# `[workspace.package]` table so behavior is unchanged.
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+repository = "https://github.com/chopratejas/headroom"
+description = "Core Headroom types and compression transform traits (Rust)."
+
+[dependencies]
+# Literal values below copied from `vendor/headroom/Cargo.toml`'s
+# `[workspace.dependencies]` table — this crate is no longer a workspace
+# member (see the `[package]` note above), so `{ workspace = true }`
+# inheritance has no workspace root to resolve against.
+serde = { version = "1", features = ["derive"] }
+# `preserve_order`/`arbitrary_precision`/`raw_value`: see upstream comment
+# in `vendor/headroom/Cargo.toml` — order-preserving JSON objects,
+# lossless numeric literals, and raw-fragment passthrough are all
+# load-bearing for byte-faithful compression output, not just style.
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision", "raw_value"] }
+bytes = "1"
+thiserror = "2"
+tracing = { version = "0.1", features = ["log"] }
+tiktoken-rs = "0.11"
+# `tokenizers` is the HuggingFace pure-Rust tokenizer crate — used
+# unconditionally by `HfTokenizer` (`tokenizer/hf_impl.rs`), including its
+# always-available `from_bytes`/`from_file` constructors, so this is NOT
+# gated behind `remote-tokenizer` (that feature only gates the
+# network-fetching `from_pretrained` path). Moved to per-target sections
+# below because the right feature set differs by target — see `hf-hub`
+# entry.
+# `hf-hub` is the HuggingFace Hub client. We use the blocking `ureq` transport
+# with `rustls` (no system OpenSSL dep — keeps the binary static-linkable for
+# AWS deploys). `from_pretrained` is called once at startup, so blocking is
+# fine; if a tokio caller needs it later we can wrap in `spawn_blocking`.
+# `optional = true` behind the `remote-tokenizer` feature: it does real
+# network I/O (blocking `ureq`), which is meaningless on `wasm32-unknown-
+# unknown` (no sockets, no filesystem cache dir) and unneeded for consumers
+# that only load a local/bundled `tokenizer.json` via `from_bytes`/`from_file`.
+hf-hub = { version = "0.5", default-features = false, features = ["ureq", "rustls-tls"], optional = true }
+# `md5` for the CCR cache_key. Python's compression_store hashes the original
+# diff with MD5 truncated to 24 hex chars; we must match byte-for-byte.
+md-5 = "0.10"
+# `sha2` for `_hash_field_name` in smart_crusher (SHA256 truncated to 16
+# hex chars). Python uses `hashlib.sha256` so we need byte-exact parity.
+sha2 = "0.11"
+# `dashmap` for the CCR storage backend. Concurrent HashMap with sharded
+# locking — distinct keys hashed to different shards never contend, so
+# multi-worker proxy load doesn't queue on a single Mutex. Lock-free
+# reads inside each shard via RwLock semantics.
+dashmap = "6"
+# `regex` is already a transitive dep of tokenizers; depend on it directly so
+# our hunk-header parser and priority-pattern matcher have a stable surface.
+regex = "1"
+# CJK sentence + word segmentation for TextCrusher (#1171). CJK has no spaces or
+# ASCII terminators, so the default ASCII splitter/tokenizer collapses a whole
+# CJK paragraph into one segment/one token -> 0% compression. ICU4X's UAX#29
+# sentence + dictionary word segmenters fix this. Chosen over a hand-rolled
+# char-bigram (benchmarked on real CMRC2018 Chinese QA: 92.5% vs 91% answer-
+# retention) and over jieba/lindera (ZH-only / tens-to-hundreds of MB dicts).
+# - Why this version: 2.x is the stabilized ICU4X API (1.x used a different data
+#   provider model); floored at 2.2 (Cargo.lock pins the exact patch) since
+#   segmenter boundaries are observable in output -- bumps should be deliberate.
+# - Install surface: ~13 new crates, all pure Rust, no build scripts, no native
+#   code, no build/runtime network. `compiled_data` bundles locale data at
+#   compile time (hermetic). Maintained by the official unicode-org.
+# - `compiled_data` only (no `auto`/`lstm`): LSTM models cover SE-Asian scripts
+#   (Thai/Lao), not CJK -- CJK uses the dictionary, so `auto` would pull in libm
+#   for nothing. Required for CJK; pure-ASCII paths are unchanged.
+icu_segmenter = { version = "2.2", features = ["compiled_data"] }
+# `flate2` for `_validate_with_zlib` in `adaptive_sizer`. Python's adaptive
+# sizing pipeline uses `zlib.compress(..., level=1)` to validate the chosen
+# K against compression-ratio diversity. We use the default `miniz_oxide`
+# backend (pure Rust) which produces DEFLATE output of similar length to
+# CPython's libz at level=1 for typical inputs. The check only triggers on
+# >15% ratio divergence so small per-byte differences don't change the
+# outcome — but if a parity fixture flakes here, swap to
+# `features = ["zlib"]` to link against system libz for byte-equal output.
+flate2 = "1"
+# `fastembed` is the Rust port of the Python fastembed library. Used by
+# `relevance::EmbeddingScorer` for sentence embeddings in semantic relevance
+# scoring. Default features pull in `ort` (ONNX Runtime) with auto-download
+# of the runtime binary; the model file (BAAI/bge-small-en-v1.5, ~30 MB
+# int8-quantized ONNX) auto-downloads from HuggingFace Hub on first use.
+# Same library + same model = byte-equal embeddings between Python and Rust
+# (both call into ONNX Runtime over the identical ONNX file).
+#
+# `default-features = false` + explicit rustls features eliminates the
+# transitive `native-tls` → `openssl-sys` dependency that fastembed's
+# default features pull in (via `hf-hub-native-tls` + `ort-download-
+# binaries-native-tls`). Without this, every wheel-build surface
+# (release matrix, e2e/wrap, e2e/init, devcontainer, ci.yml) needs
+# system OpenSSL + perl modules for openssl-src vendored compile. Using
+# rustls everywhere removes the entire OpenSSL build-deps surface.
+# `magika` is Google's ONNX-backed content classifier (Tier 1 of the
+# Stage-3d ContentRouter detection arch). Bundled standard-model is
+# loaded once per process via `OnceLock` and shared across calls. The
+# crate depends on `ort`, which is already in our dep tree via
+# `fastembed`, so adding it doesn't pull a new ML runtime — both
+# crates share the ONNX Runtime singleton.
+magika = { version = "1", optional = true }
+# `unidiff` is the Stage-3d Tier-2 diff detector. We use the parser
+# itself as the "is this a diff?" oracle — anything that successfully
+# parses to ≥1 PatchedFile is a diff. The deterministic parser
+# catches diffs Magika may miss (naked hunks without `diff --git`
+# headers, prose-prefixed diffs, truncated outputs). Default features
+# bring `encoding_rs` for non-UTF8 sniffing — we keep them on for
+# compatibility with arbitrary tool outputs.
+unidiff = "0.4"
+# `aho-corasick` powers the Tier-3 KeywordDetector in `signals/`.
+# A single deterministic-finite-automaton scan finds every keyword
+# in a line in O(n + m) — orders of magnitude faster than running N
+# regex .search() calls and harder to misuse. Word-boundary checks
+# happen as a post-filter on the byte offsets the automaton returns.
+# Default features (std, perf-literal) keep the build small.
+aho-corasick = "1"
+# `rayon` powers the pipeline orchestrator's parallel reformat-vs-bloat
+# evaluation: while a worker thread runs the structural reformat passes,
+# another set of threads run the per-offload bloat estimators in parallel.
+# Reformat completion + all bloat estimates need to be ready before the
+# orchestrator can decide which offloads to actually execute, so two-phase
+# join semantics (`rayon::join` + `par_iter`) are exactly what we need.
+# `optional = true` behind the `parallel` feature: rayon spins up an OS
+# thread pool, which does not exist on `wasm32-unknown-unknown` (no
+# std::thread support there). The orchestrator's own doc comments already
+# note that `rayon::join`/`par_iter` degrade to serial execution when work
+# isn't plentiful and "the pipeline doesn't care which way it falls;
+# correctness is the same" — so the serial fallback gated behind
+# `#[cfg(not(feature = "parallel"))]` in orchestrator.rs is a performance
+# change only, not a behavior change.
+rayon = { version = "1", optional = true }
+# `toml` reads the default pipeline configuration shipped at
+# `config/pipeline.toml`. The defaults embed via `include_str!` so a
+# stock binary needs no external file; production deployments override
+# by loading their own TOML at startup.
+toml = "1.1"
+# `blake3` powers `ccr::compute_key`. BLAKE3 is faster than SHA-256 on
+# every hot path the proxy hits (large diff/log/tool_result payloads)
+# and produces collision-resistant 24-char prefixes for the CCR
+# `<<ccr:HASH>>` marker. Pinning the algorithm + truncation length here
+# keeps Rust and Python in lockstep — Python parses the same 24-char
+# hex via `headroom/ccr/tool_injection.py` regex. Pure-Rust by default,
+# no system dep, no SIMD-feature-gated flag (the crate auto-detects).
+blake3 = "1"
+# `rusqlite` for the SQLite-backed CCR store (the production default).
+# `bundled` builds SQLite from source so deploys do not need a system
+# libsqlite3 — matters for Lambda / container builds where the host
+# image may lag behind. Sub-1 MB binary cost. WAL is enabled at
+# connection-open time (see `ccr/backends/sqlite.rs`); no extra feature
+# flags required.
+# `optional = true` behind the `sqlite-backend` feature: `bundled` compiles
+# SQLite's C source, which does not target `wasm32-unknown-unknown`. CCR
+# storage for the WASM build lives Node-side (see the optiflow-mcp plan);
+# the always-available `InMemoryCcrStore` backend covers in-crate needs
+# when this feature is off.
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+# `redis` for the optional multi-worker CCR backend. Cfg-gated behind
+# the `redis` feature so deploys that don't need it pay no compile
+# cost. Default features include the sync `Connection` API used in
+# `ccr/backends/redis.rs`; `tokio-comp` would pull `tokio` into the
+# core crate, which we do not want.
+redis = { version = "0.27", optional = true, default-features = false }
+# `http` powers the auth-mode classifier (Phase F PR-F1). The proxy
+# crate already depends on this — pulling it into core lets the
+# classifier live with the other Phase B/F policy primitives without
+# cycling through the proxy crate. Tiny crate (no I/O, just types).
+http = "1"
+# tree-sitter + per-language grammars for the CodeCompressor AST port.
+# Versions are pinned to EXACTLY match the Python reference grammars
+# (`tree-sitter-<lang>` PyPI wheels) so the Rust and Python parsers emit
+# node-for-node identical ASTs — the precondition for byte-parity. Same
+# version number on crates.io + PyPI means the same `grammar.js` source,
+# hence the same generated `parser.c`. The grammar-parity canary (9
+# samples × 8 languages) confirmed 100% identical node-type + line-span
+# trees at these exact pins. Bumping any pin requires re-running the
+# canary and re-recording the code_aware_compressor fixtures.
+# All `optional = true` behind the `code-compress` feature: each grammar
+# crate compiles a generated `parser.c` via `cc`, which does not target
+# `wasm32-unknown-unknown` (no C toolchain in that target). optiflow-mcp's
+# own plan reimplements CodeCompressor in TypeScript via `web-tree-sitter`
+# for the WASM path instead of carrying this Rust/C integration through.
+tree-sitter = { version = "=0.25.2", optional = true }
+tree-sitter-python = { version = "=0.25.0", optional = true }
+tree-sitter-javascript = { version = "=0.25.0", optional = true }
+tree-sitter-typescript = { version = "=0.23.2", optional = true }
+tree-sitter-go = { version = "=0.25.0", optional = true }
+tree-sitter-rust = { version = "=0.24.2", optional = true }
+tree-sitter-java = { version = "=0.23.5", optional = true }
+tree-sitter-c = { version = "=0.24.2", optional = true }
+tree-sitter-cpp = { version = "=0.23.4", optional = true }
+
+# Load ONNX Runtime dynamically on every platform. The alternative,
+# `ort-download-binaries-*`, statically links Microsoft's prebuilt ORT:
+# on Windows it emits DirectML link libs (`DXCORE`, `DXGI`, `D3D12`,
+# `DirectML`) that sdist installs of `headroom-ai[all]` often lack, and
+# on x86_64 Linux/macOS the prebuilt binary requires AVX2 — its code is
+# mapped and initialized as soon as the `headroom._core` extension
+# loads, so importing headroom SIGILLed on pre-AVX2 CPUs before the
+# runtime AVX2 guard could run (#1278). With `ort-load-dynamic` the
+# library is only dlopen'd at first use, where the AVX2 guard falls
+# back to the non-ONNX detection tiers.
+fastembed = { version = "5", default-features = false, optional = true, features = [
+    "hf-hub-rustls-tls",
+    "ort-load-dynamic",
+    "image-models",
+] }
+# Direct dependency for Kompress inference (`ort::session::Session` /
+# `ort::value::Tensor`). Keep this pinned to the lock entry and optional so
+# `default-features = false` consumers can still build without ONNX Runtime.
+ort = { version = "=2.0.0-rc.12", default-features = false, optional = true, features = ["load-dynamic"] }
+
+
+# `tokenizers`' feature set must differ by target (see the doc comment on
+# the `tiktoken-rs` line above for why `tokenizers` itself can't be
+# gated out for wasm):
+#
+# - Native (default features: `progressbar`, `onig`, `esaxx_fast`): `onig`
+#   vendors oniguruma (a C library) for the BPE pre-tokenizer regex.
+#   `esaxx_fast` compiles a C++ Unigram helper via `esaxx-rs/cpp`. Both
+#   build fine on every native target we ship (MSVC/clang/gcc all present).
+# - wasm32-unknown-unknown: neither `onig` nor `esaxx-rs/cpp`'s C++ shim
+#   have a wasm32 C/C++ toolchain available in this environment (no
+#   clang), and would need emscripten/wasi-sdk plumbing even if one were
+#   installed. `tokenizers` ships exactly this alternative for wasm:
+#   `unstable_wasm = ["fancy-regex", "getrandom/wasm_js"]` — a pure-Rust
+#   regex engine (`fancy-regex`) instead of `onig`, and getrandom's
+#   JS-shim backend instead of a syscall. `esaxx_fast` (needed for
+#   Unigram-model tokenizers, e.g. some non-BPE HF repos) has no such
+#   alternative upstream — it is dropped for the wasm target, which means
+#   Unigram-model `tokenizer.json` files are unsupported there. BPE/
+#   WordPiece/WordLevel (the common case — GPT-2/Llama/Mistral/BERT-style)
+#   are unaffected; that code path (`esaxx-rs`) is only reached by the
+#   Unigram model implementation.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokenizers = "0.22"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokenizers = { version = "0.22", default-features = false, features = ["unstable_wasm"] }
+# `ahash`/`rand` (transitive, via `tokenizers`) also pull in `getrandom`
+# 0.3 directly, independent of `tokenizers`' own `getrandom/wasm_js`
+# feature edge. getrandom 0.3 refuses to pick a default backend on
+# wasm32-unknown-unknown; declaring it directly here with the `wasm_js`
+# feature is how Cargo's feature-unification turns that backend on for
+# every copy of getrandom 0.3 in the dependency graph (headroom-core
+# itself never calls this crate). Must be paired with a matching
+# `--cfg getrandom_backend="wasm_js"` RUSTFLAG — see `.cargo/config.toml`.
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[features]
+# `ml` is ON by default, so a stock build is byte-for-byte what it was before:
+# the ONNX-backed transforms (fastembed embeddings, magika detection, the
+# smart-crusher ML path) are all compiled in. Turning it OFF
+# (`default-features = false`) drops `ort`/`fastembed`/`magika` from the tree
+# entirely, so a consumer that only uses the lexical path (`TextCrusher` /
+# BM25 relevance) builds with no ONNX Runtime at all — which is what lets that
+# consumer ship a fully-static musl binary. See the source `#[cfg(feature =
+# "ml")]` gates (TODO: the module + dispatch gating is the collaborative half
+# of this change — flagged in the PR).
+default = ["ml", "parallel", "code-compress", "sqlite-backend", "remote-tokenizer"]
+# `dep:hf-hub` is included here (not just via `remote-tokenizer`) because
+# `Kompress::from_pretrained` (`transforms/kompress.rs`, itself gated
+# behind `ml`) calls `hf_hub::api::sync::Api::new()` unconditionally to
+# fetch the ModernBERT tokenizer — an `ml`-only build (`--no-default-
+# features --features ml`, without `remote-tokenizer`) must still link
+# `hf-hub` or that call site fails to resolve.
+ml = ["dep:ort", "dep:fastembed", "dep:magika", "dep:hf-hub"]
+# Compile in the Redis CCR backend. Enable for multi-worker deployments
+# that want a shared CCR store with no sticky-session at the LB. The
+# SQLite backend (default-on, gated by `sqlite-backend` below) is the
+# production default for single-worker / single-instance setups.
+redis = ["dep:redis"]
+# Rayon-backed parallel reformat/bloat-estimation in the pipeline
+# orchestrator (see `transforms/pipeline/orchestrator.rs`). ON by default
+# so a stock build is unchanged from before this fork. Turn OFF for
+# targets without OS thread support (e.g. `wasm32-unknown-unknown`) — the
+# orchestrator falls back to running the same two phases serially, which
+# its own doc comments already document as behavior-equivalent.
+parallel = ["dep:rayon"]
+# tree-sitter-backed CodeCompressor (`transforms/code_compressor.rs`). ON
+# by default. Turn OFF for targets without a C toolchain (e.g.
+# `wasm32-unknown-unknown`, where the grammar crates' generated
+# `parser.c` cannot compile) — the module and its `transforms::mod`
+# re-exports are cfg'd out entirely when this feature is off.
+code-compress = ["dep:tree-sitter", "dep:tree-sitter-python", "dep:tree-sitter-javascript", "dep:tree-sitter-typescript", "dep:tree-sitter-go", "dep:tree-sitter-rust", "dep:tree-sitter-java", "dep:tree-sitter-c", "dep:tree-sitter-cpp"]
+# SQLite-backed CCR store (`ccr/backends/sqlite.rs`, `bundled` libsqlite3
+# via `cc`). ON by default. Turn OFF for targets without a C toolchain —
+# `InMemoryCcrStore` remains available unconditionally as the fallback.
+sqlite-backend = ["dep:rusqlite"]
+# `hf-hub`-backed remote tokenizer download (`HfTokenizer::from_pretrained`
+# in `tokenizer/hf_impl.rs`). ON by default. Turn OFF for targets without
+# network/filesystem-cache access (e.g. WASM) — `from_bytes`/`from_file`
+# (local/bundled tokenizer.json) remain available unconditionally.
+remote-tokenizer = ["dep:hf-hub"]
+
+[dev-dependencies]
+proptest = "1"
+criterion = { version = "0.8", features = ["html_reports"] }
+tempfile = "3"
+
+[[bench]]
+name = "tokenizer"
+harness = false
+
+[[bench]]
+name = "ccr_store"
+harness = false
+
+[[bench]]
+name = "auth_mode"
+harness = false

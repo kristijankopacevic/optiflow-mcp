@@ -1,0 +1,28 @@
+# Shared Cargo config for both `native/headroom-core/` and
+# `native/headroom-wasm/`. Cargo resolves `.cargo/config.toml` by walking
+# up from the current working directory to the filesystem root, merging
+# every config file it finds along the way — putting this one file here
+# (a shared ancestor of both crate directories) means `cargo`/`wasm-pack`
+# invoked from either `native/headroom-core/` or `native/headroom-wasm/`
+# picks it up, instead of needing two copies kept in sync.
+#
+# `getrandom` 0.3 (a transitive dependency of `tokenizers`, via
+# `ahash`/`rand`) refuses to auto-select a backend on
+# wasm32-unknown-unknown; it requires BOTH this `--cfg` RUSTFLAG AND the
+# `wasm_js` Cargo feature enabled on every copy of `getrandom` 0.3 in the
+# dependency graph (see `getrandom`'s own compile_error! message, and the
+# `getrandom = { version = "0.3", features = ["wasm_js"] }` target-gated
+# dependency declarations in headroom-core's Cargo.toml that supply the
+# feature half of this requirement via Cargo feature unification).
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", "getrandom_backend=\"wasm_js\""]
+
+# CAUTION for whoever wires the CI Rust-toolchain step (plan Phase 6): a
+# `RUSTFLAGS` ENVIRONMENT VARIABLE set for the job (e.g. `-D warnings`)
+# REPLACES `target.*.rustflags` from this file entirely — Cargo does not
+# merge them. If CI sets `RUSTFLAGS` anywhere in scope for the wasm build
+# step, the `--cfg getrandom_backend="wasm_js"` flag above silently
+# disappears and the build fails again on getrandom's `compile_error!`.
+# Either avoid setting `RUSTFLAGS` as an env var for this step, or fold
+# any wanted flags (e.g. `-D warnings`) into this same `rustflags` array
+# instead of a separate env var.

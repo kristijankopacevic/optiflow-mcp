@@ -2,3 +2,10 @@ node_modules/
 /out/
 .optiflow/
 *.log
+
+# Rust build artifacts under native/ (multi-GB target/ dirs) — never commit.
+# native/*/pkg/ (wasm-pack output) is deliberately excluded here too while
+# it's still a stub; revisit committing it once it's the real production
+# artifact (mirrors why plugin/dist/ IS committed elsewhere in this repo).
+native/*/target/
+native/*/pkg/

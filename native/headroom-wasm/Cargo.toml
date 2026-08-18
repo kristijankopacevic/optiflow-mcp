@@ -1,0 +1,36 @@
+[package]
+name = "headroom-wasm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+description = "wasm-bindgen bindings over headroom-core, built for Node via wasm-pack."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# `default-features = false` with NO optional features enabled: this is
+# the Phase 1 minimal-stub gate (`native/headroom-core`'s own doc-brief).
+#
+# NOTE on `parallel` specifically: turning it off here does NOT remove
+# rayon (or esaxx-rs, or other native-toolchain deps) from the produced
+# `.wasm` build as a whole — `tokenizers` (an unconditional dependency,
+# not gated by any of our features) pulls `rayon`/`rayon-core`/
+# `rayon-cond`/`esaxx-rs` in on its own, and `wasm-pack build`'s own log
+# for this crate shows them being compiled even with `parallel` off.
+# What `parallel = off` actually controls is only the ONE call site this
+# crate's own code reaches: `transforms/pipeline/orchestrator.rs`'s
+# `rayon::join`/`par_iter`, which fall back to a serial implementation
+# instead. `cargo check --target wasm32-unknown-unknown --features
+# parallel` also type-checks cleanly — but type-checking a rayon call
+# is not proof the thread pool it spins up at runtime works without
+# SharedArrayBuffer + Web Workers wiring (e.g. `wasm-bindgen-rayon`),
+# which plain `wasm-pack build --target nodejs` does not provide. Since
+# this phase's own gate is just a `ping()` stub that never reaches that
+# code path, there is no reason to exercise that unverified runtime
+# behavior yet — leave `parallel` off until a later phase actually calls
+# into the orchestrator and can prove out the real runtime story.
+headroom-core = { path = "../headroom-core", default-features = false }
+wasm-bindgen = "0.2"
