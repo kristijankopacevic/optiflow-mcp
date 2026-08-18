@@ -28037,6 +28037,14 @@ function assertSafeArg(value, fieldName = "argument") {
 function assertSafePathArg(value, fieldName = "path") {
   return assertSafeArg(value, fieldName);
 }
+function assertAllowed(value, allowed, fieldName = "value") {
+  if (!allowed.includes(value)) {
+    throw new Error(
+      `Invalid ${fieldName}: '${value}' is not one of ${allowed.join(", ")}`
+    );
+  }
+  return value;
+}
 
 // src/optimizer/tools/file-operations/smart-status.ts
 init_cache_engine();
@@ -31135,6 +31143,9 @@ init_metrics();
 init_paths2();
 
 // src/optimizer/tools/build-systems/run-node-bin.ts
+import {
+  spawn as spawn2
+} from "child_process";
 import { existsSync as existsSync6, readFileSync as readFileSync9 } from "fs";
 import { join as join8, dirname as dirname3, resolve as resolve2 } from "path";
 function resolveBinScript(packageName, binName, fromDir) {
@@ -31169,6 +31180,15 @@ var MissingProjectTool = class extends Error {
     this.name = "MissingProjectTool";
   }
 };
+function spawnNodeBin(packageName, binName, args, options, toolName) {
+  const script = resolveBinScript(packageName, binName, options.cwd);
+  if (!script) throw new MissingProjectTool(packageName, toolName);
+  return spawn2(process.execPath, [script, ...args], {
+    ...options,
+    shell: false,
+    windowsHide: true
+  });
+}
 function resolveNpmScript() {
   const nodeDir = dirname3(process.execPath);
   const candidates = [
@@ -31177,6 +31197,15 @@ function resolveNpmScript() {
     join8(nodeDir, "..", "node_modules", "npm", "bin", "npm-cli.js")
   ];
   return candidates.find((c2) => existsSync6(c2)) ?? null;
+}
+function spawnNpm(args, options, toolName) {
+  const script = resolveNpmScript();
+  if (!script) throw new MissingProjectTool("npm", toolName);
+  return spawn2(process.execPath, [script, ...args], {
+    ...options,
+    shell: false,
+    windowsHide: true
+  });
 }
 function packageManagerInvocation(packageManager, cwd, toolName) {
   const script = packageManager === "npm" ? resolveNpmScript() : resolveBinScript(packageManager, packageManager, cwd);
@@ -35167,7 +35196,7 @@ var SMART_PRETTY_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/system-operations/smart-process.ts
-import { spawn as spawn2 } from "child_process";
+import { spawn as spawn3 } from "child_process";
 
 // src/optimizer/utils/wmic-csv.ts
 var VARIABLE_WIDTH_COLUMN = "CommandLine";
@@ -35307,7 +35336,7 @@ var SmartProcess = class {
     if (!options.command) {
       throw new Error("Command required for start operation");
     }
-    const child = spawn2(options.command, options.args || [], {
+    const child = spawn3(options.command, options.args || [], {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
       detached: options.detached,
@@ -48399,13 +48428,13 @@ var SmartWebSocket = class {
     }
     state.state = "disconnected";
     state.disconnectedAt = Date.now();
-    const uptime = state.connectedAt && state.disconnectedAt ? state.disconnectedAt - state.connectedAt : 0;
+    const uptime2 = state.connectedAt && state.disconnectedAt ? state.disconnectedAt - state.connectedAt : 0;
     return {
       connection: {
         url: options.url,
         state: state.state,
         protocol: state.protocol,
-        uptime,
+        uptime: uptime2,
         reconnectAttempts: state.reconnectAttempts
       }
     };
@@ -48750,6 +48779,4847 @@ var SMART_WEBSOCKET_TOOL_DEFINITION = {
   }
 };
 
+// src/optimizer/tools/build-systems/smart-build.ts
+init_cache_engine();
+init_token_counter();
+init_metrics();
+import { createHash as createHash23 } from "crypto";
+import { readFileSync as readFileSync14, existsSync as existsSync11, readdirSync as readdirSync3, statSync as statSync9 } from "fs";
+import { join as join12 } from "path";
+init_paths2();
+var SmartBuild = class {
+  cache;
+  cacheNamespace = "smart_build";
+  projectRoot;
+  defaultProjectRoot;
+  constructor(cache, _tokenCounter, _metrics, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run build with smart caching and output reduction
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      force = false,
+      watch = false,
+      tsconfig = "tsconfig.json",
+      includeWarnings = false,
+      maxCacheAge = 3600
+    } = options;
+    const startTime = Date.now();
+    const cacheKey = await this.generateCacheKey(tsconfig);
+    if (!force && !watch) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const changedFiles = await this.detectChangedFiles(cacheKey);
+    const result = await this.runTsc({
+      tsconfig,
+      watch,
+      incremental: !force
+    });
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    if (!watch) {
+      this.cacheResult(cacheKey, result);
+    }
+    const suggestions = this.generateSuggestions(result, changedFiles);
+    return this.transformOutput(
+      result,
+      changedFiles,
+      suggestions,
+      includeWarnings
+    );
+  }
+  /**
+   * Run TypeScript compiler and capture results
+   */
+  async runTsc(options) {
+    const args = ["--project", options.tsconfig];
+    if (options.watch) {
+      args.push("--watch");
+    }
+    if (options.incremental) {
+      args.push("--incremental");
+    }
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const tsc = spawnNodeBin(
+        "typescript",
+        "tsc",
+        args,
+        { cwd: this.projectRoot },
+        "smart_build"
+      );
+      tsc.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      tsc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      tsc.on("close", (code) => {
+        const output = stdout + stderr;
+        const errors = this.parseCompilerOutput(output);
+        resolve4({
+          success: code === 0,
+          errors: errors.filter((e) => e.severity === "error"),
+          warnings: errors.filter((e) => e.severity === "warning"),
+          duration: 0,
+          // Set by caller
+          filesCompiled: this.countCompiledFiles(output),
+          timestamp: Date.now()
+        });
+      });
+      tsc.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Parse TypeScript compiler output for errors and warnings
+   */
+  parseCompilerOutput(output) {
+    const errors = [];
+    const lines = output.split("\n");
+    for (const line of lines) {
+      const match = line.match(
+        /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+(TS\d+):\s+(.+)$/
+      );
+      if (match) {
+        errors.push({
+          file: match[1],
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+          severity: match[4],
+          code: match[5],
+          message: match[6]
+        });
+      }
+    }
+    return errors;
+  }
+  /**
+   * Count files compiled from output
+   */
+  countCompiledFiles(output) {
+    const match = output.match(/Found (\d+) error/);
+    if (match) {
+      const files = /* @__PURE__ */ new Set();
+      const lines = output.split("\n");
+      for (const line of lines) {
+        const fileMatch = line.match(/^(.+?)\(\d+,\d+\):/);
+        if (fileMatch) {
+          files.add(fileMatch[1]);
+        }
+      }
+      return files.size;
+    }
+    return this.countSourceFiles();
+  }
+  /**
+   * Count TypeScript source files
+   */
+  countSourceFiles() {
+    const srcDir = join12(this.projectRoot, "src");
+    if (!existsSync11(srcDir)) {
+      return 0;
+    }
+    let count = 0;
+    const walk = (dir) => {
+      const files = readdirSync3(dir);
+      for (const file of files) {
+        const fullPath = join12(dir, file);
+        const stat = statSync9(fullPath);
+        if (stat.isDirectory()) {
+          walk(fullPath);
+        } else if (file.endsWith(".ts")) {
+          count++;
+        }
+      }
+    };
+    walk(srcDir);
+    return count;
+  }
+  /**
+   * Generate cache key based on source files and config
+   */
+  async generateCacheKey(tsconfig) {
+    const hash = createHash23("sha256");
+    hash.update(this.cacheNamespace);
+    const tsconfigPath = join12(this.projectRoot, tsconfig);
+    if (existsSync11(tsconfigPath)) {
+      const content = readFileSync14(tsconfigPath, "utf-8");
+      hash.update(content);
+    }
+    const packageJsonPath = join12(this.projectRoot, "package.json");
+    if (existsSync11(packageJsonPath)) {
+      const content = readFileSync14(packageJsonPath, "utf-8");
+      hash.update(content);
+    }
+    return `${this.cacheNamespace}:${hash.digest("hex")}`;
+  }
+  /**
+   * Get cached result if available and fresh
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(key);
+    if (!cached2) {
+      return null;
+    }
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache build result
+   */
+  cacheResult(key, result) {
+    const toCache = {
+      ...result,
+      cachedAt: Date.now()
+    };
+    const dataToCache = JSON.stringify(toCache);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(key, dataToCache, originalSize, compactSize);
+  }
+  /**
+   * Detect changed files since last build
+   */
+  async detectChangedFiles(_cacheKey) {
+    return [];
+  }
+  /**
+   * Generate optimization suggestions based on build result
+   */
+  generateSuggestions(result, changedFiles) {
+    const suggestions = [];
+    if (result.filesCompiled > 50 && changedFiles.length < 10) {
+      suggestions.push({
+        type: "performance",
+        message: "Consider using --incremental flag for faster rebuilds",
+        impact: "high"
+      });
+    }
+    if (result.duration > 3e4) {
+      suggestions.push({
+        type: "performance",
+        message: "Build is slow. Consider enabling skipLibCheck in tsconfig.json",
+        impact: "high"
+      });
+    }
+    const commonErrors = this.categorizeErrors(result.errors);
+    if (commonErrors["TS2307"] > 5) {
+      suggestions.push({
+        type: "config",
+        message: 'Many "Cannot find module" errors. Check your paths in tsconfig.json',
+        impact: "high"
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Categorize errors by code
+   */
+  categorizeErrors(errors) {
+    const categories = {};
+    for (const error2 of errors) {
+      categories[error2.code] = (categories[error2.code] || 0) + 1;
+    }
+    return categories;
+  }
+  /**
+   * Transform full build output to smart output
+   */
+  transformOutput(result, changedFiles, suggestions, includeWarnings, fromCache = false) {
+    const categorizedErrors = this.categorizeAndFormatErrors(result.errors);
+    const categorizedWarnings = includeWarnings ? this.categorizeAndFormatErrors(result.warnings) : [];
+    const allErrors = [...categorizedErrors, ...categorizedWarnings];
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(result);
+    return {
+      summary: {
+        success: result.success,
+        duration: result.duration,
+        filesCompiled: result.filesCompiled,
+        errorCount: result.errors.length,
+        warningCount: result.warnings.length,
+        fromCache
+      },
+      errors: allErrors,
+      suggestions,
+      changedFiles,
+      _metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Categorize and format errors
+   */
+  categorizeAndFormatErrors(errors) {
+    return errors.map((error2) => ({
+      category: this.categorizeErrorCode(error2.code),
+      file: error2.file,
+      location: `${error2.line}:${error2.column}`,
+      message: error2.message,
+      code: error2.code
+    }));
+  }
+  /**
+   * Categorize error by TS error code
+   */
+  categorizeErrorCode(code) {
+    const categories = {
+      TS2307: "Module Resolution",
+      TS2304: "Type Errors",
+      TS2322: "Type Errors",
+      TS2345: "Type Errors",
+      TS2339: "Type Errors",
+      TS2551: "Type Errors",
+      TS7006: "Type Annotations",
+      TS7016: "Type Declarations"
+    };
+    return categories[code] || "Other";
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, [], [], false, true);
+  }
+  /**
+   * Estimate original output size (full tsc output)
+   */
+  estimateOriginalOutputSize(result) {
+    const errorSize = (result.errors.length + result.warnings.length) * 200;
+    return errorSize + 500;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(result) {
+    const summary = {
+      success: result.success,
+      errorCount: result.errors.length,
+      warningCount: result.warnings.length
+    };
+    const errors = this.categorizeAndFormatErrors(result.errors.slice(0, 10));
+    return JSON.stringify({ summary, errors }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartBuildTool(cache, tokenCounter, metrics, projectRoot) {
+  return new SmartBuild(cache, tokenCounter, metrics, projectRoot);
+}
+var SMART_BUILD_TOOL_DEFINITION = {
+  name: "smart_build",
+  description: "Run TypeScript build with intelligent caching, diff-based change detection, and token-optimized output",
+  inputSchema: {
+    type: "object",
+    properties: {
+      force: {
+        type: "boolean",
+        description: "Force full rebuild (ignore cache)",
+        default: false
+      },
+      watch: {
+        type: "boolean",
+        description: "Watch mode for continuous builds",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      tsconfig: {
+        type: "string",
+        description: "TypeScript config file path"
+      },
+      includeWarnings: {
+        type: "boolean",
+        description: "Include warnings in output",
+        default: true
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 3600)",
+        default: 3600
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-docker.ts
+init_cache_engine();
+init_paths2();
+import { spawn as spawn4 } from "child_process";
+import { createHash as createHash24 } from "crypto";
+import { readFileSync as readFileSync15, existsSync as existsSync12 } from "fs";
+import { join as join13 } from "path";
+var SmartDocker = class {
+  cache;
+  cacheNamespace = "smart_docker";
+  defaultProjectRoot;
+  projectRoot;
+  constructor(cache, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run Docker operation with smart analysis
+   */
+  async run(options) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const { operation, force = false, maxCacheAge = 3600 } = options;
+    const startTime = Date.now();
+    const cacheKey = this.generateCacheKey(operation, options);
+    if (!force && operation !== "logs") {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const result = await this.runDockerOperation(options);
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    if (operation !== "logs") {
+      const cacheTTL = operation === "ps" ? 60 : 3600;
+      this.cacheResult(cacheKey, result, cacheTTL);
+    }
+    const suggestions = this.generateSuggestions(result, options);
+    return this.transformOutput(result, suggestions);
+  }
+  /**
+   * Run Docker operation
+   */
+  async runDockerOperation(options) {
+    const { operation } = options;
+    switch (operation) {
+      case "build":
+        return this.dockerBuild(options);
+      case "run":
+        return this.dockerRun(options);
+      case "stop":
+        return this.dockerStop(options);
+      case "logs":
+        return this.dockerLogs(options);
+      case "ps":
+        return this.dockerPs(options);
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+  }
+  /**
+   * Docker build operation
+   */
+  async dockerBuild(options) {
+    const {
+      dockerfile = "Dockerfile",
+      imageName = "app:latest",
+      context = "."
+    } = options;
+    const args = ["build", "-f", dockerfile, "-t", imageName, context];
+    return this.execDocker(args, "build");
+  }
+  /**
+   * Docker run operation
+   */
+  async dockerRun(options) {
+    const {
+      imageName = "app:latest",
+      containerName = "app-container",
+      ports = [],
+      env: env2 = {}
+    } = options;
+    const args = ["run", "-d", "--name", containerName];
+    for (const port of ports) {
+      args.push("-p", port);
+    }
+    for (const [key, value] of Object.entries(env2)) {
+      args.push("-e", `${key}=${value}`);
+    }
+    args.push(imageName);
+    return this.execDocker(args, "run");
+  }
+  /**
+   * Docker stop operation
+   */
+  async dockerStop(options) {
+    const { containerName = "app-container" } = options;
+    const args = ["stop", containerName];
+    return this.execDocker(args, "stop");
+  }
+  /**
+   * Docker logs operation
+   */
+  async dockerLogs(options) {
+    const {
+      containerName = "app-container",
+      follow = false,
+      tail = 100
+    } = options;
+    const args = ["logs"];
+    if (follow) {
+      args.push("-f");
+    }
+    if (tail) {
+      args.push("--tail", tail.toString());
+    }
+    args.push(containerName);
+    return this.execDocker(args, "logs");
+  }
+  /**
+   * Docker ps operation
+   */
+  async dockerPs(_options) {
+    const args = [
+      "ps",
+      "-a",
+      "--format",
+      "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}"
+    ];
+    return this.execDocker(args, "ps");
+  }
+  /**
+   * Execute Docker command
+   */
+  async execDocker(args, operation) {
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const docker = spawn4("docker", args, {
+        cwd: this.projectRoot,
+        shell: false,
+        windowsHide: true
+      });
+      docker.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      docker.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      docker.on("close", (code) => {
+        const output = stdout + stderr;
+        const result = {
+          success: code === 0,
+          operation,
+          duration: 0,
+          // Set by caller
+          timestamp: Date.now()
+        };
+        if (operation === "ps") {
+          result.containers = this.parseContainers(stdout);
+        } else if (operation === "logs") {
+          result.logs = this.parseLogs(stdout);
+        } else if (operation === "build") {
+          result.buildLayers = this.countBuildLayers(output);
+        }
+        resolve4(result);
+      });
+      docker.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Parse container list
+   */
+  parseContainers(output) {
+    const containers = [];
+    const lines = output.split("\n").filter((l) => l.trim());
+    for (const line of lines) {
+      const [id, name, image, status, ports] = line.split("|");
+      if (id && name) {
+        containers.push({
+          id: id.substring(0, 12),
+          name,
+          image,
+          status,
+          ports: ports ? ports.split(",").map((p) => p.trim()) : []
+        });
+      }
+    }
+    return containers;
+  }
+  /**
+   * Parse log output
+   */
+  parseLogs(output) {
+    return output.split("\n").filter((l) => l.trim()).slice(-100);
+  }
+  /**
+   * Count build layers
+   */
+  countBuildLayers(output) {
+    const stepMatches = output.match(/Step \d+\/\d+/g);
+    return stepMatches ? stepMatches.length : 0;
+  }
+  /**
+   * Generate optimization suggestions
+   */
+  generateSuggestions(result, options) {
+    const suggestions = [];
+    const dockerfilePath = join13(
+      this.projectRoot,
+      options.dockerfile || "Dockerfile"
+    );
+    if (existsSync12(dockerfilePath)) {
+      const dockerfileContent = readFileSync15(dockerfilePath, "utf-8");
+      if (!existsSync12(join13(this.projectRoot, ".dockerignore"))) {
+        suggestions.push({
+          type: "size",
+          message: "Add .dockerignore to reduce build context size.",
+          impact: "medium"
+        });
+      }
+      const layerCount = result.buildLayers || this.countDockerfileLayers(dockerfileContent);
+      if (!dockerfileContent.includes("AS ") && layerCount > 10) {
+        suggestions.push({
+          type: "size",
+          message: "Consider using multi-stage builds to reduce image size.",
+          impact: "high"
+        });
+      }
+      if (dockerfileContent.includes("FROM ") && dockerfileContent.includes(":latest")) {
+        suggestions.push({
+          type: "security",
+          message: "Avoid using :latest tag in FROM statements for reproducible builds.",
+          impact: "high"
+        });
+      }
+      if (!dockerfileContent.includes("USER ")) {
+        suggestions.push({
+          type: "security",
+          message: "Specify a non-root USER in Dockerfile for better security.",
+          impact: "medium"
+        });
+      }
+    }
+    return suggestions;
+  }
+  /**
+   * Generate cache key
+   */
+  generateCacheKey(operation, options) {
+    const keyParts = [
+      operation,
+      options.imageName || "",
+      options.containerName || "",
+      options.dockerfile || ""
+    ];
+    if (operation === "build") {
+      const dockerfilePath = join13(
+        this.projectRoot,
+        options.dockerfile || "Dockerfile"
+      );
+      if (existsSync12(dockerfilePath)) {
+        const hash = createHash24("md5").update(readFileSync15(dockerfilePath)).digest("hex");
+        keyParts.push(hash);
+      }
+    }
+    return createHash24("md5").update(keyParts.join(":")).digest("hex");
+  }
+  /**
+   * Count layers in a Dockerfile
+   */
+  countDockerfileLayers(content) {
+    const layerCommands = ["RUN", "COPY", "ADD", "WORKDIR", "ENV"];
+    const lines = content.split("\n");
+    let count = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (layerCommands.some((cmd) => trimmed.startsWith(cmd + " "))) {
+        count++;
+      }
+    }
+    return count;
+  }
+  /**
+   * Get cached result
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(this.cacheNamespace + ":" + key);
+    if (!cached2) return null;
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache result
+   */
+  cacheResult(key, result, _ttl = 3600) {
+    const cacheData = { ...result, cachedAt: Date.now() };
+    const dataToCache = JSON.stringify(cacheData);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(
+      this.cacheNamespace + ":" + key,
+      dataToCache,
+      originalSize,
+      compactSize
+    );
+  }
+  /**
+   * Transform to smart output
+   */
+  transformOutput(result, suggestions, fromCache = false) {
+    const output = {
+      summary: {
+        success: result.success,
+        operation: result.operation,
+        duration: result.duration,
+        fromCache
+      },
+      suggestions,
+      metrics: {
+        originalTokens: 0,
+        compactedTokens: 0,
+        reductionPercentage: 0
+      }
+    };
+    if (result.containers) {
+      output.containers = result.containers.map((c2) => ({
+        id: c2.id,
+        name: c2.name,
+        image: c2.image,
+        status: c2.status,
+        ports: c2.ports
+      }));
+    }
+    if (result.logs) {
+      output.logs = result.logs.map((line) => {
+        const timestampMatch = line.match(
+          /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)/
+        );
+        const levelMatch = line.match(/\[(ERROR|WARN|INFO|DEBUG)\]/);
+        return {
+          timestamp: timestampMatch ? timestampMatch[1] : "unknown",
+          level: levelMatch ? levelMatch[1] : "info",
+          message: line
+        };
+      });
+    }
+    if (result.buildLayers) {
+      output.buildInfo = {
+        layers: result.buildLayers,
+        cacheHits: 0,
+        // TODO: Parse from build output
+        totalSize: "unknown"
+        // TODO: Get from docker images
+      };
+    }
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(output);
+    output.metrics = {
+      originalTokens: Math.ceil(originalSize / 4),
+      compactedTokens: Math.ceil(compactSize / 4),
+      reductionPercentage: Math.round(
+        (originalSize - compactSize) / originalSize * 100
+      )
+    };
+    return output;
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, [], true);
+  }
+  /**
+   * Estimate original output size
+   */
+  estimateOriginalOutputSize(result) {
+    let size = 1e3;
+    if (result.containers) {
+      size += result.containers.length * 200;
+    }
+    if (result.logs) {
+      size += result.logs.reduce((sum, log) => sum + log.length, 0);
+    }
+    if (result.buildLayers) {
+      size += result.buildLayers * 150;
+    }
+    return size;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(output) {
+    return JSON.stringify(output).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartDocker(cache, projectRoot) {
+  return new SmartDocker(cache, projectRoot);
+}
+var SMART_DOCKER_TOOL_DEFINITION = {
+  name: "smart_docker",
+  description: "Docker operations with build/run/stop/logs support, image layer analysis, and optimization suggestions",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: ["build", "run", "stop", "logs", "ps"],
+        description: "Docker operation to perform"
+      },
+      force: {
+        type: "boolean",
+        description: "Force operation (ignore cache)",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      dockerfile: {
+        type: "string",
+        description: "Dockerfile path"
+      },
+      imageName: {
+        type: "string",
+        description: "Image name for build/run"
+      },
+      containerName: {
+        type: "string",
+        description: "Container name for run/stop/logs"
+      },
+      context: {
+        type: "string",
+        description: "Build context directory"
+      },
+      ports: {
+        type: "array",
+        items: { type: "string" },
+        description: "Port mappings for run (e.g., ['8080:80', '443:443'])"
+      },
+      env: {
+        type: "object",
+        description: "Environment variables for run"
+      },
+      follow: {
+        type: "boolean",
+        description: "Follow logs (tail mode)",
+        default: false
+      },
+      tail: {
+        type: "number",
+        description: "Number of log lines to show"
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 3600)",
+        default: 3600
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-install.ts
+init_cache_engine();
+import { createHash as createHash25 } from "crypto";
+import { readFileSync as readFileSync16, existsSync as existsSync13 } from "fs";
+import { join as join14 } from "path";
+init_paths2();
+var SmartInstall = class {
+  cache;
+  cacheNamespace = "smart_install";
+  defaultProjectRoot;
+  projectRoot;
+  constructor(cache, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run installation with smart analysis
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      force = false,
+      packageManager,
+      packages = [],
+      dev = false,
+      maxCacheAge = 3600
+    } = options;
+    const startTime = Date.now();
+    const detectedPm = assertAllowed(
+      packageManager || this.detectPackageManager(),
+      ["npm", "yarn", "pnpm"],
+      "packageManager"
+    );
+    for (const pkg of packages) {
+      if (typeof pkg !== "string" || pkg.length === 0) {
+        throw new Error("Invalid package name: must be a non-empty string");
+      }
+      if (pkg.startsWith("-")) {
+        throw new Error(
+          `Invalid package name: '${pkg}' must not start with '-'`
+        );
+      }
+      if (/[\0\n\r]/.test(pkg)) {
+        throw new Error(
+          `Invalid package name: '${pkg}' contains control characters`
+        );
+      }
+    }
+    const lockFile = detectedPm === "npm" ? "package-lock.json" : detectedPm === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
+    const hadLockfileBeforeInstall = existsSync13(
+      join14(this.projectRoot, lockFile)
+    );
+    const cacheKey = this.generateCacheKey(detectedPm, packages, dev);
+    if (!force) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const result = await this.runInstall({
+      packageManager: detectedPm,
+      packages,
+      dev
+    });
+    result.hadLockfileBeforeInstall = hadLockfileBeforeInstall;
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    this.cacheResult(cacheKey, result);
+    const recommendations = this.generateRecommendations(result);
+    return this.transformOutput(result, recommendations);
+  }
+  /**
+   * Detect which package manager is in use
+   */
+  detectPackageManager() {
+    const projectRoot = this.projectRoot;
+    if (existsSync13(join14(projectRoot, "pnpm-lock.yaml"))) {
+      return "pnpm";
+    }
+    if (existsSync13(join14(projectRoot, "yarn.lock"))) {
+      return "yarn";
+    }
+    if (existsSync13(join14(projectRoot, "package-lock.json"))) {
+      return "npm";
+    }
+    return "npm";
+  }
+  /**
+   * Run package installation
+   */
+  async runInstall(options) {
+    const { packageManager, packages, dev } = options;
+    let args = [];
+    if (packages.length === 0) {
+      args = packageManager === "yarn" ? [] : ["install"];
+    } else {
+      if (packageManager === "npm") {
+        args = ["install", ...packages];
+        if (dev) args.push("--save-dev");
+      } else if (packageManager === "yarn") {
+        args = ["add", ...packages];
+        if (dev) args.push("--dev");
+      } else if (packageManager === "pnpm") {
+        args = ["add", ...packages];
+        if (dev) args.push("--save-dev");
+      }
+    }
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const child = packageManager === "npm" ? spawnNpm(args, { cwd: this.projectRoot }, "smart_install") : spawnNodeBin(
+        packageManager,
+        packageManager,
+        args,
+        { cwd: this.projectRoot },
+        "smart_install"
+      );
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      child.on("close", (code) => {
+        const output = stdout + stderr;
+        const installedPackages = this.parseInstalledPackages(output, packages);
+        const conflicts = this.detectConflicts(output);
+        resolve4({
+          success: code === 0,
+          packageManager,
+          packagesInstalled: installedPackages,
+          conflicts,
+          duration: 0,
+          // Set by caller
+          timestamp: Date.now()
+        });
+      });
+      child.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Parse installed packages from output
+   */
+  parseInstalledPackages(_output, requestedPackages) {
+    const packages = [];
+    const packageJsonPath = join14(this.projectRoot, "package.json");
+    if (existsSync13(packageJsonPath)) {
+      const packageJson = JSON.parse(readFileSync16(packageJsonPath, "utf-8"));
+      if (requestedPackages.length > 0) {
+        for (const pkg of requestedPackages) {
+          const [name, version2] = pkg.split("@");
+          const actualVersion = packageJson.dependencies?.[name] || packageJson.devDependencies?.[name] || version2 || "latest";
+          const type = packageJson.devDependencies?.[name] ? "devDependency" : "dependency";
+          packages.push({ name, version: actualVersion, type });
+        }
+      } else {
+        for (const [name, version2] of Object.entries(
+          packageJson.dependencies || {}
+        )) {
+          packages.push({
+            name,
+            version: version2,
+            type: "dependency"
+          });
+        }
+        for (const [name, version2] of Object.entries(
+          packageJson.devDependencies || {}
+        )) {
+          packages.push({
+            name,
+            version: version2,
+            type: "devDependency"
+          });
+        }
+      }
+    }
+    return packages;
+  }
+  /**
+   * Detect dependency conflicts
+   */
+  detectConflicts(output) {
+    const conflicts = [];
+    const lines = output.split("\n");
+    for (const line of lines) {
+      const npmMatch = line.match(
+        /WARN.*?(\S+).*?requires.*?(\S+).*?will install.*?(\S+)/
+      );
+      if (npmMatch) {
+        conflicts.push({
+          package: npmMatch[1],
+          requested: npmMatch[2],
+          installed: npmMatch[3],
+          severity: "warning"
+        });
+      }
+      const peerMatch = line.match(
+        /warning.*?(\S+).*?unmet peer dependency.*?(\S+)@(\S+)/
+      );
+      if (peerMatch) {
+        conflicts.push({
+          package: peerMatch[1],
+          requested: peerMatch[3],
+          installed: "not installed",
+          severity: "warning"
+        });
+      }
+    }
+    return conflicts;
+  }
+  /**
+   * Generate installation recommendations
+   */
+  generateRecommendations(result) {
+    const recommendations = [];
+    if (result.conflicts.length > 0) {
+      recommendations.push({
+        type: "compatibility",
+        message: `Found ${result.conflicts.length} dependency conflicts. Run 'npm ls' to investigate.`,
+        impact: "high"
+      });
+    }
+    const lockFile = result.packageManager === "npm" ? "package-lock.json" : result.packageManager === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
+    const hadLockfile = result.hadLockfileBeforeInstall;
+    if (hadLockfile === false || !hadLockfile && !existsSync13(join14(this.projectRoot, lockFile))) {
+      recommendations.push({
+        type: "security",
+        message: `Missing ${lockFile}. Commit it for reproducible builds.`,
+        impact: "high"
+      });
+    }
+    if (result.packagesInstalled.length > 100 && result.packageManager !== "pnpm") {
+      recommendations.push({
+        type: "performance",
+        message: "Consider using pnpm for faster installs on large projects.",
+        impact: "medium"
+      });
+    }
+    return recommendations;
+  }
+  /**
+   * Generate cache key
+   */
+  generateCacheKey(packageManager, packages, dev) {
+    const packageJsonPath = join14(this.projectRoot, "package.json");
+    const packageJsonHash = existsSync13(packageJsonPath) ? createHash25("md5").update(readFileSync16(packageJsonPath)).digest("hex") : "no-package-json";
+    const key = `${packageManager}:${packages.join(",")}:${dev}:${packageJsonHash}`;
+    return createHash25("md5").update(key).digest("hex");
+  }
+  /**
+   * Get cached result
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(this.cacheNamespace + ":" + key);
+    if (!cached2) return null;
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache result
+   */
+  cacheResult(key, result) {
+    const cacheData = { ...result, cachedAt: Date.now() };
+    const dataToCache = JSON.stringify(cacheData);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(
+      this.cacheNamespace + ":" + key,
+      dataToCache,
+      originalSize,
+      compactSize
+    );
+  }
+  /**
+   * Transform to smart output
+   */
+  transformOutput(result, recommendations, fromCache = false) {
+    const conflicts = result.conflicts.map((c2) => ({
+      package: c2.package,
+      requested: c2.requested,
+      installed: c2.installed,
+      severity: c2.severity,
+      resolution: c2.severity === "error" ? "Must resolve before installation" : "Consider upgrading or adding peer dependency"
+    }));
+    const packages = result.packagesInstalled.map((p) => ({
+      name: p.name,
+      version: p.version,
+      type: p.type
+    }));
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(result);
+    return {
+      summary: {
+        success: result.success,
+        packageManager: result.packageManager,
+        packagesInstalled: result.packagesInstalled.length,
+        conflictsFound: result.conflicts.length,
+        duration: result.duration,
+        fromCache
+      },
+      packages: packages.slice(0, 20),
+      // Limit to 20 for output
+      conflicts,
+      recommendations,
+      metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    const recommendations = this.generateRecommendations(result);
+    return this.transformOutput(result, recommendations, true);
+  }
+  /**
+   * Estimate original output size (full npm install output)
+   */
+  estimateOriginalOutputSize(result) {
+    const packageSize = result.packagesInstalled.length * 100;
+    return packageSize + 2e3;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(result) {
+    const summary = {
+      success: result.success,
+      packagesInstalled: result.packagesInstalled.length,
+      conflictsFound: result.conflicts.length
+    };
+    const packages = result.packagesInstalled.slice(0, 20);
+    const conflicts = result.conflicts;
+    return JSON.stringify({ summary, packages, conflicts }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartInstall(cache, projectRoot) {
+  return new SmartInstall(cache, projectRoot);
+}
+var SMART_INSTALL_TOOL_DEFINITION = {
+  name: "smart_install",
+  description: "Package installation with dependency analysis, conflict detection, and smart caching for npm/yarn/pnpm",
+  inputSchema: {
+    type: "object",
+    properties: {
+      force: {
+        type: "boolean",
+        description: "Force reinstall (ignore cache)",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      packageManager: {
+        type: "string",
+        enum: ["npm", "yarn", "pnpm"],
+        description: "Package manager to use (auto-detect if not specified)"
+      },
+      packages: {
+        type: "array",
+        items: { type: "string" },
+        description: "Packages to install (if empty, installs all from package.json)"
+      },
+      dev: {
+        type: "boolean",
+        description: "Install as dev dependency",
+        default: false
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 3600)",
+        default: 3600
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-lint.ts
+init_cache_engine();
+init_token_counter();
+init_metrics();
+import { createHash as createHash26 } from "crypto";
+import { readFileSync as readFileSync17, existsSync as existsSync14 } from "fs";
+import { join as join15 } from "path";
+init_paths2();
+var SmartLint = class {
+  cache;
+  cacheNamespace = "smart_lint";
+  projectRoot;
+  defaultProjectRoot;
+  ignoredIssuesKey = "ignored_issues";
+  constructor(cache, _tokenCounter, _metrics, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run lint with smart caching and output reduction
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      files = "src",
+      force = false,
+      fix = false,
+      onlyNew = true,
+      includeIgnored = false,
+      maxCacheAge = 3600
+    } = options;
+    const filePatterns = Array.isArray(files) ? files : [files];
+    const cacheKey = await this.generateCacheKey(filePatterns);
+    if (!force) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2, onlyNew);
+      }
+    }
+    const result = await this.runEslint({
+      files: filePatterns,
+      fix
+    });
+    this.cacheResult(cacheKey, result);
+    return this.transformOutput(result, onlyNew, includeIgnored);
+  }
+  /**
+   * Run ESLint and capture results
+   */
+  async runEslint(options) {
+    const args = [...options.files, "--format=json"];
+    if (options.fix) {
+      args.push("--fix");
+    }
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const eslint = spawnNodeBin(
+        "eslint",
+        "eslint",
+        args,
+        { cwd: this.projectRoot },
+        "smart_lint"
+      );
+      eslint.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      eslint.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      eslint.on("close", (_code) => {
+        try {
+          const result = JSON.parse(stdout);
+          const output = {
+            results: result,
+            errorCount: result.reduce((sum, r) => sum + r.errorCount, 0),
+            warningCount: result.reduce((sum, r) => sum + r.warningCount, 0),
+            fixableErrorCount: result.reduce(
+              (sum, r) => sum + r.fixableErrorCount,
+              0
+            ),
+            fixableWarningCount: result.reduce(
+              (sum, r) => sum + r.fixableWarningCount,
+              0
+            )
+          };
+          resolve4(output);
+        } catch (err) {
+          reject(
+            new Error(`Failed to parse ESLint output: ${stderr || stdout}`)
+          );
+        }
+      });
+      eslint.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Generate cache key based on source files
+   */
+  async generateCacheKey(files) {
+    const hash = createHash26("sha256");
+    hash.update(this.cacheNamespace);
+    hash.update(files.join(":"));
+    const eslintConfigPath = join15(this.projectRoot, "eslint.config.js");
+    if (existsSync14(eslintConfigPath)) {
+      const content = readFileSync17(eslintConfigPath, "utf-8");
+      hash.update(content);
+    }
+    const packageJsonPath = join15(this.projectRoot, "package.json");
+    if (existsSync14(packageJsonPath)) {
+      const packageJson = readFileSync17(packageJsonPath, "utf-8");
+      const pkg = JSON.parse(packageJson);
+      const eslintDeps = Object.keys(pkg.devDependencies || {}).filter((dep) => dep.includes("eslint")).sort().map((dep) => `${dep}:${pkg.devDependencies[dep]}`).join(",");
+      hash.update(eslintDeps);
+    }
+    return `${this.cacheNamespace}:${hash.digest("hex")}`;
+  }
+  /**
+   * Get cached result if available and fresh
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(key);
+    if (!cached2) {
+      return null;
+    }
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache lint result
+   */
+  cacheResult(key, result) {
+    const toCache = {
+      ...result,
+      cachedAt: Date.now()
+    };
+    const dataToCache = JSON.stringify(toCache);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(key, dataToCache, originalSize, compactSize);
+  }
+  /**
+   * Get previously ignored issues
+   */
+  getIgnoredIssues() {
+    const cached2 = this.cache.get(this.ignoredIssuesKey);
+    if (!cached2) {
+      return /* @__PURE__ */ new Set();
+    }
+    try {
+      const ignored = JSON.parse(cached2);
+      return new Set(ignored);
+    } catch (err) {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  /**
+   * Generate issue key for tracking
+   */
+  generateIssueKey(file, line, ruleId) {
+    return `${file}:${line}:${ruleId}`;
+  }
+  /**
+   * Compare with previous run to detect new issues
+   */
+  detectNewIssues(_current) {
+    return [];
+  }
+  /**
+   * Transform full lint output to smart output
+   */
+  transformOutput(result, _onlyNew, includeIgnored, fromCache = false) {
+    const ignoredSet = this.getIgnoredIssues();
+    const issuesByRule = /* @__PURE__ */ new Map();
+    for (const fileResult of result.results) {
+      for (const message of fileResult.messages) {
+        const key = this.generateIssueKey(
+          fileResult.filePath,
+          message.line,
+          message.ruleId
+        );
+        if (!includeIgnored && ignoredSet.has(key)) {
+          continue;
+        }
+        if (!issuesByRule.has(message.ruleId)) {
+          issuesByRule.set(message.ruleId, {
+            severity: message.severity === 2 ? "error" : "warning",
+            fixable: !!message.fix,
+            occurrences: []
+          });
+        }
+        const rule = issuesByRule.get(message.ruleId);
+        rule.occurrences.push({
+          file: fileResult.filePath,
+          line: message.line,
+          column: message.column,
+          message: message.message
+        });
+      }
+    }
+    const issues = Array.from(issuesByRule.entries()).map(([ruleId, data]) => {
+      const fileMap = /* @__PURE__ */ new Map();
+      for (const occ of data.occurrences) {
+        if (!fileMap.has(occ.file)) {
+          fileMap.set(occ.file, []);
+        }
+        fileMap.get(occ.file).push({
+          line: occ.line,
+          column: occ.column,
+          message: occ.message
+        });
+      }
+      return {
+        severity: data.severity,
+        ruleId,
+        count: data.occurrences.length,
+        fixable: data.fixable,
+        files: Array.from(fileMap.entries()).map(([path7, locations]) => ({
+          path: path7,
+          locations
+        }))
+      };
+    });
+    issues.sort((a2, b) => b.count - a2.count);
+    const autoFixSuggestions = issues.filter((issue2) => issue2.fixable).map((issue2) => ({
+      ruleId: issue2.ruleId,
+      count: issue2.count,
+      impact: this.estimateFixImpact(issue2.count, issue2.severity)
+    })).sort((a2, b) => {
+      const impactOrder = { high: 3, medium: 2, low: 1 };
+      return impactOrder[b.impact] - impactOrder[a2.impact];
+    });
+    const newIssues = this.detectNewIssues(result);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(result);
+    return {
+      summary: {
+        totalFiles: result.results.length,
+        errorCount: result.errorCount,
+        warningCount: result.warningCount,
+        fixableCount: result.fixableErrorCount + result.fixableWarningCount,
+        newIssuesCount: newIssues.length,
+        fromCache
+      },
+      issues,
+      autoFixSuggestions,
+      newIssues,
+      _metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Estimate fix impact
+   */
+  estimateFixImpact(count, severity) {
+    if (severity === "error" || count > 20) {
+      return "high";
+    }
+    if (count > 5) {
+      return "medium";
+    }
+    return "low";
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result, onlyNew) {
+    return this.transformOutput(result, onlyNew, false, true);
+  }
+  /**
+   * Estimate original output size (full eslint output)
+   */
+  estimateOriginalOutputSize(result) {
+    const messageCount = result.results.reduce(
+      (sum, r) => sum + r.messages.length,
+      0
+    );
+    return messageCount * 150 + 500;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(result) {
+    const summary = {
+      errorCount: result.errorCount,
+      warningCount: result.warningCount
+    };
+    const topRules = result.results.flatMap((r) => r.messages).slice(0, 10).map((m2) => ({ ruleId: m2.ruleId, message: m2.message }));
+    return JSON.stringify({ summary, topRules }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartLintTool(cache, tokenCounter, metrics, projectRoot) {
+  return new SmartLint(cache, tokenCounter, metrics, projectRoot);
+}
+var SMART_LINT_TOOL_DEFINITION = {
+  name: "smart_lint",
+  description: "Run ESLint with intelligent caching, incremental analysis, and auto-fix suggestions",
+  inputSchema: {
+    type: "object",
+    properties: {
+      files: {
+        type: ["string", "array"],
+        description: "Files or pattern to lint",
+        items: { type: "string" }
+      },
+      force: {
+        type: "boolean",
+        description: "Force full lint (ignore cache)",
+        default: false
+      },
+      fix: {
+        type: "boolean",
+        description: "Auto-fix issues",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      onlyNew: {
+        type: "boolean",
+        description: "Show only new issues since last run",
+        default: false
+      },
+      includeIgnored: {
+        type: "boolean",
+        description: "Include previously ignored issues",
+        default: false
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 3600)",
+        default: 3600
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-logs.ts
+init_cache_engine();
+init_paths2();
+import { createHash as createHash27 } from "crypto";
+import { existsSync as existsSync15, readFileSync as readFileSync18 } from "fs";
+import { join as join16 } from "path";
+var SmartLogs = class {
+  cache;
+  cacheNamespace = "smart_logs";
+  defaultProjectRoot;
+  projectRoot;
+  constructor(cache, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Aggregate and analyze logs
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      sources = [],
+      level = "all",
+      pattern,
+      tail = 100,
+      follow = false,
+      since,
+      maxCacheAge = 300
+      // Logs have shorter cache (5 min)
+    } = options;
+    const startTime = Date.now();
+    const cacheKey = this.generateCacheKey(
+      sources,
+      level,
+      pattern,
+      tail,
+      since
+    );
+    if (!follow) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const result = await this.aggregateLogs({
+      sources,
+      level,
+      pattern,
+      tail,
+      since
+    });
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    if (!follow) {
+      this.cacheResult(cacheKey, result);
+    }
+    const insights = this.generateInsights(result);
+    return this.transformOutput(result, insights);
+  }
+  /**
+   * Aggregate logs from multiple sources
+   */
+  async aggregateLogs(options) {
+    const { sources, level, pattern, tail, since } = options;
+    const allEntries = [];
+    const logSources = sources.length > 0 ? sources : this.getDefaultLogSources();
+    for (const source of logSources) {
+      const entries = await this.readLogSource(source, tail);
+      allEntries.push(...entries);
+    }
+    let filtered = level === "all" ? allEntries : allEntries.filter((e) => e.level === level);
+    if (pattern) {
+      const regex = new RegExp(pattern, "i");
+      filtered = filtered.filter((e) => regex.test(e.message));
+    }
+    if (since) {
+      const cutoffTime = this.parseTimeRange(since);
+      filtered = filtered.filter((e) => new Date(e.timestamp) >= cutoffTime);
+    }
+    filtered.sort(
+      (a2, b) => new Date(b.timestamp).getTime() - new Date(a2.timestamp).getTime()
+    );
+    filtered = filtered.slice(0, tail);
+    const stats = this.calculateStats(filtered);
+    const patterns = this.detectPatterns(filtered);
+    return {
+      success: true,
+      entries: filtered,
+      stats,
+      patterns,
+      duration: 0,
+      // Set by caller
+      timestamp: Date.now()
+    };
+  }
+  /**
+   * Get default log sources based on OS
+   */
+  getDefaultLogSources() {
+    const sources = [];
+    const appLogPath = join16(this.projectRoot, "logs");
+    if (existsSync15(appLogPath)) {
+      sources.push(join16(appLogPath, "app.log"));
+      sources.push(join16(appLogPath, "error.log"));
+    }
+    if (process.platform === "win32") {
+      sources.push("system:application");
+    } else if (process.platform === "darwin") {
+      sources.push("/var/log/system.log");
+    } else {
+      sources.push("/var/log/syslog");
+    }
+    return sources.filter((s) => existsSync15(s) || s.startsWith("system:"));
+  }
+  /**
+   * Read logs from a single source
+   */
+  async readLogSource(source, tail) {
+    if (source.startsWith("system:")) {
+      return this.readSystemLogs(source, tail);
+    } else {
+      return this.readFileLog(source, tail);
+    }
+  }
+  /**
+   * Read logs from a file
+   */
+  async readFileLog(filePath, tail) {
+    if (!existsSync15(filePath)) {
+      return [];
+    }
+    const entries = [];
+    try {
+      const content = readFileSync18(filePath, "utf-8");
+      const lines = content.split("\n").filter((l) => l.trim()).slice(-Math.max(0, tail));
+      for (const line of lines) {
+        const entry = this.parseLogLine(line, filePath);
+        if (entry) {
+          entries.push(entry);
+        }
+      }
+    } catch {
+      return [];
+    }
+    return entries;
+  }
+  /**
+   * Read system logs
+   */
+  async readSystemLogs(source, tail) {
+    const logType = source.split(":")[1] || "";
+    const safeLogType = logType;
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(safeLogType)) {
+      return [];
+    }
+    const safeTail = Math.max(1, Math.min(1e5, Math.floor(tail) || 1));
+    const entries = [];
+    let command;
+    let args;
+    if (process.platform === "win32") {
+      command = "powershell";
+      args = [
+        "-NoProfile",
+        "-Command",
+        `Get-EventLog -LogName ${safeLogType} -Newest ${safeTail} | Select-Object TimeGenerated,EntryType,Message | ConvertTo-Json`
+      ];
+    } else if (process.platform === "darwin") {
+      command = "log";
+      args = ["show", "--last", "1h", "--style", "json"];
+    } else {
+      command = "journalctl";
+      args = ["-n", safeTail.toString(), "-o", "json"];
+    }
+    let output = "";
+    try {
+      const result = await spawnSafe(command, args);
+      output = result.stdout;
+    } catch {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(output);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of items) {
+        entries.push(this.parseSystemLogEntry(item, source));
+      }
+    } catch {
+      const lines = output.split("\n").filter((l) => l.trim());
+      for (const line of lines) {
+        const entry = this.parseLogLine(line, source);
+        if (entry) entries.push(entry);
+      }
+    }
+    return entries;
+  }
+  /**
+   * Parse a log line
+   */
+  parseLogLine(line, source) {
+    const isoMatch = line.match(
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\s+\[(ERROR|WARN|INFO|DEBUG)\]\s+(.+)$/
+    );
+    if (isoMatch) {
+      return {
+        timestamp: isoMatch[1],
+        level: isoMatch[2].toLowerCase(),
+        source,
+        message: isoMatch[3]
+      };
+    }
+    const syslogMatch = line.match(
+      /^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+(.+)$/
+    );
+    if (syslogMatch) {
+      return {
+        timestamp: new Date(syslogMatch[1]).toISOString(),
+        level: this.detectLogLevel(syslogMatch[2]),
+        source,
+        message: syslogMatch[2]
+      };
+    }
+    return {
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      level: this.detectLogLevel(line),
+      source,
+      message: line
+    };
+  }
+  /**
+   * Parse system log entry
+   */
+  parseSystemLogEntry(item, source) {
+    const entry = item;
+    return {
+      timestamp: entry.TimeGenerated || entry.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+      level: this.mapSystemLogLevel(entry.EntryType || entry.level),
+      source,
+      message: entry.Message || entry.message || "",
+      metadata: entry
+    };
+  }
+  /**
+   * Detect log level from message
+   */
+  detectLogLevel(message) {
+    const lower = message.toLowerCase();
+    if (lower.includes("error") || lower.includes("fatal") || lower.includes("critical")) {
+      return "error";
+    }
+    if (lower.includes("warn") || lower.includes("warning")) {
+      return "warn";
+    }
+    if (lower.includes("debug") || lower.includes("trace")) {
+      return "debug";
+    }
+    return "info";
+  }
+  /**
+   * Map system log level to our levels
+   */
+  mapSystemLogLevel(level) {
+    const str = String(level).toLowerCase();
+    if (str.includes("error") || str === "1") return "error";
+    if (str.includes("warn") || str === "2" || str === "3") return "warn";
+    if (str.includes("debug") || str === "5") return "debug";
+    return "info";
+  }
+  /**
+   * Parse time range string
+   */
+  parseTimeRange(since) {
+    const now2 = Date.now();
+    const match = since.match(/^(\d+)([hdwm])$/);
+    if (!match) {
+      return new Date(now2 - 36e5);
+    }
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    const multipliers = {
+      h: 36e5,
+      // hours
+      d: 864e5,
+      // days
+      w: 6048e5,
+      // weeks
+      m: 2592e6
+      // months (30 days)
+    };
+    const offset = value * (multipliers[unit] || 36e5);
+    return new Date(now2 - offset);
+  }
+  /**
+   * Calculate statistics
+   */
+  calculateStats(entries) {
+    const byLevel = {};
+    const bySource = {};
+    let earliest = /* @__PURE__ */ new Date();
+    let latest = /* @__PURE__ */ new Date(0);
+    for (const entry of entries) {
+      byLevel[entry.level] = (byLevel[entry.level] || 0) + 1;
+      bySource[entry.source] = (bySource[entry.source] || 0) + 1;
+      const time3 = new Date(entry.timestamp);
+      if (time3 < earliest) earliest = time3;
+      if (time3 > latest) latest = time3;
+    }
+    return {
+      total: entries.length,
+      byLevel,
+      bySource,
+      timeRange: {
+        start: earliest.toISOString(),
+        end: latest.toISOString()
+      }
+    };
+  }
+  /**
+   * Detect common patterns
+   */
+  detectPatterns(entries) {
+    const patterns = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      const errorCode = entry.message.match(/([A-Z]{2,}\d{4}|ERR_[A-Z_]+)/);
+      if (errorCode) {
+        const key = errorCode[1];
+        patterns.set(key, (patterns.get(key) || 0) + 1);
+      }
+      const exception = entry.message.match(/(\w+Exception|Error):/);
+      if (exception) {
+        const key = exception[1];
+        patterns.set(key, (patterns.get(key) || 0) + 1);
+      }
+    }
+    return Array.from(patterns.entries()).map(([pattern, count]) => ({ pattern, count })).sort((a2, b) => b.count - a2.count).slice(0, 10);
+  }
+  /**
+   * Generate insights
+   */
+  generateInsights(result) {
+    const insights = [];
+    const errorRate = (result.stats.byLevel.error || 0) / result.stats.total;
+    if (errorRate > 0.1) {
+      insights.push({
+        type: "error",
+        message: `High error rate: ${(errorRate * 100).toFixed(1)}% of logs are errors`,
+        impact: "high"
+      });
+    }
+    const topPattern = result.patterns[0];
+    if (topPattern && topPattern.count > 10) {
+      insights.push({
+        type: "error",
+        message: `Repeated error pattern: "${topPattern.pattern}" appears ${topPattern.count} times`,
+        impact: "high"
+      });
+    }
+    const warnCount = result.stats.byLevel.warn || 0;
+    if (warnCount > 50) {
+      insights.push({
+        type: "warning",
+        message: `High warning count: ${warnCount} warnings detected`,
+        impact: "medium"
+      });
+    }
+    return insights;
+  }
+  /**
+   * Generate cache key
+   */
+  generateCacheKey(sources, level, pattern, tail, since) {
+    const keyParts = [
+      sources.join(","),
+      level,
+      pattern || "",
+      tail.toString(),
+      since || ""
+    ];
+    return createHash27("md5").update(keyParts.join(":")).digest("hex");
+  }
+  /**
+   * Get cached result
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(this.cacheNamespace + ":" + key);
+    if (!cached2) return null;
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache result
+   */
+  cacheResult(key, result) {
+    const cacheData = { ...result, cachedAt: Date.now() };
+    const dataToCache = JSON.stringify(cacheData);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(
+      this.cacheNamespace + ":" + key,
+      dataToCache,
+      originalSize,
+      compactSize
+    );
+  }
+  /**
+   * Transform to smart output
+   */
+  transformOutput(result, insights, fromCache = false) {
+    if (result.entries.length < 20) {
+      const entries2 = result.entries.map((e) => ({
+        timestamp: e.timestamp,
+        level: e.level,
+        source: e.source,
+        message: e.message
+        // Full message, no truncation for small datasets
+      }));
+      const originalSize2 = JSON.stringify(entries2).length;
+      const compactSize2 = originalSize2;
+      const timeRangeDuration2 = new Date(result.stats.timeRange.end).getTime() - new Date(result.stats.timeRange.start).getTime();
+      const timeRangeStr2 = `${(timeRangeDuration2 / 6e4).toFixed(0)} minutes`;
+      return {
+        summary: {
+          success: result.success,
+          totalEntries: result.stats.total,
+          errorCount: result.stats.byLevel.error || 0,
+          warnCount: result.stats.byLevel.warn || 0,
+          timeRange: timeRangeStr2,
+          duration: result.duration,
+          fromCache
+        },
+        entries: entries2,
+        // All entries, no slicing
+        stats: {
+          byLevel: result.stats.byLevel,
+          bySource: result.stats.bySource
+        },
+        patterns: [],
+        // No patterns for small datasets
+        insights: [],
+        // No insights for small datasets
+        metrics: {
+          originalTokens: Math.ceil(originalSize2 / 4),
+          compactedTokens: Math.ceil(compactSize2 / 4),
+          reductionPercentage: 0
+          // No reduction for small datasets
+        }
+      };
+    }
+    const entries = result.entries.map((e) => ({
+      timestamp: e.timestamp,
+      level: e.level,
+      source: e.source,
+      message: e.message.substring(0, 200)
+      // Truncate long messages
+    }));
+    const patterns = result.patterns.map((p) => ({
+      pattern: p.pattern,
+      count: p.count,
+      severity: p.count > 50 ? "critical" : p.count > 20 ? "high" : p.count > 10 ? "medium" : "low"
+    }));
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(
+      entries.slice(0, 50),
+      // Only measure what we actually send
+      patterns,
+      insights
+    );
+    const timeRangeDuration = new Date(result.stats.timeRange.end).getTime() - new Date(result.stats.timeRange.start).getTime();
+    const timeRangeStr = `${(timeRangeDuration / 6e4).toFixed(0)} minutes`;
+    return {
+      summary: {
+        success: result.success,
+        totalEntries: result.stats.total,
+        errorCount: result.stats.byLevel.error || 0,
+        warnCount: result.stats.byLevel.warn || 0,
+        timeRange: timeRangeStr,
+        duration: result.duration,
+        fromCache
+      },
+      entries: entries.slice(0, 50),
+      // Limit to 50 for output
+      stats: {
+        byLevel: result.stats.byLevel,
+        bySource: result.stats.bySource
+      },
+      patterns,
+      insights,
+      metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, [], true);
+  }
+  /**
+   * Estimate original output size
+   */
+  estimateOriginalOutputSize(result) {
+    return JSON.stringify(result.entries).length;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(entries, patterns, insights) {
+    return JSON.stringify({ entries, patterns, insights }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartLogs(cache, projectRoot) {
+  return new SmartLogs(cache, projectRoot);
+}
+var SMART_LOGS_TOOL_DEFINITION = {
+  name: "smart_logs",
+  description: "System log aggregation and analysis with multi-source support, pattern filtering, error detection, and insights",
+  inputSchema: {
+    type: "object",
+    properties: {
+      sources: {
+        type: "array",
+        items: { type: "string" },
+        description: "Log sources to aggregate (file paths or system logs)"
+      },
+      level: {
+        type: "string",
+        enum: ["error", "warn", "info", "debug", "all"],
+        description: "Filter by log level",
+        default: "all"
+      },
+      pattern: {
+        type: "string",
+        description: "Filter by pattern (regex)"
+      },
+      tail: {
+        type: "number",
+        description: "Number of lines to tail",
+        default: 100
+      },
+      follow: {
+        type: "boolean",
+        description: "Follow mode (watch for new entries)",
+        default: false
+      },
+      since: {
+        type: "string",
+        description: "Time range filter (e.g., '1h', '24h', '7d')"
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 300)",
+        default: 300
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-network.ts
+import { spawn as spawn5 } from "child_process";
+init_cache_engine();
+init_paths2();
+import { createHash as createHash28 } from "crypto";
+import * as dns from "dns";
+import * as net from "net";
+import { promisify as promisify2 } from "util";
+var dnsLookup = promisify2(dns.lookup);
+var SmartNetwork = class {
+  cache;
+  cacheNamespace = "smart_network";
+  constructor(cache, _projectRoot) {
+    this.cache = cache;
+  }
+  /**
+   * Run network diagnostics
+   */
+  async run(options) {
+    const {
+      operation,
+      hosts = ["8.8.8.8", "google.com"],
+      ports = [80, 443],
+      hostnames = ["google.com", "github.com"],
+      pingCount = 4,
+      timeout: timeout2 = 5e3,
+      maxCacheAge = 300
+    } = options;
+    const startTime = Date.now();
+    const cacheKey = this.generateCacheKey(operation, hosts, ports, hostnames);
+    const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+    if (cached2) {
+      return this.formatCachedOutput(cached2);
+    }
+    const result = await this.runNetworkOperation({
+      operation,
+      hosts,
+      ports,
+      hostnames,
+      pingCount,
+      timeout: timeout2
+    });
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    this.cacheResult(cacheKey, result);
+    const diagnostics = this.generateDiagnostics(result);
+    const recommendations = this.generateRecommendations(result);
+    return this.transformOutput(result, diagnostics, recommendations);
+  }
+  /**
+   * Run network operation
+   */
+  async runNetworkOperation(options) {
+    const { operation, hosts, ports, hostnames, pingCount, timeout: timeout2 } = options;
+    const result = {
+      success: true,
+      connectivity: [],
+      duration: 0,
+      timestamp: Date.now()
+    };
+    if (operation === "ping" || operation === "all") {
+      result.connectivity = await this.pingHosts(hosts, pingCount, timeout2);
+      result.latencyStats = this.calculateLatencyStats(result.connectivity);
+    }
+    if (operation === "port-scan" || operation === "all") {
+      result.ports = await this.scanPorts(hosts, ports, timeout2);
+    }
+    if (operation === "dns" || operation === "all") {
+      result.dns = await this.resolveDns(hostnames);
+    }
+    if (operation === "traceroute") {
+      result.connectivity = await this.pingHosts(hosts, 1, timeout2);
+    }
+    return result;
+  }
+  /**
+   * Ping hosts
+   */
+  async pingHosts(hosts, count, timeout2) {
+    const results = [];
+    for (const host of hosts) {
+      const result = await this.pingHost(host, count, timeout2);
+      results.push(result);
+    }
+    return results;
+  }
+  /**
+   * Ping a single host
+   */
+  async pingHost(host, count, timeout2) {
+    return new Promise((resolve4) => {
+      let output = "";
+      try {
+        assertSafeArg(host, "host");
+      } catch {
+        resolve4({ host, reachable: false, error: "Invalid host" });
+        return;
+      }
+      const isWindows = process.platform === "win32";
+      const command = "ping";
+      const args = isWindows ? ["-n", count.toString(), "-w", timeout2.toString(), host] : ["-c", count.toString(), "-W", (timeout2 / 1e3).toString(), host];
+      const child = spawn5(command, args, { shell: false, windowsHide: true });
+      child.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+      child.on("close", (code) => {
+        if (code === 0) {
+          const latency = this.parsePingLatency(output);
+          resolve4({
+            host,
+            reachable: true,
+            latency
+          });
+        } else {
+          resolve4({
+            host,
+            reachable: false,
+            error: "Host unreachable"
+          });
+        }
+      });
+      child.on("error", (err) => {
+        resolve4({
+          host,
+          reachable: false,
+          error: err.message
+        });
+      });
+    });
+  }
+  /**
+   * Parse ping latency from output
+   */
+  parsePingLatency(output) {
+    const windowsMatch = output.match(/Average\s*=\s*(\d+)ms/);
+    if (windowsMatch) {
+      return parseInt(windowsMatch[1], 10);
+    }
+    const unixMatch = output.match(
+      /rtt[^=]*=\s*[\d.]+\/([\d.]+)\/([\d.]+)\/([\d.]+)/
+    );
+    if (unixMatch) {
+      return parseFloat(unixMatch[2]);
+    }
+    return 0;
+  }
+  /**
+   * Scan ports on hosts
+   */
+  async scanPorts(hosts, ports, timeout2) {
+    const results = [];
+    for (const host of hosts) {
+      for (const port of ports) {
+        const result = await this.checkPort(host, port, timeout2);
+        results.push(result);
+      }
+    }
+    return results;
+  }
+  /**
+   * Check if a port is open
+   */
+  async checkPort(host, port, timeout2) {
+    return new Promise((resolve4) => {
+      const socket = new net.Socket();
+      const timer2 = setTimeout(() => {
+        socket.destroy();
+        resolve4({
+          host,
+          port,
+          open: false
+        });
+      }, timeout2);
+      socket.connect(port, host, () => {
+        clearTimeout(timer2);
+        socket.destroy();
+        resolve4({
+          host,
+          port,
+          open: true,
+          service: this.getServiceName(port)
+        });
+      });
+      socket.on("error", () => {
+        clearTimeout(timer2);
+        resolve4({
+          host,
+          port,
+          open: false
+        });
+      });
+    });
+  }
+  /**
+   * Get service name for common ports
+   */
+  getServiceName(port) {
+    const services = {
+      20: "FTP Data",
+      21: "FTP Control",
+      22: "SSH",
+      23: "Telnet",
+      25: "SMTP",
+      53: "DNS",
+      80: "HTTP",
+      110: "POP3",
+      143: "IMAP",
+      443: "HTTPS",
+      465: "SMTPS",
+      587: "SMTP Submission",
+      993: "IMAPS",
+      995: "POP3S",
+      3306: "MySQL",
+      5432: "PostgreSQL",
+      6379: "Redis",
+      8080: "HTTP Alt",
+      8443: "HTTPS Alt",
+      27017: "MongoDB"
+    };
+    return services[port] || `Port ${port}`;
+  }
+  /**
+   * Resolve DNS for hostnames
+   */
+  async resolveDns(hostnames) {
+    const results = [];
+    for (const hostname of hostnames) {
+      try {
+        const lookup2 = await dnsLookup(hostname);
+        results.push({
+          hostname,
+          addresses: [lookup2.address]
+        });
+      } catch (err) {
+        results.push({
+          hostname,
+          addresses: [],
+          error: err.message
+        });
+      }
+    }
+    return results;
+  }
+  /**
+   * Calculate latency statistics
+   */
+  calculateLatencyStats(connectivity) {
+    const latencies = connectivity.filter((c2) => c2.latency !== void 0).map((c2) => c2.latency);
+    if (latencies.length === 0) {
+      return void 0;
+    }
+    const min = Math.min(...latencies);
+    const max = Math.max(...latencies);
+    const avg = latencies.reduce((sum, l) => sum + l, 0) / latencies.length;
+    return {
+      min: Math.round(min * 100) / 100,
+      max: Math.round(max * 100) / 100,
+      avg: Math.round(avg * 100) / 100
+    };
+  }
+  /**
+   * Generate diagnostics
+   */
+  generateDiagnostics(result) {
+    const diagnostics = [];
+    const unreachableHosts = result.connectivity.filter((c2) => !c2.reachable);
+    if (unreachableHosts.length > 0) {
+      diagnostics.push({
+        type: "connectivity",
+        severity: unreachableHosts.length === result.connectivity.length ? "critical" : "warning",
+        message: `${unreachableHosts.length} host(s) unreachable: ${unreachableHosts.map((h) => h.host).join(", ")}`
+      });
+    }
+    if (result.latencyStats) {
+      if (result.latencyStats.avg > 200) {
+        diagnostics.push({
+          type: "performance",
+          severity: result.latencyStats.avg > 500 ? "warning" : "info",
+          message: `High average latency: ${result.latencyStats.avg}ms`
+        });
+      }
+    }
+    if (result.dns) {
+      const failedDns = result.dns.filter((d3) => d3.error);
+      if (failedDns.length > 0) {
+        diagnostics.push({
+          type: "dns",
+          severity: "warning",
+          message: `DNS resolution failed for: ${failedDns.map((d3) => d3.hostname).join(", ")}`
+        });
+      }
+    }
+    return diagnostics;
+  }
+  /**
+   * Generate recommendations
+   */
+  generateRecommendations(result) {
+    const recommendations = [];
+    const allUnreachable = result.connectivity.every((c2) => !c2.reachable);
+    if (allUnreachable && result.connectivity.length > 0) {
+      recommendations.push({
+        type: "connectivity",
+        message: "All hosts unreachable. Check firewall, VPN, or internet connection.",
+        impact: "high"
+      });
+    }
+    if (result.latencyStats && result.latencyStats.avg > 200) {
+      recommendations.push({
+        type: "performance",
+        message: "High network latency detected. Consider using a CDN or checking network quality.",
+        impact: "medium"
+      });
+    }
+    if (result.ports) {
+      const openPorts = result.ports.filter((p) => p.open);
+      const sensitivePorts = openPorts.filter(
+        (p) => [23, 21, 3306, 5432, 27017].includes(p.port)
+      );
+      if (sensitivePorts.length > 0) {
+        recommendations.push({
+          type: "configuration",
+          message: `Sensitive ports open: ${sensitivePorts.map((p) => p.service).join(", ")}. Ensure proper security measures.`,
+          impact: "high"
+        });
+      }
+    }
+    return recommendations;
+  }
+  /**
+   * Generate cache key
+   */
+  generateCacheKey(operation, hosts, ports, hostnames) {
+    const keyParts = [
+      operation,
+      hosts.join(","),
+      ports.join(","),
+      hostnames.join(",")
+    ];
+    return createHash28("md5").update(keyParts.join(":")).digest("hex");
+  }
+  /**
+   * Get cached result
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(this.cacheNamespace + ":" + key);
+    if (!cached2) return null;
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache result
+   */
+  cacheResult(key, result) {
+    const cacheData = { ...result, cachedAt: Date.now() };
+    const dataToCache = JSON.stringify(cacheData);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = dataToCache.length;
+    this.cache.set(
+      this.cacheNamespace + ":" + key,
+      dataToCache,
+      originalSize,
+      compactSize
+    );
+  }
+  /**
+   * Transform to smart output
+   */
+  transformOutput(result, diagnostics, recommendations, fromCache = false) {
+    const connectivity = result.connectivity.map((c2) => ({
+      host: c2.host,
+      reachable: c2.reachable,
+      latency: c2.latency,
+      status: c2.reachable ? "online" : c2.error?.includes("timeout") ? "timeout" : "offline"
+    }));
+    const ports = result.ports?.map((p) => ({
+      host: p.host,
+      port: p.port,
+      open: p.open,
+      service: p.service
+    }));
+    const dns2 = result.dns?.map((d3) => ({
+      hostname: d3.hostname,
+      addresses: d3.addresses,
+      resolved: !d3.error
+    }));
+    let latencyStats = result.latencyStats ? {
+      ...result.latencyStats,
+      distribution: this.getLatencyDistribution(result.latencyStats)
+    } : void 0;
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize({ connectivity, ports, dns: dns2 });
+    const reachableCount = connectivity.filter((c2) => c2.reachable).length;
+    return {
+      summary: {
+        success: result.success,
+        operation: "network diagnostics",
+        hostsChecked: connectivity.length,
+        reachableHosts: reachableCount,
+        duration: result.duration,
+        fromCache
+      },
+      connectivity,
+      ports,
+      dns: dns2,
+      latencyStats,
+      diagnostics,
+      recommendations,
+      metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Get latency distribution description
+   */
+  getLatencyDistribution(stats) {
+    if (stats.avg < 50) return "Excellent";
+    if (stats.avg < 100) return "Good";
+    if (stats.avg < 200) return "Fair";
+    if (stats.avg < 500) return "Poor";
+    return "Very Poor";
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, [], [], true);
+  }
+  /**
+   * Estimate original output size
+   */
+  estimateOriginalOutputSize(result) {
+    let size = 1e3;
+    size += result.connectivity.length * 200;
+    size += (result.ports?.length || 0) * 100;
+    size += (result.dns?.length || 0) * 150;
+    return size;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(output) {
+    return JSON.stringify(output).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartNetwork(cache, projectRoot) {
+  return new SmartNetwork(cache, projectRoot);
+}
+var SMART_NETWORK_TOOL_DEFINITION = {
+  name: "smart_network",
+  description: "Network diagnostics and monitoring with connectivity testing, port scanning, DNS resolution, and anomaly detection",
+  inputSchema: {
+    type: "object",
+    properties: {
+      operation: {
+        type: "string",
+        enum: ["ping", "port-scan", "dns", "traceroute", "all"],
+        description: "Network operation to perform"
+      },
+      hosts: {
+        type: "array",
+        items: { type: "string" },
+        description: "Hosts to test (for ping/port-scan operations)"
+      },
+      ports: {
+        type: "array",
+        items: { type: "number" },
+        description: "Ports to scan (for port-scan operation)"
+      },
+      hostnames: {
+        type: "array",
+        items: { type: "string" },
+        description: "Hostnames for DNS resolution"
+      },
+      pingCount: {
+        type: "number",
+        description: "Number of ping attempts per host",
+        default: 4
+      },
+      timeout: {
+        type: "number",
+        description: "Timeout in milliseconds",
+        default: 5e3
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 300)",
+        default: 300
+      }
+    },
+    required: ["operation"]
+  }
+};
+
+// src/optimizer/tools/build-systems/wmic-process-parser.ts
+var WMIC_PROCESS_COLUMNS = "ProcessId,Name,UserModeTime,KernelModeTime,WorkingSetSize,CreationDate,CommandLine";
+function parseWmicProcessCsv(stdout, now2 = Date.now()) {
+  const processes = [];
+  for (const row of parseWmicCsvRows(stdout)) {
+    const pid = numericField(row, "ProcessId");
+    const bytes = numericField(row, "WorkingSetSize");
+    const kernel = numericField(row, "KernelModeTime");
+    const user = numericField(row, "UserModeTime");
+    const name = row.Name;
+    if (pid === null || bytes === null || kernel === null || user === null)
+      continue;
+    if (!name) continue;
+    processes.push({
+      pid,
+      name,
+      cpu: lifetimeCpuPercent(kernel + user, row.CreationDate ?? "", now2),
+      memory: bytes / 1024 / 1024,
+      command: row.CommandLine || name,
+      user: "current"
+      // Win32_Process exposes the owner only via a per-process call.
+    });
+  }
+  return processes;
+}
+
+// src/optimizer/tools/build-systems/smart-processes.ts
+init_cache_engine();
+init_token_counter();
+init_metrics();
+init_paths2();
+import { cpus, totalmem } from "os";
+var PROCESS_QUERY_TIMEOUT_MS = 9e4;
+var SmartProcesses = class {
+  cache;
+  cacheNamespace = "smart_processes";
+  platform;
+  constructor(cache, _tokenCounter, _metrics, _projectRoot) {
+    this.cache = cache;
+    this.platform = process.platform;
+  }
+  /**
+   * Get process information with smart filtering and caching
+   */
+  async run(options = {}) {
+    const {
+      filter,
+      // A LISTING TOOL MUST LIST SOMETHING.
+      //
+      // These defaulted to 10% CPU and 100 MB, so on any machine that is not
+      // on fire every process was filtered out and the tool answered with an
+      // empty list -- 509 processes counted, none reported. The output is
+      // already bounded by `limit` and by the top-10 slices, so the thresholds
+      // are not what keeps the response small; they only decided whether there
+      // was a response at all. They remain available for callers hunting a
+      // runaway process.
+      cpuThreshold = 0,
+      memoryThreshold = 0,
+      includeSystem = false,
+      limit = 20,
+      useCache = true,
+      maxCacheAge = 60
+    } = options;
+    const snapshot = await this.captureSnapshot();
+    let previousSnapshot = null;
+    if (useCache) {
+      previousSnapshot = this.getCachedSnapshot(maxCacheAge);
+    }
+    this.cacheSnapshot(snapshot);
+    const filtered = this.filterProcesses(snapshot.processes, {
+      filter,
+      cpuThreshold,
+      memoryThreshold,
+      includeSystem
+    });
+    return this.transformOutput(snapshot, filtered, previousSnapshot, limit);
+  }
+  /**
+   * Capture current process snapshot
+   */
+  async captureSnapshot() {
+    const processes = await this.getProcessList();
+    const totalCpu = processes.reduce((sum, p) => sum + p.cpu, 0);
+    const totalMemory = processes.reduce((sum, p) => sum + p.memory, 0);
+    return {
+      timestamp: Date.now(),
+      processes,
+      totalCpu,
+      totalMemory,
+      systemInfo: {
+        platform: this.platform,
+        cpuCount: cpus().length,
+        totalMemoryMB: Math.round(totalmem() / 1024 / 1024)
+      }
+    };
+  }
+  /**
+   * Get list of running processes
+   */
+  async getProcessList() {
+    if (this.platform === "win32") {
+      return this.getWindowsProcesses();
+    } else {
+      return this.getUnixProcesses();
+    }
+  }
+  /**
+   * Get processes on Windows.
+   *
+   * WMIC RETURNS COLUMNS ALPHABETICALLY, not in the order they were requested,
+   * and the previous mapping assumed request order. Measured against a real
+   * table on this machine, four of five fields were reading the wrong column:
+   *
+   *   header:  Node,CommandLine,CreationDate,KernelModeTime,Name,ProcessId,...
+   *   name    <- CommandLine        ("C:\WINDOWS\Explorer.EXE", not explorer.exe)
+   *   cpu     <- parseInt(Name)     always NaN -> 0, for every process
+   *   memory  <- UserModeTime       explorer.exe reported as 414,398 MB
+   *   command <- Node               the HOSTNAME, identical for every row
+   *
+   * `cpu` being pinned at 0 is why a default cpuThreshold filtered the entire
+   * table away -- the thresholds were lowered to compensate, which treated the
+   * symptom. Only `pid` was right.
+   */
+  async getWindowsProcesses() {
+    let firstError;
+    try {
+      const { stdout } = await execFileSafe(
+        "wmic",
+        [
+          "process",
+          "get",
+          // Requested order is irrelevant -- the parser anchors to the END
+          // of each row rather than trusting any column index.
+          WMIC_PROCESS_COLUMNS,
+          "/format:csv"
+        ],
+        { maxBuffer: 32 * 1024 * 1024, timeout: PROCESS_QUERY_TIMEOUT_MS }
+      );
+      const processes = this.parseWmicCsv(stdout);
+      if (processes.length > 0) return processes;
+      firstError = new Error("wmic returned no parseable rows");
+    } catch (err) {
+      firstError = err;
+    }
+    try {
+      const processes = await this.getWindowsProcessesViaCim();
+      if (processes.length === 0) {
+        throw new Error("Get-CimInstance returned no processes");
+      }
+      return processes;
+    } catch (cimError) {
+      throw new Error(
+        `Could not read the process table. wmic failed (${String(firstError)}) and the Get-CimInstance fallback failed (${String(cimError)}).`
+      );
+    }
+  }
+  /** @see parseWmicProcessCsv -- the parsing rules and why they are what they are. */
+  parseWmicCsv(stdout) {
+    return parseWmicProcessCsv(stdout);
+  }
+  /**
+   * Supported replacement for wmic. Emits JSON, so no CSV parsing is involved.
+   */
+  async getWindowsProcessesViaCim() {
+    const script = "Get-CimInstance Win32_Process | ForEach-Object { [pscustomobject]@{pid=$_.ProcessId; name=$_.Name; cmd=$_.CommandLine; cpu100ns=([double]$_.KernelModeTime + [double]$_.UserModeTime); startMs=$(if ($_.CreationDate) { [long]([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() } else { 0 }); ws=$_.WorkingSetSize } } | ConvertTo-Json -Compress -Depth 2";
+    const { stdout } = await execFileSafe(
+      "powershell",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { maxBuffer: 32 * 1024 * 1024, timeout: PROCESS_QUERY_TIMEOUT_MS }
+    );
+    const parsed = JSON.parse(stdout);
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    const now2 = Date.now();
+    const processes = [];
+    for (const row of rows) {
+      const pid = Number(row?.pid);
+      const bytes = Number(row?.ws);
+      if (!Number.isFinite(pid) || !Number.isFinite(bytes)) continue;
+      const startMs = Number(row?.startMs);
+      const lifetimeMs = Number.isFinite(startMs) && startMs > 0 ? now2 - startMs : 0;
+      const cpuSeconds = Number(row?.cpu100ns) / 1e7;
+      processes.push({
+        pid,
+        name: String(row?.name ?? "Unknown"),
+        cpu: lifetimeMs > 0 ? cpuSeconds / (lifetimeMs / 1e3) * 100 : 0,
+        memory: bytes / 1024 / 1024,
+        command: String(row?.cmd ?? row?.name ?? ""),
+        user: "current"
+      });
+    }
+    return processes;
+  }
+  // lifetimeCpuPercent / parseWmiDate now live in wmic-process-parser.ts, so
+  // they can be tested on a Linux CI runner that has no wmic to call.
+  /**
+   * Get processes on Unix/Linux/macOS
+   */
+  async getUnixProcesses() {
+    try {
+      const { stdout } = await execFileSafe("ps", ["aux"], {
+        maxBuffer: 10 * 1024 * 1024
+      });
+      const processes = [];
+      const lines = stdout.split("\n").slice(1);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 11) continue;
+        const user = parts[0];
+        const pid = parseInt(parts[1], 10);
+        const cpu = parseFloat(parts[2]);
+        const memory = parseFloat(parts[3]);
+        const command = parts.slice(10).join(" ");
+        const name = parts[10].split("/").pop() || "Unknown";
+        if (isNaN(pid) || isNaN(cpu) || isNaN(memory)) continue;
+        const totalMemoryMB = totalmem() / 1024 / 1024;
+        const memoryMB = memory / 100 * totalMemoryMB;
+        processes.push({
+          pid,
+          name,
+          cpu,
+          memory: memoryMB,
+          command,
+          user
+        });
+      }
+      return processes;
+    } catch (err) {
+      console.error("Error getting Unix processes:", err);
+      return [];
+    }
+  }
+  /**
+   * Filter processes based on criteria
+   */
+  filterProcesses(processes, options) {
+    let filtered = processes;
+    if (options.filter) {
+      const pattern = new RegExp(options.filter, "i");
+      filtered = filtered.filter(
+        (p) => pattern.test(p.name) || pattern.test(p.command)
+      );
+    }
+    filtered = filtered.filter((p) => p.cpu >= options.cpuThreshold);
+    filtered = filtered.filter((p) => p.memory >= options.memoryThreshold);
+    if (!options.includeSystem) {
+      filtered = filtered.filter(
+        (p) => !p.name.startsWith("System") && !p.name.startsWith("kernel") && p.user !== "root" && p.user !== "SYSTEM"
+      );
+    }
+    return filtered;
+  }
+  /**
+   * Get cached snapshot
+   */
+  getCachedSnapshot(maxAge) {
+    const key = `${this.cacheNamespace}:snapshot`;
+    const cached2 = this.cache.get(key);
+    if (!cached2) {
+      return null;
+    }
+    try {
+      const snapshot = JSON.parse(cached2);
+      const age = (Date.now() - snapshot.timestamp) / 1e3;
+      if (age <= maxAge) {
+        return snapshot;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache snapshot
+   */
+  cacheSnapshot(snapshot) {
+    const key = `${this.cacheNamespace}:snapshot`;
+    const dataToCache = JSON.stringify(snapshot);
+    const originalSize = this.measureOriginalOutputSize(snapshot);
+    const compactSize = dataToCache.length;
+    this.cache.set(key, dataToCache, originalSize, compactSize);
+  }
+  /**
+   * Detect anomalies in process list
+   */
+  detectAnomalies(processes, previous) {
+    const anomalies = [];
+    const highCpuProcesses = processes.filter((p) => p.cpu > 80);
+    if (highCpuProcesses.length > 0) {
+      anomalies.push({
+        type: "cpu_spike",
+        severity: "high",
+        message: `${highCpuProcesses.length} process(es) consuming >80% CPU`,
+        processes: highCpuProcesses.map((p) => ({ pid: p.pid, name: p.name }))
+      });
+    }
+    if (previous) {
+      for (const current of processes) {
+        const prev = previous.find((p) => p.pid === current.pid);
+        if (prev && current.memory > prev.memory * 2) {
+          anomalies.push({
+            type: "memory_leak",
+            severity: "medium",
+            message: `Memory usage doubled for ${current.name}`,
+            processes: [{ pid: current.pid, name: current.name }]
+          });
+        }
+      }
+    }
+    const nameCounts = /* @__PURE__ */ new Map();
+    for (const p of processes) {
+      nameCounts.set(p.name, (nameCounts.get(p.name) || 0) + 1);
+    }
+    for (const [name, count] of nameCounts.entries()) {
+      if (count > 5) {
+        const duplicates = processes.filter((p) => p.name === name);
+        anomalies.push({
+          type: "duplicate",
+          severity: "low",
+          message: `${count} instances of ${name} running`,
+          processes: duplicates.map((p) => ({ pid: p.pid, name: p.name }))
+        });
+      }
+    }
+    return anomalies;
+  }
+  /**
+   * Calculate resource usage trends
+   */
+  calculateTrends(current, previous) {
+    if (!previous) {
+      return void 0;
+    }
+    return {
+      cpuDelta: current.totalCpu - previous.totalCpu,
+      memoryDelta: current.totalMemory - previous.totalMemory,
+      processCountDelta: current.processes.length - previous.processes.length
+    };
+  }
+  /**
+   * Transform process data to smart output
+   */
+  transformOutput(snapshot, filtered, previous, limit) {
+    const byCpu = [...filtered].sort((a2, b) => b.cpu - a2.cpu).slice(0, limit);
+    const byMemory = [...filtered].sort((a2, b) => b.memory - a2.memory).slice(0, limit);
+    const anomalies = this.detectAnomalies(
+      filtered,
+      previous ? previous.processes : null
+    );
+    const trends = this.calculateTrends(snapshot, previous);
+    const highCpuCount = filtered.filter((p) => p.cpu > 50).length;
+    const highMemoryCount = filtered.filter((p) => p.memory > 500).length;
+    const originalSize = this.measureOriginalOutputSize(snapshot);
+    const compactSize = this.estimateCompactSize(filtered, anomalies);
+    return {
+      summary: {
+        totalProcesses: snapshot.processes.length,
+        filteredCount: filtered.length,
+        highCpuCount,
+        highMemoryCount,
+        timestamp: snapshot.timestamp
+      },
+      topProcesses: {
+        byCpu: byCpu.map((p) => ({
+          pid: p.pid,
+          name: p.name,
+          cpu: p.cpu,
+          memory: p.memory
+        })),
+        byMemory: byMemory.map((p) => ({
+          pid: p.pid,
+          name: p.name,
+          cpu: p.cpu,
+          memory: p.memory
+        }))
+      },
+      anomalies,
+      trends,
+      // Both sides measured, and the percentage derived from them rather than
+      // computed alongside them -- so the three numbers can never disagree.
+      metrics: (() => {
+        const s = filtered.length === 0 && snapshot.processes.length > 0 ? unmeasured(Math.ceil(compactSize / 4)) : measured(Math.ceil(originalSize / 4), Math.ceil(compactSize / 4));
+        return {
+          originalTokens: s.originalTokenCount,
+          compactedTokens: s.tokenCount,
+          reductionPercentage: Math.round((1 - s.compressionRatio) * 100)
+        };
+      })()
+    };
+  }
+  /**
+   * What the full process listing actually costs.
+   *
+   * THE BASELINE WAS INVENTED. This returned
+   * `snapshot.processes.length * 200 + 500` -- an assumed 200 characters per
+   * process, measured from nothing. Paired with the default `cpuThreshold` of
+   * 10, which filters out everything on a machine that is not on fire, the
+   * tool reported a 100% reduction for returning an EMPTY list: 25,825 tokens
+   * "saved" by omitting the answer.
+   *
+   * The snapshot is right here, so it is measured.
+   */
+  measureOriginalOutputSize(snapshot) {
+    return JSON.stringify(snapshot.processes).length;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(filtered, anomalies) {
+    const summary = {
+      totalProcesses: filtered.length,
+      highCpu: filtered.filter((p) => p.cpu > 50).length,
+      highMemory: filtered.filter((p) => p.memory > 500).length
+    };
+    const topProcesses = filtered.slice(0, 10).map((p) => ({
+      name: p.name,
+      cpu: p.cpu,
+      memory: p.memory
+    }));
+    return JSON.stringify({ summary, topProcesses, anomalies }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartProcessesTool(cache, tokenCounter, metrics, projectRoot) {
+  return new SmartProcesses(cache, tokenCounter, metrics, projectRoot);
+}
+var SMART_PROCESSES_TOOL_DEFINITION = {
+  name: "smart_processes",
+  description: "Monitor and analyze system processes with anomaly detection and resource tracking",
+  inputSchema: {
+    type: "object",
+    properties: {
+      filter: {
+        type: "string",
+        description: "Filter processes by name pattern"
+      },
+      cpuThreshold: {
+        type: "number",
+        description: "Show only high CPU usage processes (> threshold %)"
+      },
+      memoryThreshold: {
+        type: "number",
+        description: "Show only high memory usage processes (> threshold MB)"
+      },
+      includeSystem: {
+        type: "boolean",
+        description: "Include system processes",
+        default: false
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of processes to show",
+        default: 20
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      compareWithPrevious: {
+        type: "boolean",
+        description: "Compare with previous snapshot",
+        default: true
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-system-metrics.ts
+import { spawn as spawn6 } from "child_process";
+
+// src/optimizer/utils/disk-output.ts
+var pct = (used, total) => Math.round(used / total * 100 * 100) / 100;
+function parseWindowsDiskOutput(output, path7) {
+  const lines = output.split("\n").filter((l) => l.trim());
+  const drive = /^([A-Za-z]:)/.exec(path7)?.[1]?.toUpperCase();
+  const dataLine = lines.find((l) => {
+    const caption = l.trim().split(/\s+/)[0]?.toUpperCase();
+    if (!caption?.endsWith(":")) return false;
+    return drive ? caption === drive : true;
+  });
+  if (!dataLine) return null;
+  const parts = dataLine.trim().split(/\s+/);
+  if (parts.length < 3) return null;
+  const free = parseInt(parts[1], 10);
+  const total = parseInt(parts[2], 10);
+  if (!Number.isFinite(free) || !Number.isFinite(total) || total <= 0)
+    return null;
+  const used = total - free;
+  return { path: parts[0], total, used, free, usagePercent: pct(used, total) };
+}
+function parseUnixDiskOutput(output, path7) {
+  const lines = output.split("\n").filter((l) => l.trim());
+  const dataLine = lines.slice(1).find((l) => {
+    const parts2 = l.trim().split(/\s+/);
+    return parts2.length >= 5 && parts2.some((p) => /^\d+%$/.test(p));
+  });
+  if (!dataLine) return null;
+  const parts = dataLine.trim().split(/\s+/);
+  const pctIndex = parts.findIndex((p) => /^\d+%$/.test(p));
+  if (pctIndex < 3) return null;
+  const total = parseInt(parts[pctIndex - 3], 10) * 1024;
+  const used = parseInt(parts[pctIndex - 2], 10) * 1024;
+  const free = parseInt(parts[pctIndex - 1], 10) * 1024;
+  const usagePercent = parseFloat(parts[pctIndex]);
+  if (!Number.isFinite(total) || !Number.isFinite(used) || !Number.isFinite(free))
+    return null;
+  if (!Number.isFinite(usagePercent)) return null;
+  return { path: path7, total, used, free, usagePercent };
+}
+
+// src/optimizer/tools/build-systems/smart-system-metrics.ts
+init_cache_engine();
+init_paths2();
+import { createHash as createHash29 } from "crypto";
+import * as os3 from "os";
+var SmartSystemMetrics = class {
+  cache;
+  cacheNamespace = "smart_system_metrics";
+  constructor(cache, _projectRoot) {
+    this.cache = cache;
+  }
+  /**
+   * Collect and analyze system metrics
+   */
+  async run(options = {}) {
+    const {
+      force = false,
+      includeDisk = true,
+      diskPaths = ["/"],
+      detectAnomalies = true,
+      maxCacheAge = 60
+      // Short cache for metrics
+    } = options;
+    const startTime = Date.now();
+    const cacheKey = this.generateCacheKey(includeDisk, diskPaths);
+    if (!force) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        const recommendations2 = this.generateRecommendations(cached2);
+        return this.transformOutput(cached2, recommendations2, true);
+      }
+    }
+    const cachedResult = detectAnomalies ? this.getCachedResult(cacheKey, 3600) : null;
+    const previous = cachedResult?.current || null;
+    const result = await this.collectMetrics({
+      includeDisk,
+      diskPaths,
+      previous: previous || void 0
+    });
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    this.cacheResult(cacheKey, result);
+    const recommendations = this.generateRecommendations(result);
+    return this.transformOutput(result, recommendations);
+  }
+  /**
+   * Collect system metrics
+   */
+  async collectMetrics(options) {
+    const { includeDisk, diskPaths, previous } = options;
+    const cpu = await this.getCpuMetrics();
+    const memory = this.getMemoryMetrics();
+    const disk = includeDisk ? await this.getDiskMetrics(diskPaths) : [];
+    const uptime2 = os3.uptime();
+    const loadAverage = os3.loadavg();
+    const current = {
+      timestamp: Date.now(),
+      cpu,
+      memory,
+      disk,
+      uptime: uptime2,
+      loadAverage
+    };
+    const anomalies = previous ? this.detectAnomalies(current, previous) : [];
+    return {
+      success: true,
+      current,
+      previous,
+      anomalies,
+      duration: 0,
+      // Set by caller
+      timestamp: Date.now()
+    };
+  }
+  /**
+   * Get CPU metrics
+   */
+  async getCpuMetrics() {
+    const cpus3 = os3.cpus();
+    const usage = await this.calculateCpuUsage();
+    return {
+      usage,
+      cores: cpus3.length,
+      model: cpus3[0].model,
+      speed: cpus3[0].speed
+    };
+  }
+  /**
+   * Calculate CPU usage percentage
+   */
+  async calculateCpuUsage() {
+    const cpus1 = os3.cpus();
+    const idle1 = cpus1.reduce((acc, cpu) => acc + cpu.times.idle, 0);
+    const total1 = cpus1.reduce(
+      (acc, cpu) => acc + cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq,
+      0
+    );
+    await new Promise((resolve4) => setTimeout(resolve4, 100));
+    const cpus22 = os3.cpus();
+    const idle2 = cpus22.reduce((acc, cpu) => acc + cpu.times.idle, 0);
+    const total2 = cpus22.reduce(
+      (acc, cpu) => acc + cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq,
+      0
+    );
+    const idleDiff = idle2 - idle1;
+    const totalDiff = total2 - total1;
+    const usage = 100 - 100 * idleDiff / totalDiff;
+    return Math.round(usage * 100) / 100;
+  }
+  /**
+   * Get memory metrics
+   */
+  getMemoryMetrics() {
+    const total = os3.totalmem();
+    const free = os3.freemem();
+    const used = total - free;
+    const usagePercent = used / total * 100;
+    return {
+      total,
+      used,
+      free,
+      usagePercent: Math.round(usagePercent * 100) / 100
+    };
+  }
+  /**
+   * Get disk metrics
+   */
+  async getDiskMetrics(paths) {
+    const metrics = [];
+    for (const path7 of paths) {
+      const diskInfo = await this.getDiskInfo(path7);
+      if (diskInfo) {
+        metrics.push(diskInfo);
+      }
+    }
+    return metrics;
+  }
+  /**
+   * Get disk info for a specific path
+   */
+  async getDiskInfo(path7) {
+    return new Promise((resolve4) => {
+      let output = "";
+      let command;
+      let args;
+      if (process.platform === "win32") {
+        command = "wmic";
+        args = ["logicaldisk", "get", "size,freespace,caption"];
+      } else {
+        try {
+          assertSafePathArg(path7, "path");
+        } catch {
+          resolve4(null);
+          return;
+        }
+        command = "df";
+        args = ["-k", path7];
+      }
+      const child = spawn6(command, args, { shell: false, windowsHide: true });
+      child.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+      child.on("close", () => {
+        const parsed = this.parseDiskOutput(output, path7);
+        resolve4(parsed);
+      });
+      child.on("error", () => {
+        resolve4(null);
+      });
+    });
+  }
+  /**
+   * Parse disk output
+   */
+  parseDiskOutput(output, path7) {
+    return process.platform === "win32" ? parseWindowsDiskOutput(output, path7) : parseUnixDiskOutput(output, path7);
+  }
+  /**
+   * Detect anomalies by comparing current with previous
+   */
+  detectAnomalies(current, previous) {
+    const anomalies = [];
+    const cpuDiff = current.cpu.usage - previous.cpu.usage;
+    if (cpuDiff > 30) {
+      anomalies.push({
+        type: "cpu",
+        severity: cpuDiff > 50 ? "critical" : "warning",
+        message: `CPU usage spike: increased by ${cpuDiff.toFixed(1)}% (now at ${current.cpu.usage.toFixed(1)}%)`
+      });
+    }
+    const memDiff = current.memory.usagePercent - previous.memory.usagePercent;
+    if (memDiff > 20) {
+      anomalies.push({
+        type: "memory",
+        severity: memDiff > 40 ? "critical" : "warning",
+        message: `Memory usage spike: increased by ${memDiff.toFixed(1)}% (now at ${current.memory.usagePercent.toFixed(1)}%)`
+      });
+    }
+    for (const currentDisk of current.disk) {
+      const previousDisk = previous.disk.find(
+        (d3) => d3.path === currentDisk.path
+      );
+      if (previousDisk) {
+        const diskDiff = currentDisk.usagePercent - previousDisk.usagePercent;
+        if (diskDiff > 5) {
+          anomalies.push({
+            type: "disk",
+            severity: diskDiff > 10 ? "warning" : "info",
+            message: `Disk ${currentDisk.path} usage increased by ${diskDiff.toFixed(1)}% (now at ${currentDisk.usagePercent.toFixed(1)}%)`
+          });
+        }
+      }
+    }
+    return anomalies;
+  }
+  /**
+   * Generate performance recommendations
+   */
+  generateRecommendations(result) {
+    const recommendations = [];
+    if (result.current.cpu.usage > 80) {
+      recommendations.push({
+        type: "cpu",
+        message: `High CPU usage (${result.current.cpu.usage.toFixed(1)}%). Consider profiling to find bottlenecks.`,
+        impact: "high"
+      });
+    }
+    if (result.current.memory.usagePercent > 85) {
+      recommendations.push({
+        type: "memory",
+        message: `High memory usage (${result.current.memory.usagePercent.toFixed(1)}%). Check for memory leaks.`,
+        impact: "high"
+      });
+    }
+    for (const disk of result.current.disk) {
+      if (disk.usagePercent > 90) {
+        recommendations.push({
+          type: "disk",
+          message: `Disk ${disk.path} is ${disk.usagePercent.toFixed(1)}% full. Clean up old files or expand storage.`,
+          impact: "high"
+        });
+      } else if (disk.usagePercent > 80) {
+        recommendations.push({
+          type: "disk",
+          message: `Disk ${disk.path} is ${disk.usagePercent.toFixed(1)}% full. Monitor space usage.`,
+          impact: "medium"
+        });
+      }
+    }
+    if (result.current.loadAverage.length > 0) {
+      const load1 = result.current.loadAverage[0];
+      const cores = result.current.cpu.cores;
+      if (load1 > cores * 1.5) {
+        recommendations.push({
+          type: "general",
+          message: `High system load (${load1.toFixed(2)} on ${cores} cores). System may be overloaded.`,
+          impact: "high"
+        });
+      }
+    }
+    return recommendations;
+  }
+  /**
+   * Generate cache key
+   */
+  generateCacheKey(includeDisk, diskPaths) {
+    const keyParts = [includeDisk.toString(), diskPaths.join(",")];
+    return createHash29("md5").update(keyParts.join(":")).digest("hex");
+  }
+  /**
+   * Get cached result
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(this.cacheNamespace + ":" + key);
+    if (!cached2) return null;
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache result
+   */
+  cacheResult(key, result) {
+    const cacheData = { ...result, cachedAt: Date.now() };
+    const dataToCache = JSON.stringify(cacheData);
+    const dataSize = dataToCache.length;
+    this.cache.set(
+      this.cacheNamespace + ":" + key,
+      dataToCache,
+      dataSize,
+      dataSize
+    );
+  }
+  /**
+   * Transform to smart output
+   */
+  transformOutput(result, recommendations, fromCache = false) {
+    const formatBytes = (bytes) => {
+      const gb = bytes / 1024 ** 3;
+      return `${gb.toFixed(2)} GB`;
+    };
+    const getStatus = (percent) => {
+      if (percent > 90) return "critical";
+      if (percent > 80) return "high";
+      return "normal";
+    };
+    const cpu = {
+      usage: Math.round(result.current.cpu.usage * 100) / 100,
+      cores: result.current.cpu.cores,
+      model: result.current.cpu.model,
+      speed: result.current.cpu.speed,
+      status: getStatus(result.current.cpu.usage)
+    };
+    const memory = {
+      total: formatBytes(result.current.memory.total),
+      used: formatBytes(result.current.memory.used),
+      free: formatBytes(result.current.memory.free),
+      usagePercent: Math.round(result.current.memory.usagePercent * 100) / 100,
+      status: getStatus(result.current.memory.usagePercent)
+    };
+    const disk = result.current.disk.map((d3) => ({
+      path: d3.path,
+      total: formatBytes(d3.total),
+      used: formatBytes(d3.used),
+      free: formatBytes(d3.free),
+      usagePercent: Math.round(d3.usagePercent * 100) / 100,
+      status: getStatus(d3.usagePercent)
+    }));
+    const uptime2 = result.current.uptime;
+    const hours = Math.floor(uptime2 / 3600);
+    const minutes = Math.floor(uptime2 % 3600 / 60);
+    const uptimeStr = `${hours}h ${minutes}m`;
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize({ cpu, memory, disk });
+    return {
+      summary: {
+        success: result.success,
+        timestamp: new Date(result.timestamp).toISOString(),
+        uptime: uptimeStr,
+        duration: result.duration,
+        fromCache
+      },
+      cpu,
+      memory,
+      disk,
+      anomalies: result.anomalies,
+      recommendations,
+      metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Estimate original output size
+   */
+  estimateOriginalOutputSize(result) {
+    return 2e3 + result.current.disk.length * 200;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(output) {
+    return JSON.stringify(output).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartSystemMetrics(cache, projectRoot) {
+  return new SmartSystemMetrics(cache, projectRoot);
+}
+var SMART_SYSTEM_METRICS_TOOL_DEFINITION = {
+  name: "smart_system_metrics",
+  description: "System resource monitoring with CPU, memory, disk usage tracking, anomaly detection, and performance recommendations",
+  inputSchema: {
+    type: "object",
+    properties: {
+      force: {
+        type: "boolean",
+        description: "Force operation (ignore cache)",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      includeDisk: {
+        type: "boolean",
+        description: "Include disk metrics",
+        default: true
+      },
+      diskPaths: {
+        type: "array",
+        items: { type: "string" },
+        description: "Disk paths to monitor (default: root partition)"
+      },
+      detectAnomalies: {
+        type: "boolean",
+        description: "Detect anomalies by comparing with previous snapshot",
+        default: true
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 60)",
+        default: 60
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-test.ts
+init_cache_engine();
+init_token_counter();
+init_metrics();
+import { createHash as createHash30 } from "crypto";
+import { readFileSync as readFileSync19, existsSync as existsSync16 } from "fs";
+import { join as join17 } from "path";
+init_paths2();
+
+// src/optimizer/tools/build-systems/test-frameworks.ts
+function parseJestLike(stdout) {
+  const match = stdout.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const raw = JSON.parse(match[0]);
+    if (typeof raw.numTotalTests !== "number") return null;
+    return {
+      numTotalTests: raw.numTotalTests ?? 0,
+      numPassedTests: raw.numPassedTests ?? 0,
+      numFailedTests: raw.numFailedTests ?? 0,
+      numPendingTests: raw.numPendingTests ?? 0,
+      testResults: (raw.testResults ?? []).map((t) => ({
+        name: t.name ?? "test",
+        status: t.status ?? "passed",
+        duration: Math.max(0, (t.endTime ?? 0) - (t.startTime ?? 0)),
+        failureMessage: t.message,
+        // Kept, not flattened: this is where the individual test NAMES live,
+        // and a failure report that cannot name the test that failed is not
+        // worth printing.
+        assertionResults: t.assertionResults?.map((a2) => ({
+          title: a2.fullName || a2.title || "test",
+          status: a2.status ?? "passed",
+          failureMessages: a2.failureMessages ?? []
+        }))
+      }))
+    };
+  } catch {
+    return null;
+  }
+}
+function parseMocha(stdout) {
+  const match = stdout.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const raw = JSON.parse(match[0]);
+    if (!raw.stats) return null;
+    return {
+      numTotalTests: raw.stats.tests ?? 0,
+      numPassedTests: raw.stats.passes ?? 0,
+      numFailedTests: raw.stats.failures ?? 0,
+      numPendingTests: raw.stats.pending ?? 0,
+      testResults: [
+        ...(raw.passes ?? []).map((t) => ({
+          name: t.fullTitle ?? "test",
+          status: "passed",
+          duration: t.duration ?? 0
+        })),
+        ...(raw.failures ?? []).map((t) => ({
+          name: t.fullTitle ?? "test",
+          status: "failed",
+          duration: t.duration ?? 0,
+          // The stack is where the file and line live; the message alone says
+          // what went wrong but never where.
+          failureMessage: t.err?.stack || t.err?.message
+        }))
+      ]
+    };
+  } catch {
+    return null;
+  }
+}
+function readTapDiagnostic(block) {
+  if (!block.length) return { duration: 0 };
+  const scalar = (key) => {
+    const at2 = block.findIndex(
+      (l) => new RegExp(`^\\s*${key}:\\s*\\|-?\\s*$`).test(l)
+    );
+    if (at2 === -1) return null;
+    const indent = (block[at2].match(/^\s*/) ?? [""])[0].length;
+    const body = [];
+    for (let i = at2 + 1; i < block.length; i++) {
+      const lead = (block[i].match(/^\s*/) ?? [""])[0].length;
+      if (block[i].trim() && lead <= indent) break;
+      body.push(block[i].slice(indent + 2));
+    }
+    return body.join("\n").trimEnd();
+  };
+  const inline = (key) => {
+    const m2 = block.join("\n").match(new RegExp(`^\\s*${key}:\\s*(.+)$`, "m"));
+    return m2 ? m2[1].trim().replace(/^'(.*)'$/, "$1") : null;
+  };
+  const parts = [];
+  const error2 = scalar("error") ?? inline("error");
+  if (error2) parts.push(error2);
+  const name = inline("name");
+  const expected = inline("expected");
+  const actual = inline("actual");
+  const operator = inline("operator");
+  if (expected !== null && actual !== null) {
+    parts.push(
+      `${name ?? "AssertionError"}: expected ${expected}, actual ${actual}` + (operator ? ` (${operator})` : "")
+    );
+  }
+  const location = inline("location");
+  if (location) parts.push(`    at ${location.replace(/\\\\/g, "\\")}`);
+  const stack = scalar("stack");
+  if (stack) {
+    parts.push(
+      ...stack.split("\n").slice(0, 4).map((l) => `    at ${l.trim()}`)
+    );
+  }
+  return {
+    message: parts.length ? parts.join("\n").slice(0, 1200) : void 0,
+    duration: Number(inline("duration_ms") ?? 0)
+  };
+}
+function parseTap(stdout) {
+  const lines = stdout.split("\n");
+  const looksLikeTap = lines.some(
+    (l) => /^\s*(ok|not ok)\b/.test(l) || /^\s*TAP version/.test(l)
+  );
+  if (!looksLikeTap) return null;
+  const results = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m2 = lines[i].match(/^\s*(ok|not ok)\s+\d+\s*-?\s*(.*)$/);
+    if (!m2) continue;
+    const name = (m2[2] || "test").replace(/\s*#\s*(SKIP|TODO).*$/i, "").trim();
+    const skipped2 = /#\s*(SKIP|TODO)/i.test(m2[2] || "");
+    const failed2 = m2[1] === "not ok";
+    let block = [];
+    if (lines[i + 1]?.trim() === "---") {
+      let j3 = i + 2;
+      while (j3 < lines.length && lines[j3].trim() !== "...") {
+        block.push(lines[j3]);
+        j3++;
+      }
+    }
+    const diag = readTapDiagnostic(block);
+    results.push({
+      name: name || "test",
+      status: skipped2 ? "skipped" : failed2 ? "failed" : "passed",
+      duration: diag.duration,
+      failureMessage: failed2 ? diag.message : void 0
+    });
+  }
+  const summary = (key) => {
+    const m2 = stdout.match(new RegExp(`^#\\s*${key}\\s+(\\d+)`, "m"));
+    return m2 ? Number(m2[1]) : null;
+  };
+  const passed = summary("pass") ?? results.filter((r) => r.status === "passed").length;
+  const failed = summary("fail") ?? results.filter((r) => r.status === "failed").length;
+  const skipped = summary("skipped") ?? results.filter((r) => r.status === "skipped").length;
+  const total = summary("tests") ?? results.length;
+  if (total === 0 && results.length === 0) return null;
+  return {
+    numTotalTests: total,
+    numPassedTests: passed,
+    numFailedTests: failed,
+    numPendingTests: skipped,
+    testResults: results
+  };
+}
+function parseNodeSpec(stdout) {
+  const PASS = "\u2714";
+  const FAIL = "\u2716";
+  const INFO = "\u2139";
+  const SKIP = "\uFE0E";
+  if (!stdout.includes(INFO) && !stdout.includes(PASS) && !stdout.includes(FAIL)) {
+    return null;
+  }
+  const summary = (key) => {
+    const m2 = stdout.match(new RegExp(`${INFO}\\s*${key}\\s+(\\d+)`));
+    return m2 ? Number(m2[1]) : null;
+  };
+  const total = summary("tests");
+  if (total === null) return null;
+  const rawLines = stdout.split("\n");
+  const isMark = (l) => {
+    const c2 = l.trim()[0];
+    return c2 === PASS || c2 === FAIL || c2 === SKIP;
+  };
+  const results = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i].trim();
+    const mark = line[0];
+    if (mark !== PASS && mark !== FAIL && mark !== SKIP) continue;
+    const name = line.slice(1).replace(/\s*\([\d.]+m?s\)\s*$/, "").trim();
+    if (!name) continue;
+    let detail;
+    if (mark === FAIL) {
+      const block = [];
+      let j3 = i + 1;
+      while (j3 < rawLines.length && !isMark(rawLines[j3]) && !rawLines[j3].trim().startsWith(INFO)) {
+        block.push(rawLines[j3]);
+        j3++;
+      }
+      detail = block.join("\n").trim().slice(0, 1200) || void 0;
+    }
+    results.push({
+      name,
+      status: mark === PASS ? "passed" : mark === FAIL ? "failed" : "skipped",
+      duration: Number(line.match(/\(([\d.]+)ms\)\s*$/)?.[1] ?? 0),
+      failureMessage: detail
+    });
+  }
+  return {
+    numTotalTests: total,
+    numPassedTests: summary("pass") ?? 0,
+    numFailedTests: summary("fail") ?? 0,
+    numPendingTests: (summary("skipped") ?? 0) + (summary("todo") ?? 0),
+    testResults: results
+  };
+}
+var ADAPTERS = {
+  jest: {
+    id: "jest",
+    label: "Jest",
+    reportArgs: ({ coverage }) => [
+      "--json",
+      "--no-colors",
+      ...coverage ? ["--coverage", "--coverageReporters=json-summary"] : []
+    ],
+    parse: (stdout) => parseJestLike(stdout)
+  },
+  vitest: {
+    id: "vitest",
+    label: "Vitest",
+    reportArgs: ({ coverage }) => [
+      "--run",
+      "--reporter=json",
+      // json-summary is what writes coverage/coverage-summary.json, the one
+      // file every runner's coverage totals can be read from.
+      ...coverage ? ["--coverage", "--coverage.reporter=json-summary"] : []
+    ],
+    parse: (stdout) => parseJestLike(stdout)
+  },
+  mocha: {
+    id: "mocha",
+    label: "Mocha",
+    reportArgs: () => ["--reporter", "json"],
+    parse: (stdout) => parseMocha(stdout)
+  },
+  node: {
+    id: "node",
+    label: "the Node test runner",
+    // Nothing on argv: node --test takes trailing args as file globs, so a
+    // reporter flag there is not merely ignored, it becomes a phantom path.
+    reportArgs: () => [],
+    nodeOptions: ({ pattern }) => [
+      "--test-reporter=tap",
+      ...pattern ? [`--test-name-pattern=${pattern}`] : []
+    ],
+    // TAP when NODE_OPTIONS took effect, spec when the project pinned its own.
+    parse: (stdout) => parseTap(stdout) ?? parseNodeSpec(stdout)
+  },
+  ava: {
+    id: "ava",
+    label: "AVA",
+    reportArgs: () => ["--tap"],
+    parse: (stdout) => parseTap(stdout)
+  }
+};
+function detectFramework(pkg) {
+  const script = pkg.scripts?.test ?? "";
+  if (/\bvitest\b/.test(script)) return "vitest";
+  if (/\bjest\b/.test(script)) return "jest";
+  if (/\bmocha\b/.test(script)) return "mocha";
+  if (/\bava\b/.test(script)) return "ava";
+  if (/node\s+(--test|--experimental-test-runner)/.test(script)) return "node";
+  const deps = { ...pkg.dependencies ?? {}, ...pkg.devDependencies ?? {} };
+  if (deps.vitest) return "vitest";
+  if (deps.jest) return "jest";
+  if (deps.mocha) return "mocha";
+  if (deps.ava) return "ava";
+  return "unknown";
+}
+function parseAnyKnownFormat(stdout) {
+  const jestLike = parseJestLike(stdout);
+  if (jestLike) return { result: jestLike, framework: "jest" };
+  const mocha = parseMocha(stdout);
+  if (mocha) return { result: mocha, framework: "mocha" };
+  const tap = parseTap(stdout);
+  if (tap) return { result: tap, framework: "node" };
+  const spec = parseNodeSpec(stdout);
+  if (spec) return { result: spec, framework: "node" };
+  return null;
+}
+
+// src/optimizer/tools/build-systems/smart-test.ts
+var SmartTest = class {
+  cache;
+  cacheNamespace = "smart_test";
+  projectRoot;
+  defaultProjectRoot;
+  lastFramework = "unknown";
+  constructor(cache, _tokenCounter, _metrics, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run tests with smart caching and output reduction
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      pattern,
+      onlyChanged = false,
+      force = false,
+      coverage = false,
+      watch = false,
+      maxCacheAge = 3600
+    } = options;
+    const cacheKey = await this.generateCacheKey(pattern);
+    if (!force && !watch) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const result = await this.runTests({
+      pattern,
+      onlyChanged,
+      coverage,
+      watch,
+      framework: options.framework
+    });
+    if (!watch) {
+      this.cacheResult(cacheKey, result);
+    }
+    return this.transformOutput(result);
+  }
+  /**
+   * Works out which runner this project uses.
+   *
+   * An explicit option wins; otherwise package.json decides. A project with no
+   * manifest at all is 'unknown', which is not fatal -- the run still happens
+   * and the output is parsed by shape afterwards.
+   */
+  resolveFramework(explicit) {
+    if (explicit && explicit !== "unknown") return explicit;
+    const manifest = join17(this.projectRoot, "package.json");
+    if (!existsSync16(manifest)) return "unknown";
+    try {
+      return detectFramework(JSON.parse(readFileSync19(manifest, "utf8")));
+    } catch {
+      return "unknown";
+    }
+  }
+  /**
+   * Flags for narrowing the run, which every runner spells differently.
+   *
+   * Only what a runner genuinely supports is passed. `onlyChanged` has no
+   * equivalent outside Jest and Vitest, and inventing one would mean silently
+   * running everything while reporting a narrowed run.
+   */
+  selectionArgs(framework, options) {
+    const args = [];
+    const plain = options.pattern?.replace(/\\/g, "/");
+    switch (framework) {
+      case "jest": {
+        if (plain) {
+          const asRegex = plain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+          args.push("--testPathPattern=" + asRegex);
+        }
+        if (options.onlyChanged) args.push("--onlyChanged");
+        if (options.watch) args.push("--watch");
+        break;
+      }
+      case "vitest": {
+        if (plain) args.push(plain);
+        if (options.onlyChanged) args.push("--changed");
+        break;
+      }
+      case "mocha": {
+        if (plain) args.push("--grep", plain);
+        if (options.watch) args.push("--watch");
+        break;
+      }
+      case "node": {
+        break;
+      }
+      case "ava": {
+        if (plain) args.push("--match", plain);
+        if (options.watch) args.push("--watch");
+        break;
+      }
+      default:
+        break;
+    }
+    return args;
+  }
+  /**
+   * Runs the project's tests and captures a normalised result.
+   */
+  async runTests(options) {
+    const framework = this.resolveFramework(options.framework);
+    const adapter = framework === "unknown" ? null : ADAPTERS[framework];
+    const args = [
+      ...adapter ? adapter.reportArgs({ coverage: options.coverage }) : [],
+      ...this.selectionArgs(framework, options)
+    ];
+    const finalArgs = options.watch && framework === "vitest" ? args.filter((a2) => a2 !== "--run") : args;
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const started = Date.now();
+      const extraNodeOptions = adapter?.nodeOptions?.({ pattern: options.pattern }) ?? [];
+      const env2 = extraNodeOptions.length ? {
+        ...process.env,
+        NODE_OPTIONS: [process.env.NODE_OPTIONS, ...extraNodeOptions].filter(Boolean).join(" ")
+      } : process.env;
+      const child = spawnNpm(
+        ["run", "test", "--", ...finalArgs],
+        { cwd: this.projectRoot, env: env2 },
+        "smart_test"
+      );
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      child.on("close", (_code) => {
+        const combined = stdout + (stdout && stderr ? "\n" : "") + stderr;
+        let parsed = adapter ? adapter.parse(stdout, stderr) : null;
+        if (!parsed && adapter) parsed = adapter.parse(combined, "");
+        let usedFramework = framework;
+        if (!parsed) {
+          const guessed = parseAnyKnownFormat(combined);
+          if (guessed) {
+            parsed = guessed.result;
+            usedFramework = guessed.framework;
+          }
+        }
+        if (!parsed) {
+          const known = "Jest, Vitest, Mocha, AVA and node --test";
+          const detected = framework === "unknown" ? "No supported runner could be identified from package.json." : `Detected ${ADAPTERS[framework].label}, but its report could not be read.`;
+          const tail = (stderr || stdout).slice(0, 600).trim();
+          reject(
+            new Error(
+              `smart_test understands ${known}. ${detected}` + (tail ? `
+
+Test output was:
+${tail}` : "")
+            )
+          );
+          return;
+        }
+        this.lastFramework = usedFramework;
+        resolve4({
+          ...parsed,
+          coverageMap: this.readCoverageSummary(options.coverage),
+          startTime: started,
+          endTime: Date.now(),
+          framework: usedFramework
+        });
+      });
+      child.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Coverage totals, read from the summary file runners agree on.
+   *
+   * Jest's --json inlines this; every other runner writes
+   * coverage/coverage-summary.json instead. Reading the file works for all of
+   * them, and returns nothing rather than zeros when coverage was not collected
+   * -- a coverage delta of 0% and "no coverage data" are different answers.
+   */
+  readCoverageSummary(requested) {
+    if (!requested) return void 0;
+    const summaryPath = join17(
+      this.projectRoot,
+      "coverage",
+      "coverage-summary.json"
+    );
+    if (!existsSync16(summaryPath)) return void 0;
+    try {
+      const parsed = JSON.parse(readFileSync19(summaryPath, "utf8"));
+      return parsed?.total ? { total: parsed.total } : void 0;
+    } catch {
+      return void 0;
+    }
+  }
+  /**
+   * Generate cache key based on test file contents
+   */
+  async generateCacheKey(pattern) {
+    const hash = createHash30("sha256");
+    hash.update(this.cacheNamespace);
+    hash.update(pattern || "all");
+    const packageJsonPath = join17(this.projectRoot, "package.json");
+    if (existsSync16(packageJsonPath)) {
+      const packageJson = readFileSync19(packageJsonPath, "utf-8");
+      hash.update(packageJson);
+    }
+    const jestConfigPath = join17(this.projectRoot, "jest.config.js");
+    if (existsSync16(jestConfigPath)) {
+      const jestConfig = readFileSync19(jestConfigPath, "utf-8");
+      hash.update(jestConfig);
+    }
+    return `${this.cacheNamespace}:${hash.digest("hex")}`;
+  }
+  /**
+   * Get cached result if available and fresh
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(key);
+    if (!cached2) {
+      return null;
+    }
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache test result
+   */
+  cacheResult(key, result) {
+    const toCache = {
+      ...result,
+      cachedAt: Date.now()
+    };
+    const dataToCache = JSON.stringify(toCache);
+    const originalSize = JSON.stringify(result).length;
+    const compactSize = this.estimateCompactSize(result);
+    this.cache.set(key, dataToCache, originalSize, compactSize);
+  }
+  /**
+   * Transform full Jest output to smart output
+   */
+  transformOutput(result, fromCache = false) {
+    const failures = this.extractFailures(result);
+    const newTests = this.detectNewTests(result);
+    const coverageDelta = this.calculateCoverageDelta(result);
+    const originalSize = JSON.stringify(result).length;
+    const compactSize = this.estimateCompactSize(result);
+    return {
+      summary: {
+        total: result.numTotalTests,
+        passed: result.numPassedTests,
+        failed: result.numFailedTests,
+        skipped: result.numPendingTests,
+        duration: result.endTime - result.startTime,
+        fromCache,
+        framework: result.framework ?? this.lastFramework
+      },
+      failures,
+      coverageDelta,
+      newTests,
+      metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, true);
+  }
+  /**
+   * Extract only failures with concise error messages
+   */
+  extractFailures(result) {
+    const failures = [];
+    for (const entry of result.testResults || []) {
+      if (entry.status !== "failed") continue;
+      if (entry.assertionResults?.length) {
+        for (const assertion of entry.assertionResults) {
+          if (assertion.status !== "failed") continue;
+          failures.push({
+            testFile: entry.name,
+            testName: assertion.title,
+            error: this.extractConciseError(assertion.failureMessages),
+            location: this.extractErrorLocation(assertion.failureMessages)
+          });
+        }
+        continue;
+      }
+      const messages = entry.failureMessage ? [entry.failureMessage] : [];
+      failures.push({
+        testFile: entry.name,
+        testName: entry.name,
+        error: this.extractConciseError(messages),
+        location: this.extractErrorLocation(messages)
+      });
+    }
+    return failures;
+  }
+  /**
+   * Extract concise error message from Jest failure
+   */
+  extractConciseError(messages) {
+    if (!messages || messages.length === 0) {
+      return "Unknown error";
+    }
+    const fullMessage = messages.join("\n");
+    const lines = fullMessage.split("\n");
+    const firstFrame = lines.findIndex((l) => l.trim().startsWith("at "));
+    const head = (firstFrame === -1 ? lines : lines.slice(0, firstFrame)).join("\n").trim();
+    const frame2 = lines.slice(firstFrame === -1 ? lines.length : firstFrame).find(
+      (l) => l.trim().startsWith("at ") && !l.includes("node_modules") && !/\bnode:/.test(l)
+    );
+    const parts = [
+      head || fullMessage.slice(0, 200).trim(),
+      frame2?.trimEnd()
+    ].filter(Boolean);
+    return parts.join("\n").slice(0, 600) || "Unknown error";
+  }
+  /**
+   * Extract error location from stack trace
+   */
+  extractErrorLocation(messages) {
+    const lines = messages.join("\n").split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("at ")) continue;
+      if (trimmed.includes("node_modules") || /\bnode:/.test(trimmed)) continue;
+      const parenthesised = trimmed.match(/\(([^)]+):(\d+):(\d+)\)/);
+      if (parenthesised) {
+        return `${parenthesised[1]}:${parenthesised[2]}:${parenthesised[3]}`;
+      }
+      const bare = trimmed.match(/^at\s+(?:\S+\s+)?(.+?):(\d+):(\d+)\s*$/);
+      if (bare) {
+        return `${bare[1]}:${bare[2]}:${bare[3]}`;
+      }
+    }
+    return void 0;
+  }
+  /**
+   * Detect new tests (simplified version - would need test history)
+   */
+  detectNewTests(_result) {
+    return [];
+  }
+  /**
+   * Calculate coverage delta (simplified version - would need previous coverage)
+   */
+  calculateCoverageDelta(result) {
+    if (!result.coverageMap || !result.coverageMap.total) {
+      return void 0;
+    }
+    const total = result.coverageMap.total;
+    if (!total.statements || !total.branches || !total.functions || !total.lines) {
+      return void 0;
+    }
+    return {
+      statements: total.statements.pct,
+      branches: total.branches.pct,
+      functions: total.functions.pct,
+      lines: total.lines.pct
+    };
+  }
+  /**
+   * Estimate compact output size for token calculation
+   */
+  estimateCompactSize(result) {
+    const summary = {
+      total: result.numTotalTests,
+      passed: result.numPassedTests,
+      failed: result.numFailedTests,
+      skipped: result.numPendingTests
+    };
+    const failures = this.extractFailures(result);
+    return JSON.stringify({ summary, failures }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartTestTool(cache, tokenCounter, metrics, projectRoot) {
+  return new SmartTest(cache, tokenCounter, metrics, projectRoot);
+}
+var SMART_TEST_TOOL_DEFINITION = {
+  name: "smart_test",
+  description: "Run the project's tests (Jest, Vitest, Mocha, AVA or node --test) with intelligent caching, coverage tracking, and incremental test execution",
+  inputSchema: {
+    type: "object",
+    properties: {
+      pattern: {
+        type: "string",
+        description: "Pattern to match test files"
+      },
+      framework: {
+        type: "string",
+        enum: ["jest", "vitest", "mocha", "node", "ava"],
+        description: "Test runner to assume. Detected from package.json when omitted; set it only when the test script hides the runner."
+      },
+      onlyChanged: {
+        type: "boolean",
+        description: "Run only tests that changed since last run",
+        default: false
+      },
+      force: {
+        type: "boolean",
+        description: "Force full test run (ignore cache)",
+        default: false
+      },
+      coverage: {
+        type: "boolean",
+        description: "Collect coverage information",
+        default: false
+      },
+      watch: {
+        type: "boolean",
+        description: "Watch mode for continuous testing",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 300)",
+        default: 300
+      }
+    }
+  }
+};
+
+// src/optimizer/tools/build-systems/smart-typecheck.ts
+init_cache_engine();
+init_metrics();
+init_token_counter();
+import { createHash as createHash31 } from "crypto";
+import { readFileSync as readFileSync20, existsSync as existsSync17 } from "fs";
+import { join as join18 } from "path";
+init_paths2();
+var SmartTypeCheck = class {
+  cache;
+  cacheNamespace = "smart_typecheck";
+  projectRoot;
+  defaultProjectRoot;
+  constructor(cache, _tokenCounter, _metrics, projectRoot) {
+    this.cache = cache;
+    this.defaultProjectRoot = projectRoot || process.cwd();
+    this.projectRoot = this.defaultProjectRoot;
+  }
+  /**
+   * Run type check with smart caching and output reduction
+   */
+  async run(options = {}) {
+    this.projectRoot = options.projectRoot || this.defaultProjectRoot;
+    const {
+      force = false,
+      watch = false,
+      tsconfig = "tsconfig.json",
+      maxCacheAge = 3600
+    } = options;
+    const startTime = Date.now();
+    const cacheKey = await this.generateCacheKey(tsconfig);
+    if (!force && !watch) {
+      const cached2 = this.getCachedResult(cacheKey, maxCacheAge);
+      if (cached2) {
+        return this.formatCachedOutput(cached2);
+      }
+    }
+    const result = await this.runTsc({
+      tsconfig,
+      watch
+    });
+    const duration3 = Date.now() - startTime;
+    result.duration = duration3;
+    if (!watch) {
+      this.cacheResult(cacheKey, result);
+    }
+    return this.transformOutput(result);
+  }
+  /**
+   * Run TypeScript compiler in type-check only mode
+   */
+  async runTsc(options) {
+    const args = [
+      "--project",
+      options.tsconfig,
+      "--noEmit"
+      // Type check only, don't emit files
+    ];
+    if (options.watch) {
+      args.push("--watch");
+    }
+    return new Promise((resolve4, reject) => {
+      let stdout = "";
+      let stderr = "";
+      const tsc = spawnNodeBin(
+        "typescript",
+        "tsc",
+        args,
+        { cwd: this.projectRoot },
+        "smart_build"
+      );
+      tsc.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      tsc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      tsc.on("close", (code) => {
+        const output = stdout + stderr;
+        const errors = this.parseTypeCheckOutput(output);
+        resolve4({
+          success: code === 0,
+          errors,
+          duration: 0,
+          // Set by caller
+          filesChecked: this.countCheckedFiles(output),
+          timestamp: Date.now()
+        });
+      });
+      tsc.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * Parse TypeScript type check output
+   */
+  parseTypeCheckOutput(output) {
+    const errors = [];
+    const lines = output.split("\n");
+    for (const line of lines) {
+      const match = line.match(
+        /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/
+      );
+      if (match) {
+        const code = match[4];
+        errors.push({
+          file: match[1],
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+          code,
+          message: match[5],
+          category: this.categorizeError(code, match[5])
+        });
+      }
+    }
+    return errors;
+  }
+  /**
+   * Categorize TypeScript error by code and message
+   */
+  categorizeError(code, message) {
+    const categories = {
+      // Type errors
+      TS2322: "Type Assignment",
+      TS2345: "Type Argument",
+      TS2339: "Property Access",
+      TS2304: "Name Not Found",
+      TS2551: "Property Does Not Exist",
+      TS2571: "Object Type Unknown",
+      // Import/Module errors
+      TS2307: "Module Resolution",
+      TS2305: "Module Export",
+      TS2306: "Module Not Found",
+      // Function/Method errors
+      TS2554: "Function Arguments",
+      TS2555: "Function Overload",
+      TS2556: "Function This Type",
+      // Declaration errors
+      TS2300: "Duplicate Identifier",
+      TS2451: "Redeclare Block Variable",
+      TS2403: "Subsequent Variable Declaration",
+      // Generic errors
+      TS2314: "Generic Type Arguments",
+      TS2315: "Generic Type Parameters",
+      TS2344: "Generic Type Constraint",
+      // Any/Unknown errors
+      TS7006: "Implicit Any Parameter",
+      TS7019: "Implicit Any Rest Parameter",
+      TS7023: "Implicit Any Contextual",
+      TS7034: "Implicit Any Variable",
+      // Null/Undefined errors
+      TS2531: "Possibly Null",
+      TS2532: "Possibly Undefined",
+      TS2533: "Possibly Null or Undefined",
+      TS2538: "Type Undefined",
+      TS2722: "Cannot Invoke Possibly Undefined",
+      TS2790: "Possibly Undefined in Optional Chaining"
+    };
+    const category = categories[code];
+    if (category) {
+      return category;
+    }
+    if (message.includes("null") || message.includes("undefined")) {
+      return "Null/Undefined Safety";
+    }
+    if (message.includes("any")) {
+      return "Type Safety (any)";
+    }
+    if (message.includes("module") || message.includes("import")) {
+      return "Module Resolution";
+    }
+    return "Other";
+  }
+  /**
+   * Determine error severity based on category and code
+   */
+  determineSeverity(category, _code) {
+    if (category === "Module Resolution") {
+      return "critical";
+    }
+    if (category.includes("Type Assignment") || category.includes("Type Argument")) {
+      return "high";
+    }
+    if (category.includes("any")) {
+      return "medium";
+    }
+    if (category.includes("Null") || category.includes("Undefined")) {
+      return "low";
+    }
+    return "medium";
+  }
+  /**
+   * Count files checked from output
+   */
+  countCheckedFiles(output) {
+    const files = /* @__PURE__ */ new Set();
+    const lines = output.split("\n");
+    for (const line of lines) {
+      const match = line.match(/^(.+?)\(\d+,\d+\):/);
+      if (match) {
+        files.add(match[1]);
+      }
+    }
+    return files.size || 1;
+  }
+  /**
+   * Generate cache key
+   */
+  async generateCacheKey(tsconfig) {
+    const hash = createHash31("sha256");
+    hash.update(this.cacheNamespace);
+    const tsconfigPath = join18(this.projectRoot, tsconfig);
+    if (existsSync17(tsconfigPath)) {
+      const content = readFileSync20(tsconfigPath, "utf-8");
+      hash.update(content);
+    }
+    const packageJsonPath = join18(this.projectRoot, "package.json");
+    if (existsSync17(packageJsonPath)) {
+      const content = readFileSync20(packageJsonPath, "utf-8");
+      hash.update(content);
+    }
+    return `${this.cacheNamespace}:${hash.digest("hex")}`;
+  }
+  /**
+   * Get cached result if available and fresh
+   */
+  getCachedResult(key, maxAge) {
+    const cached2 = this.cache.get(key);
+    if (!cached2) {
+      return null;
+    }
+    try {
+      const result = JSON.parse(cached2);
+      const age = (Date.now() - result.cachedAt) / 1e3;
+      if (age <= maxAge) {
+        return result;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  }
+  /**
+   * Cache type check result
+   */
+  cacheResult(key, result) {
+    const toCache = {
+      ...result,
+      cachedAt: Date.now()
+    };
+    const dataToCache = JSON.stringify(toCache);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(result);
+    this.cache.set(key, dataToCache, originalSize, compactSize);
+  }
+  /**
+   * Generate optimization suggestions based on error patterns
+   */
+  generateSuggestions(result) {
+    const suggestions = [];
+    const categoryCounts = /* @__PURE__ */ new Map();
+    for (const error2 of result.errors) {
+      categoryCounts.set(
+        error2.category,
+        (categoryCounts.get(error2.category) || 0) + 1
+      );
+    }
+    const typeSafetyCount = (categoryCounts.get("Type Assignment") || 0) + (categoryCounts.get("Type Argument") || 0);
+    if (typeSafetyCount > 10) {
+      suggestions.push({
+        type: "config",
+        priority: 10,
+        message: 'Enable "strict": true in tsconfig.json for better type safety',
+        impact: `Will catch ${typeSafetyCount} type safety issues earlier`
+      });
+    }
+    const implicitAnyCount = (categoryCounts.get("Implicit Any Parameter") || 0) + (categoryCounts.get("Implicit Any Variable") || 0);
+    if (implicitAnyCount > 5) {
+      suggestions.push({
+        type: "refactor",
+        priority: 8,
+        message: "Add explicit type annotations to reduce implicit any usage",
+        impact: `${implicitAnyCount} locations need type annotations`
+      });
+    }
+    const moduleErrors = categoryCounts.get("Module Resolution") || 0;
+    if (moduleErrors > 0) {
+      suggestions.push({
+        type: "fix",
+        priority: 10,
+        message: "Fix module resolution errors (check paths in tsconfig.json)",
+        impact: `${moduleErrors} module resolution errors blocking compilation`
+      });
+    }
+    const nullUndefinedCount = (categoryCounts.get("Possibly Null") || 0) + (categoryCounts.get("Possibly Undefined") || 0);
+    if (nullUndefinedCount > 10) {
+      suggestions.push({
+        type: "refactor",
+        priority: 6,
+        message: "Add null/undefined checks or use optional chaining",
+        impact: `${nullUndefinedCount} potential null/undefined access issues`
+      });
+    }
+    suggestions.sort((a2, b) => b.priority - a2.priority);
+    return suggestions;
+  }
+  /**
+   * Transform type check output to smart output
+   */
+  transformOutput(result, fromCache = false) {
+    const categorizedErrors = /* @__PURE__ */ new Map();
+    for (const error2 of result.errors) {
+      if (!categorizedErrors.has(error2.category)) {
+        categorizedErrors.set(error2.category, []);
+      }
+      categorizedErrors.get(error2.category).push(error2);
+    }
+    const errorsByCategory = Array.from(categorizedErrors.entries()).map(
+      ([category, errors]) => {
+        const firstError = errors[0];
+        const severity = this.determineSeverity(category, firstError.code);
+        return {
+          category,
+          count: errors.length,
+          severity,
+          errors: errors.slice(0, 5).map((err) => ({
+            // Show first 5 per category
+            file: err.file,
+            location: `${err.line}:${err.column}`,
+            code: err.code,
+            message: err.message
+          }))
+        };
+      }
+    );
+    const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+    errorsByCategory.sort((a2, b) => {
+      const sevDiff = severityOrder[b.severity] - severityOrder[a2.severity];
+      if (sevDiff !== 0) return sevDiff;
+      return b.count - a2.count;
+    });
+    const suggestions = this.generateSuggestions(result);
+    const originalSize = this.estimateOriginalOutputSize(result);
+    const compactSize = this.estimateCompactSize(result);
+    return {
+      summary: {
+        success: result.success,
+        errorCount: result.errors.length,
+        filesChecked: result.filesChecked,
+        duration: result.duration,
+        fromCache
+      },
+      errorsByCategory,
+      suggestions,
+      _metrics: {
+        originalTokens: Math.ceil(originalSize / 4),
+        compactedTokens: Math.ceil(compactSize / 4),
+        reductionPercentage: Math.round(
+          (originalSize - compactSize) / originalSize * 100
+        )
+      }
+    };
+  }
+  /**
+   * Format cached output
+   */
+  formatCachedOutput(result) {
+    return this.transformOutput(result, true);
+  }
+  /**
+   * Estimate original output size
+   */
+  estimateOriginalOutputSize(result) {
+    return result.errors.length * 180 + 500;
+  }
+  /**
+   * Estimate compact output size
+   */
+  estimateCompactSize(result) {
+    const summary = {
+      success: result.success,
+      errorCount: result.errors.length
+    };
+    const topCategories = result.errors.slice(0, 9).map((e) => ({
+      category: e.category,
+      code: e.code,
+      message: e.message.slice(0, 50)
+    }));
+    return JSON.stringify({ summary, topCategories }).length;
+  }
+  /**
+   * Close cache connection
+   */
+  close() {
+    this.cache.close();
+  }
+};
+function getSmartTypeCheckTool(cache, tokenCounter, _metrics) {
+  return new SmartTypeCheck(cache, tokenCounter, _metrics);
+}
+var SMART_TYPECHECK_TOOL_DEFINITION = {
+  name: "smart_typecheck",
+  description: "Run TypeScript type checking with intelligent caching and categorized error reporting",
+  inputSchema: {
+    type: "object",
+    properties: {
+      force: {
+        type: "boolean",
+        description: "Force full type check (ignore cache)",
+        default: false
+      },
+      watch: {
+        type: "boolean",
+        description: "Watch mode for continuous type checking",
+        default: false
+      },
+      projectRoot: {
+        type: "string",
+        description: "Project root directory"
+      },
+      tsconfig: {
+        type: "string",
+        description: "TypeScript config file path"
+      },
+      maxCacheAge: {
+        type: "number",
+        description: "Maximum cache age in seconds (default: 3600)",
+        default: 3600
+      }
+    }
+  }
+};
+
 // src/optimizer/server.ts
 var ALL_TOOL_DEFINITIONS = [
   SMART_READ_TOOL_DEFINITION,
@@ -48785,7 +53655,17 @@ var ALL_TOOL_DEFINITIONS = [
   SMART_REST_TOOL_DEFINITION,
   SMART_SCHEMA_TOOL_DEFINITION,
   SMART_SQL_TOOL_DEFINITION,
-  SMART_WEBSOCKET_TOOL_DEFINITION
+  SMART_WEBSOCKET_TOOL_DEFINITION,
+  SMART_BUILD_TOOL_DEFINITION,
+  SMART_DOCKER_TOOL_DEFINITION,
+  SMART_INSTALL_TOOL_DEFINITION,
+  SMART_LINT_TOOL_DEFINITION,
+  SMART_LOGS_TOOL_DEFINITION,
+  SMART_NETWORK_TOOL_DEFINITION,
+  SMART_PROCESSES_TOOL_DEFINITION,
+  SMART_SYSTEM_METRICS_TOOL_DEFINITION,
+  SMART_TEST_TOOL_DEFINITION,
+  SMART_TYPECHECK_TOOL_DEFINITION
 ];
 function ok(result) {
   return {
@@ -48841,6 +53721,16 @@ function createOptimizerRuntime() {
   const smartSchema = getSmartSchema(cache, tokenCounter, metrics);
   const smartSql = getSmartSql(cache, tokenCounter, metrics);
   const smartWebSocket = getSmartWebSocket(cache, tokenCounter, metrics);
+  const smartBuild = getSmartBuildTool(cache, tokenCounter, metrics);
+  const smartDocker = getSmartDocker(cache);
+  const smartInstall = getSmartInstall(cache);
+  const smartLint = getSmartLintTool(cache, tokenCounter, metrics);
+  const smartLogs = getSmartLogs(cache);
+  const smartNetwork = getSmartNetwork(cache);
+  const smartProcesses = getSmartProcessesTool(cache, tokenCounter, metrics);
+  const smartSystemMetrics = getSmartSystemMetrics(cache);
+  const smartTest = getSmartTestTool(cache, tokenCounter, metrics);
+  const smartTypeCheck = getSmartTypeCheckTool(cache, tokenCounter, metrics);
   const registry2 = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
@@ -48943,7 +53833,30 @@ function createOptimizerRuntime() {
     smart_rest: async (args) => ok(await smartRest.run(args)),
     smart_schema: async (args) => ok(await smartSchema.run(args)),
     smart_sql: async (args) => ok(await smartSql.run(args)),
-    smart_websocket: async (args) => ok(await smartWebSocket.run(args))
+    smart_websocket: async (args) => ok(await smartWebSocket.run(args)),
+    // build-systems: every one of these matches vendor's real dispatch
+    // exactly -- `case 'smart_xxx': { const options = args as any; const
+    // result = await smartXxx.run(options); ... }` -- whole-args-object,
+    // no positional field pulled out first, for all 10 tools in this
+    // category (verified by reading vendor's src/server/index.ts directly).
+    // See src/optimizer/tools/build-systems/index.ts for: which of the 10
+    // vendor's own (incomplete) category index.ts re-exports vs. which it
+    // omitted despite dispatching them for real; the Windows
+    // CVE-2024-27980 spawn workaround five of these already carried before
+    // this checkpoint (smart_build/lint/typecheck/install/test) vs. the
+    // other five spawning real OS executables that never needed it; and a
+    // known projectRoot-staleness divergence across smart_install/
+    // smart_docker/smart_logs (ported as-is, not silently patched).
+    smart_build: async (args) => ok(await smartBuild.run(args)),
+    smart_docker: async (args) => ok(await smartDocker.run(args)),
+    smart_install: async (args) => ok(await smartInstall.run(args)),
+    smart_lint: async (args) => ok(await smartLint.run(args)),
+    smart_logs: async (args) => ok(await smartLogs.run(args)),
+    smart_network: async (args) => ok(await smartNetwork.run(args)),
+    smart_processes: async (args) => ok(await smartProcesses.run(args)),
+    smart_system_metrics: async (args) => ok(await smartSystemMetrics.run(args)),
+    smart_test: async (args) => ok(await smartTest.run(args)),
+    smart_typecheck: async (args) => ok(await smartTypeCheck.run(args))
   };
   return { registry: registry2, cache, close: () => cache.close() };
 }

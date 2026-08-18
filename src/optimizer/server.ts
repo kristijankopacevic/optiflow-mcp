@@ -9,17 +9,18 @@
 // package_json/config_read/tsconfig/workflow), output-formatting
 // (smart_pretty), system-operations (smart_process/service/cron/user),
 // intelligence (knowledge_graph/sentiment_analysis/wiki_read/wiki_write),
-// and api-database (smart_api_fetch/cache_api/database/graphql/migration/
+// api-database (smart_api_fetch/cache_api/database/graphql/migration/
 // orm/rest/schema/sql/websocket — see
 // src/optimizer/tools/api-database/index.ts for which of these do real
-// analysis vs. vendor's own mocked/placeholder pieces). Still-deferred
+// analysis vs. vendor's own mocked/placeholder pieces), and build-systems
+// (smart_build/docker/install/lint/logs/network/processes/system_metrics/
+// test/typecheck — see src/optimizer/tools/build-systems/index.ts for the
+// Windows CVE-2024-27980 spawn workaround five of these already carried,
+// and for a known projectRoot-staleness divergence across three of them
+// that was ported as-is rather than silently patched). Still-deferred
 // categories (advanced-caching, analytics tools — blocked on the separate
 // src/analytics/ persistence merge —, code-analysis, dashboard-monitoring)
-// have no tools copied or wired yet. build-systems is a partial exception:
-// only its shared run-node-bin.ts helper is pre-copied (a dependency of
-// smart_package_json in the configuration category, not a build-systems
-// tool itself) — none of build-systems' own smart_build/install/lint/test/
-// typecheck tools are copied or wired. It
+// have no tools copied or wired yet. It
 // replaces token-optimizer-mcp's own
 // ~3000-line `src/server/index.ts` (a single giant switch-statement dispatch
 // entangled with ~50 other modules — analytics, dashboard, UCR, wiki — that
@@ -87,6 +88,17 @@ import { getSmartSchema, SMART_SCHEMA_TOOL_DEFINITION } from "./tools/api-databa
 import { getSmartSql, SMART_SQL_TOOL_DEFINITION } from "./tools/api-database/smart-sql.js";
 import { getSmartWebSocket, SMART_WEBSOCKET_TOOL_DEFINITION } from "./tools/api-database/smart-websocket.js";
 
+import { getSmartBuildTool, SMART_BUILD_TOOL_DEFINITION } from "./tools/build-systems/smart-build.js";
+import { getSmartDocker, SMART_DOCKER_TOOL_DEFINITION } from "./tools/build-systems/smart-docker.js";
+import { getSmartInstall, SMART_INSTALL_TOOL_DEFINITION } from "./tools/build-systems/smart-install.js";
+import { getSmartLintTool, SMART_LINT_TOOL_DEFINITION } from "./tools/build-systems/smart-lint.js";
+import { getSmartLogs, SMART_LOGS_TOOL_DEFINITION } from "./tools/build-systems/smart-logs.js";
+import { getSmartNetwork, SMART_NETWORK_TOOL_DEFINITION } from "./tools/build-systems/smart-network.js";
+import { getSmartProcessesTool, SMART_PROCESSES_TOOL_DEFINITION } from "./tools/build-systems/smart-processes.js";
+import { getSmartSystemMetrics, SMART_SYSTEM_METRICS_TOOL_DEFINITION } from "./tools/build-systems/smart-system-metrics.js";
+import { getSmartTestTool, SMART_TEST_TOOL_DEFINITION } from "./tools/build-systems/smart-test.js";
+import { getSmartTypeCheckTool, SMART_TYPECHECK_TOOL_DEFINITION } from "./tools/build-systems/smart-typecheck.js";
+
 /** All tools currently wired into the dispatch table (not just copied-in). */
 export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_READ_TOOL_DEFINITION,
@@ -123,6 +135,16 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   SMART_SCHEMA_TOOL_DEFINITION,
   SMART_SQL_TOOL_DEFINITION,
   SMART_WEBSOCKET_TOOL_DEFINITION,
+  SMART_BUILD_TOOL_DEFINITION,
+  SMART_DOCKER_TOOL_DEFINITION,
+  SMART_INSTALL_TOOL_DEFINITION,
+  SMART_LINT_TOOL_DEFINITION,
+  SMART_LOGS_TOOL_DEFINITION,
+  SMART_NETWORK_TOOL_DEFINITION,
+  SMART_PROCESSES_TOOL_DEFINITION,
+  SMART_SYSTEM_METRICS_TOOL_DEFINITION,
+  SMART_TEST_TOOL_DEFINITION,
+  SMART_TYPECHECK_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -210,6 +232,23 @@ export function createOptimizerRuntime(): OptimizerRuntime {
   const smartSchema = getSmartSchema(cache, tokenCounter, metrics);
   const smartSql = getSmartSql(cache, tokenCounter, metrics);
   const smartWebSocket = getSmartWebSocket(cache, tokenCounter, metrics);
+
+  // build-systems: instantiated with the SAME arg counts vendor's own
+  // src/server/index.ts uses for each factory (verified by reading it) --
+  // smart_build/lint/processes/test/typecheck take the full
+  // (cache, tokenCounter, metrics) triple; smart_docker/install/logs/network/
+  // system_metrics take only `cache` (their factories don't accept a
+  // tokenCounter/metrics at all).
+  const smartBuild = getSmartBuildTool(cache, tokenCounter, metrics);
+  const smartDocker = getSmartDocker(cache);
+  const smartInstall = getSmartInstall(cache);
+  const smartLint = getSmartLintTool(cache, tokenCounter, metrics);
+  const smartLogs = getSmartLogs(cache);
+  const smartNetwork = getSmartNetwork(cache);
+  const smartProcesses = getSmartProcessesTool(cache, tokenCounter, metrics);
+  const smartSystemMetrics = getSmartSystemMetrics(cache);
+  const smartTest = getSmartTestTool(cache, tokenCounter, metrics);
+  const smartTypeCheck = getSmartTypeCheckTool(cache, tokenCounter, metrics);
 
   const registry: Record<string, ToolHandler> = {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
@@ -323,6 +362,30 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     smart_schema: async (args) => ok(await smartSchema.run(args as any)),
     smart_sql: async (args) => ok(await smartSql.run(args as any)),
     smart_websocket: async (args) => ok(await smartWebSocket.run(args as any)),
+
+    // build-systems: every one of these matches vendor's real dispatch
+    // exactly -- `case 'smart_xxx': { const options = args as any; const
+    // result = await smartXxx.run(options); ... }` -- whole-args-object,
+    // no positional field pulled out first, for all 10 tools in this
+    // category (verified by reading vendor's src/server/index.ts directly).
+    // See src/optimizer/tools/build-systems/index.ts for: which of the 10
+    // vendor's own (incomplete) category index.ts re-exports vs. which it
+    // omitted despite dispatching them for real; the Windows
+    // CVE-2024-27980 spawn workaround five of these already carried before
+    // this checkpoint (smart_build/lint/typecheck/install/test) vs. the
+    // other five spawning real OS executables that never needed it; and a
+    // known projectRoot-staleness divergence across smart_install/
+    // smart_docker/smart_logs (ported as-is, not silently patched).
+    smart_build: async (args) => ok(await smartBuild.run(args as any)),
+    smart_docker: async (args) => ok(await smartDocker.run(args as any)),
+    smart_install: async (args) => ok(await smartInstall.run(args as any)),
+    smart_lint: async (args) => ok(await smartLint.run(args as any)),
+    smart_logs: async (args) => ok(await smartLogs.run(args as any)),
+    smart_network: async (args) => ok(await smartNetwork.run(args as any)),
+    smart_processes: async (args) => ok(await smartProcesses.run(args as any)),
+    smart_system_metrics: async (args) => ok(await smartSystemMetrics.run(args as any)),
+    smart_test: async (args) => ok(await smartTest.run(args as any)),
+    smart_typecheck: async (args) => ok(await smartTypeCheck.run(args as any)),
   };
 
   return { registry, cache, close: () => cache.close() };
