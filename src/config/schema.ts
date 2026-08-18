@@ -76,6 +76,15 @@ export const KompressSchema = z.object({
   variant: z.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant),
 });
 
+// v2 Phase 5c addition ("wire the native compression modules in"). See
+// `src/config/defaults.ts`'s doc comment on `smartCrusher` for why this
+// defaults `enabled: true` (unlike `kompress`, which is opt-in due to its
+// model-download cost that SmartCrusher doesn't share).
+export const SmartCrusherSchema = z.object({
+  enabled: z.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
+  minSavingsPercent: z.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent),
+});
+
 export const OptiflowConfigSchema = z.object({
   engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -85,6 +94,7 @@ export const OptiflowConfigSchema = z.object({
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
   kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher),
 });
 
 export type OptiflowConfig = z.infer<typeof OptiflowConfigSchema>;

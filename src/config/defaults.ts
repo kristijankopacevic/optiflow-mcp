@@ -110,6 +110,31 @@ export interface DefaultConfigShape {
      */
     variant: "int8" | "fp32";
   };
+  /**
+   * v2 Phase 5c addition ("wire the native compression modules in"), same
+   * additive-config precedent as every other section here. Unlike
+   * `kompress` (opt-in: downloads a ~274MB model on first use), SmartCrusher
+   * has no comparable cost — it's a WASM module already bundled alongside
+   * the rest of the plugin, with no network access and no meaningfully
+   * different behavior/resource profile than TOON — so `enabled` defaults
+   * to `true`, matching `toon.enabled`'s default rather than `kompress.enabled`'s.
+   */
+  smartCrusher: {
+    enabled: boolean;
+    /**
+     * Minimum required (tokensBefore - tokensAfter) / tokensBefore percent
+     * before `src/chop/filters/generic.ts` accepts a SmartCrusher-compressed
+     * result over whatever it would otherwise do (TOON already declined, or
+     * this is the generic non-uniform JSON path) — same mandatory
+     * measured-savings-guard convention as `toon.minSavingsPercent`
+     * (`src/toon/guard.ts`'s `evaluateGuard`, reused directly rather than
+     * reimplemented). Set slightly below TOON's 30% default: by the time
+     * SmartCrusher is tried, TOON has already declined, so this is a
+     * fallback-of-a-fallback where a smaller real win is still worth taking
+     * over the dumber truncation path it would otherwise compete with.
+     */
+    minSavingsPercent: number;
+  };
 }
 
 export const DEFAULT_CONFIG: DefaultConfigShape = {
@@ -169,5 +194,9 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
     enabled: false,
     allowDownload: false,
     variant: "int8",
+  },
+  smartCrusher: {
+    enabled: true,
+    minSavingsPercent: 20,
   },
 };
