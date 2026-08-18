@@ -1,41 +1,49 @@
 # optiflow-mcp
 
-An orchestration layer for Claude Code that combines two existing
-token-optimization tools — [token-optimizer-mcp](https://github.com/ooples/token-optimizer-mcp)
-and [headroom](https://github.com/headroomlabs-ai/headroom) — under one
-plugin/config, and adds five modules that neither upstream tool covers:
+A single Claude Code plugin, one MCP server, one repository — not a wrapper
+around separately-installed tools. It genuinely merges the real source of
+two upstream projects into its own codebase:
 
-1. Chop-style Bash/CLI-output interception (git, docker, kubectl, npm,
-   terraform, test runners)
-2. Session-report-style transcript analytics (`optiflow report`)
-3. A statusline context meter (renders in under 100ms)
-4. `/optiflow:compact-continue` session-handoff checkpoints
-5. TOON conversion for large JSON/CSV/YAML payloads
+1. **[token-optimizer-mcp](https://github.com/ooples/token-optimizer-mcp)'s**
+   76 real `smart_*`/analytics/dashboard-monitoring MCP tools, plus its
+   `PreToolUse`/`PreCompact` enforcement hooks, ported directly into
+   `src/optimizer/` — no `npx` install, no separate process.
+2. **[headroom](https://github.com/headroomlabs-ai/headroom)'s** actual Rust
+   compression core (`SmartCrusher`) forked into `native/headroom-core/`,
+   feature-stripped, and compiled to real WebAssembly
+   (`native/headroom-wasm/`) loaded directly by the Node plugin — the genuine
+   Rust algorithm, not a rewrite. headroom's CodeCompressor and Kompress ML
+   model are reimplemented natively in TypeScript instead (`src/native/`).
+3. Five modules of its own that neither upstream tool covered: chop-style
+   Bash/CLI-output interception, session-report transcript analytics, a
+   statusline context meter, `/optiflow:compact-continue` session-handoff
+   checkpoints, and TOON conversion for large JSON/CSV/YAML payloads.
 
-Both upstream projects are referenced as git submodules under `vendor/` for
-provenance only — their code is never modified. At runtime, optiflow-mcp
-invokes token-optimizer-mcp via a version-pinned `npx` and headroom via the
-`headroom` binary on PATH (optional), rather than building either submodule.
-
-See [`docs/architecture.md`](docs/architecture.md) for the full design
-rationale, authority map, and locked decisions.
+Both upstream projects are still referenced as git submodules under
+`vendor/` for provenance/license text, but nothing under `src/` or `native/`
+imports from `vendor/` — see
+[`docs/ADR/0002-real-merge-not-orchestration.md`](docs/ADR/0002-real-merge-not-orchestration.md)
+for why this replaced the original orchestration-wrapper design (v1), and
+[`docs/architecture.md`](docs/architecture.md) for the full authority map and
+locked decisions.
 
 ## Status
 
-All five modules, core/config, `optiflow doctor`, and the real
-`optiflow install`/`optiflow uninstall` installer are built and committed.
-`npm run build`, `npm test` (452 tests), and `npx tsc --noEmit` all pass.
-Remaining/known gaps: `optiflow init`, `optiflow chop`, and `optiflow
-statusline` are still stub subcommands (their real logic already exists as
-importable modules/hooks — see `src/chop/**`/`src/statusline/**` — just not
-yet wired to a direct CLI entry point of their own); the final `gh`-authenticated
-publish sequence (fork/push to a public repo) hasn't run yet. See the plan's
-build-order table and `docs/modules.md` for per-module detail.
+Both major merges are done and wired: the 76-tool + enforcement-hook merge
+from token-optimizer-mcp, and headroom's compression core (WASM SmartCrusher
++ TS CodeCompressor/Kompress) actually called from the shipped pipeline, not
+just built in isolation. `npm run build`, `npm test`, and `npx tsc --noEmit`
+all pass — see `docs/modules.md` for per-module detail and current test
+count. Building from source needs a Rust toolchain (`rustup`, the
+`wasm32-unknown-unknown` target, `wasm-pack`) in addition to Node; a plugin
+install does not (the compiled `.wasm` is committed, same reasoning as
+`plugin/dist/`).
 
 ## Getting started
 
-This has only been exercised via a **local-path marketplace** so far (no
-`gh` auth needed for any of this):
+Published at [github.com/kristijankopacevic/optiflow-mcp](https://github.com/kristijankopacevic/optiflow-mcp).
+Verified end-to-end via a local-path marketplace (no `gh` auth needed for
+that):
 
 1. In a Claude Code session, add this repo as a marketplace and install the
    plugin:
@@ -47,9 +55,7 @@ This has only been exercised via a **local-path marketplace** so far (no
    ```powershell
    optiflow doctor
    ```
-   Reports Node/npm versions, config resolution, the token-optimizer version
-   pin vs. the vendored submodule, headroom presence, a headroom-wrap
-   conflict warning (plan Risk R1), and `gh` presence/auth.
+   Reports Node/npm versions, config resolution, and `gh` presence/auth.
 3. Activate the statusline (optional, opt-in — installing the plugin alone
    does not touch your settings.json):
    ```powershell
@@ -68,7 +74,7 @@ reference depth beyond this quick start.
 ## License
 
 MIT for optiflow-mcp's own code (see [`LICENSE`](LICENSE)). This repository
-also aggregates references to MIT-licensed (token-optimizer-mcp) and
+also copies in source from MIT-licensed (token-optimizer-mcp) and
 Apache-2.0-licensed (headroom) upstream projects — see
 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) and
 [`NOTICE`](NOTICE).

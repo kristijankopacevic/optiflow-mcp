@@ -1,36 +1,90 @@
 optiflow-mcp
 Copyright (c) 2026 Kristijan Kopacevic
 
-This product aggregates, but does not modify or derive from, code from the
-following upstream projects. Each is referenced via git submodule
-(provenance-only, not built or vendored into the shipped bundle) and/or
-invoked as a separate subprocess at runtime; optiflow-mcp's own source code
-under `src/`, `plugin/`, and elsewhere in this repository is original work
-licensed under MIT (see LICENSE).
+This product's own source code under `src/`, `plugin/`, and elsewhere in
+this repository is original work licensed under MIT (see LICENSE). It also
+directly incorporates copied-in source from two upstream projects (not mere
+references — see docs/ADR/0002-real-merge-not-orchestration.md):
 
 1. token-optimizer-mcp
    https://github.com/ooples/token-optimizer-mcp
    License: MIT
-   Referenced at: vendor/token-optimizer-mcp (git submodule, provenance only)
-   Invoked at runtime via: `npx -y @ooples/token-optimizer-mcp@<pinned-version>`
+   Source copied into: src/optimizer/** (76 MCP tools + enforcement hooks,
+   reconciled to this repo's own conventions)
    (see THIRD_PARTY_LICENSES.md for the full license text location)
 
 2. headroom
    https://github.com/headroomlabs-ai/headroom
    License: Apache-2.0
-   Referenced at: vendor/headroom (git submodule, provenance only)
-   Invoked at runtime via: the `headroom` binary from PATH, if installed
+   Source copied into: native/headroom-core/ (SmartCrusher/TOIN, forked and
+   feature-stripped, compiled to WebAssembly at native/headroom-wasm/)
    (see THIRD_PARTY_LICENSES.md for the full license text location)
 
-Apache-2.0 §4(d) requires that any NOTICE file content from headroom be
-reproduced here. As of this scaffold (Phase 1), the headroom submodule has
-been added at vendor/headroom but its own NOTICE file contents have not yet
-been inspected or copied in — this stub intentionally does NOT fabricate
-that content. When headroom's NOTICE file is read (Phase 8, or whenever the
-submodule is first inspected), its contents must be appended below this line
-verbatim, attributed to headroomlabs-ai/headroom, before optiflow-mcp is
-published or redistributed.
+Apache-2.0 Section 4(d) requires reproducing headroom's own NOTICE file content
+here. Read directly from vendor/headroom/NOTICE and reproduced verbatim
+below, attributed to headroomlabs-ai/headroom. Most of the third-party
+entries below (sentence-transformers, FastAPI, NumPy, the dashboard static
+assets) belong to headroom's Python package and web dashboard, which
+optiflow-mcp did not fork (only the headroom-core Rust crate was copied in)
+- reproduced in full anyway, per the same "when in doubt, include the whole
+NOTICE" principle that governs this kind of attribution.
 
---- BEGIN headroom NOTICE (to be filled in from vendor/headroom/NOTICE) ---
-(not yet populated — see above)
+--- BEGIN headroom NOTICE (verbatim from vendor/headroom/NOTICE) ---
+Headroom
+Copyright 2025 Headroom Contributors
+
+This product includes software developed by the Headroom Contributors.
+
+Third-Party Licenses
+====================
+
+This software uses the following third-party libraries:
+
+tiktoken
+--------
+Copyright (c) 2022 OpenAI, Shantanu Jain
+Licensed under the MIT License
+https://github.com/openai/tiktoken
+
+Pydantic
+--------
+Copyright (c) 2017 to present Pydantic Services Inc. and individual contributors
+Licensed under the MIT License
+https://github.com/pydantic/pydantic
+
+sentence-transformers (optional dependency)
+-------------------------------------------
+Copyright 2019 Nils Reimers
+Licensed under the Apache License 2.0
+https://github.com/UKPLab/sentence-transformers
+
+Note: Some pretrained sentence-transformer models may have additional licensing
+restrictions based on their training data. Please verify model-specific licenses
+before commercial use.
+
+FastAPI (optional dependency)
+-----------------------------
+Copyright (c) 2018 Sebastián Ramírez
+Licensed under the MIT License
+https://github.com/tiangolo/fastapi
+
+NumPy (optional dependency)
+---------------------------
+Copyright (c) 2005-2024, NumPy Developers
+Licensed under the BSD 3-Clause License
+https://github.com/numpy/numpy
+
+Vendored dashboard assets (headroom/dashboard/static/)
+------------------------------------------------------
+Tailwind CSS 3.4.17 (Play CDN build) — MIT License
+Copyright (c) Tailwind Labs, Inc.
+https://github.com/tailwindlabs/tailwindcss
+
+htmx 1.9.10 — Zero-Clause BSD License
+Copyright (c) 2020, Big Sky Software
+https://github.com/bigskysoftware/htmx
+
+Alpine.js 3.13.3 — MIT License
+Copyright (c) 2019-2025 Caleb Porzio and contributors
+https://github.com/alpinejs/alpine
 --- END headroom NOTICE ---

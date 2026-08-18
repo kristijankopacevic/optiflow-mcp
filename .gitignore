@@ -4,8 +4,12 @@ node_modules/
 *.log
 
 # Rust build artifacts under native/ (multi-GB target/ dirs) — never commit.
-# native/*/pkg/ (wasm-pack output) is deliberately excluded here too while
-# it's still a stub; revisit committing it once it's the real production
-# artifact (mirrors why plugin/dist/ IS committed elsewhere in this repo).
 native/*/target/
-native/*/pkg/
+
+# native/*/pkg/ (wasm-pack's compiled .wasm + JS glue output) IS committed,
+# same reasoning as plugin/dist/: src/native/smart-crusher.ts's
+# `import ... from "../../native/headroom-wasm/pkg/headroom_wasm.js"` is a
+# real runtime dependency, not test-only, and a plugin install never runs
+# `cargo`/`wasm-pack` - if this weren't committed, the compression pipeline
+# would silently fail to load for anyone who didn't happen to build it
+# locally in the exact right place first.

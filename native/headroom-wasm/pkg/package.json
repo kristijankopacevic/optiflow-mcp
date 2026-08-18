@@ -1,0 +1,13 @@
+{
+  "name": "headroom-wasm",
+  "description": "wasm-bindgen bindings over headroom-core, built for Node via wasm-pack.",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "files": [
+    "headroom_wasm_bg.wasm",
+    "headroom_wasm.js",
+    "headroom_wasm.d.ts"
+  ],
+  "main": "headroom_wasm.js",
+  "types": "headroom_wasm.d.ts"
+}

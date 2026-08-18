@@ -1,7 +1,7 @@
 {
   "name": "optiflow-mcp",
   "version": "0.1.0",
-  "description": "Orchestration layer wiring token-optimizer-mcp and headroom together under one Claude Code plugin, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
+  "description": "A single Claude Code plugin merging token-optimizer-mcp's 76 smart_*/analytics MCP tools and enforcement hooks with headroom's real Rust compression core (via WASM), plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
   "private": false,
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "build:wasm": "wasm-pack build --target nodejs native/headroom-wasm",
+    "build:wasm": "wasm-pack build --target nodejs native/headroom-wasm && node -e \"require('fs').rmSync('native/headroom-wasm/pkg/.gitignore',{force:true})\"",
     "test": "vitest run",
     "lint": "tsc --noEmit",
     "verify-upstream": "node scripts/verify-upstream-invariants.mjs"

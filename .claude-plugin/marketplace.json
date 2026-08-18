@@ -4,14 +4,14 @@
     "name": "Kristijan Kopacevic"
   },
   "metadata": {
-    "description": "Orchestration layer combining token-optimizer-mcp and headroom, plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
+    "description": "A single Claude Code plugin merging token-optimizer-mcp's smart_*/analytics MCP tools and enforcement hooks with headroom's real Rust compression core (via WASM), plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "optiflow",
       "source": "./plugin",
-      "description": "Orchestrator plugin: chop-style Bash interception, transcript analytics, statusline context meter, compact-continue handoff, and TOON conversion. Wires token-optimizer-mcp and headroom together via plugin/.mcp.json (pinned npx package + optional headroom binary on PATH) rather than registering them as separate marketplace plugins.",
+      "description": "The merged plugin: token-optimizer-mcp's smart_*/analytics tools and enforcement hooks plus headroom's compression core, both merged directly into this codebase (no external process, no npx, no separate binary) - alongside chop-style Bash interception, transcript analytics, statusline context meter, compact-continue handoff, and TOON conversion.",
       "category": "productivity",
       "tags": ["optimization", "tokens", "context", "statusline", "hooks"]
     }
