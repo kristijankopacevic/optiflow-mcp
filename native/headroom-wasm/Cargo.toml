@@ -34,3 +34,10 @@ crate-type = ["cdylib", "rlib"]
 # into the orchestrator and can prove out the real runtime story.
 headroom-core = { path = "../headroom-core", default-features = false }
 wasm-bindgen = "0.2"
+# Used directly by this crate's own `smart_crush` export to build the
+# JSON string returned to Node (`CrushResult` in headroom-core has no
+# `Serialize` derive today — see `src/lib.rs`'s doc comment). Version
+# left unpinned relative to headroom-core's own `serde_json = "1"` so
+# Cargo's feature unification resolves both to a single copy in the
+# dependency graph.
+serde_json = "1"

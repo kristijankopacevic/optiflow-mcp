@@ -563,6 +563,7 @@ name = "headroom-wasm"
 version = "0.1.0"
 dependencies = [
  "headroom-core",
+ "serde_json",
  "wasm-bindgen",
 ]
 
