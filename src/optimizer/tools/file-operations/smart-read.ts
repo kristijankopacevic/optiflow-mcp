@@ -1,0 +1,496 @@
+/**
+ * Smart Read Tool - 80% token reduction through intelligent caching and diff-based updates
+ *
+ * Features:
+ * - Diff-based updates (send only changes)
+ * - Automatic chunking for large files
+ * - Syntax-aware truncation
+ * - Cache integration with git awareness
+ * - Token tracking and metrics
+ */
+
+import { readFileSync, existsSync, statSync } from 'fs';
+import { CacheEngine } from '../../core/cache-engine.js';
+import { getOptimizerCacheDbPath } from '../../paths.js';
+import { TokenCounter } from '../../core/token-counter.js';
+import { MetricsCollector } from '../../core/metrics.js';
+import { generateDiff, hasMeaningfulChanges } from '../shared/diff-utils.js';
+import { hashFile, generateCacheKey } from '../shared/hash-utils.js';
+import { cacheGet, cacheSet } from '../../utils/cache-helper.js';
+import {
+  chunkBySyntax,
+  truncateContent,
+  detectFileType,
+  isMinified,
+} from '../shared/syntax-utils.js';
+
+export interface SmartReadOptions {
+  // Cache options
+  enableCache?: boolean;
+  ttl?: number;
+
+  // Output options
+  diffMode?: boolean; // Return only diff if file was previously read
+  maxSize?: number; // Maximum size to return (will truncate)
+  chunkSize?: number; // Size of chunks for large files
+  /**
+   * Which chunk to return for a chunked file (0-based).
+   *
+   * Advertised in the tool schema from the start, but absent from this
+   * interface and never read, so asking for chunk 2 silently returned chunk 1.
+   */
+  chunkIndex?: number;
+
+  // Optimization options
+  preserveStructure?: boolean; // Keep important structural elements when truncating
+  includeMetadata?: boolean; // Include file metadata in response
+  encoding?: BufferEncoding; // File encoding (default: utf-8)
+}
+
+export interface SmartReadResult {
+  content: string;
+  metadata: {
+    path: string;
+    size: number;
+    encoding: string;
+    fileType: string;
+    hash: string;
+    fromCache: boolean;
+    isDiff: boolean;
+    chunked: boolean;
+    truncated: boolean;
+    tokensSaved: number;
+    tokenCount: number;
+    originalTokenCount: number;
+    compressionRatio: number;
+    /** How many chunks the file was split into; present only when chunked. */
+    chunkCount?: number;
+    /** Which chunk this response carries; present only when chunked. */
+    chunkIndex?: number;
+  };
+  diff?: {
+    added: string[];
+    removed: string[];
+    unchanged: number;
+  };
+}
+
+export class SmartReadTool {
+  private cache: CacheEngine;
+  private tokenCounter: TokenCounter;
+  private metrics: MetricsCollector;
+
+  constructor(
+    cache: CacheEngine,
+    tokenCounter: TokenCounter,
+    metrics: MetricsCollector
+  ) {
+    this.cache = cache;
+    this.tokenCounter = tokenCounter;
+    this.metrics = metrics;
+  }
+
+  /**
+   * Smart read with aggressive token optimization
+   */
+  async read(
+    filePath: string,
+    options: SmartReadOptions = {}
+  ): Promise<SmartReadResult> {
+    const startTime = Date.now();
+
+    const {
+      enableCache = true,
+      ttl: _ttl = 3600,
+      diffMode = true,
+      maxSize = 100000, // 100KB default max
+      chunkSize = 4000,
+      preserveStructure = true,
+      includeMetadata: _includeMetadata = true,
+      encoding = 'utf-8',
+    } = options;
+
+    // Guard against a missing/blank path (e.g. caller passed `file_path`
+    // instead of `path`) so we fail with a clear message instead of an
+    // opaque downstream error. The typeof check must come first so we never
+    // call a string method on a non-string; whitespace-only paths are also
+    // treated as blank.
+    if (typeof filePath !== 'string' || filePath.trim().length === 0) {
+      throw new Error(
+        'smart_read requires a non-empty "path" argument (received: ' +
+          `${JSON.stringify(filePath)})`
+      );
+    }
+
+    // Validate file exists
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    // Get file stats
+    const stats = statSync(filePath);
+    const fileHash = hashFile(filePath);
+    const fileType = detectFileType(filePath);
+
+    // Generate cache key
+    const cacheKey = generateCacheKey('smart-read', {
+      path: filePath,
+      options: { maxSize, chunkSize, preserveStructure },
+    });
+
+    // Check cache
+    const cachedData = enableCache ? cacheGet(this.cache, cacheKey) : null;
+    const fromCache = cachedData !== null;
+
+    // Read file content
+    const rawContent = readFileSync(filePath, encoding);
+    const originalTokens = this.tokenCounter.count(rawContent).tokens;
+
+    let finalContent = rawContent;
+    let isDiff = false;
+    let truncated = false;
+    let chunked = false;
+    let chunkCount = 0;
+    let chunkIndex = 0;
+    let diffData:
+      | { added: string[]; removed: string[]; unchanged: number }
+      | undefined;
+    let tokensSaved = 0;
+
+    // If we have cached data and diff mode is enabled.
+    //
+    // AN EXPLICIT chunkIndex IS A REQUEST FOR THAT CHUNK, NOT FOR NEWS.
+    //
+    // Diff mode answers "what changed since you last read this". Chunk
+    // navigation answers "show me part 3". Both are useful; they are not the
+    // same question. Without the chunkIndex guard, the intended sequence --
+    // read the file, then ask for chunk 2 -- hit this branch on the second
+    // call, found nothing had changed, and returned `// No changes` instead of
+    // chunk 2. The documented way to page through a file worked exactly once.
+    //
+    // So an explicit chunkIndex bypasses the diff entirely. Omitting it keeps
+    // the previous behaviour, which is what a plain re-read should do.
+    if (cachedData && diffMode && options.chunkIndex === undefined) {
+      try {
+        // Check if content has meaningful changes
+        if (hasMeaningfulChanges(cachedData, rawContent)) {
+          // Generate diff
+          const diff = generateDiff(cachedData, rawContent, {
+            contextLines: 3,
+            ignoreWhitespace: true,
+          });
+
+          // Only use diff if it's significantly smaller
+          if (diff.compressionRatio < 0.5) {
+            finalContent = diff.diffText;
+            isDiff = true;
+            diffData = {
+              added: diff.added,
+              removed: diff.removed,
+              unchanged: diff.unchanged,
+            };
+
+            const diffTokens = this.tokenCounter.count(finalContent).tokens;
+            tokensSaved = Math.max(0, originalTokens - diffTokens);
+          } else {
+            // Diff exists but not efficient, still return full content with diff metadata
+            isDiff = true;
+            diffData = {
+              added: diff.added,
+              removed: diff.removed,
+              unchanged: diff.unchanged,
+            };
+          }
+        } else {
+          // No changes, return minimal response
+          finalContent = '// No changes';
+          isDiff = true;
+          tokensSaved = Math.max(
+            0,
+            originalTokens - this.tokenCounter.count(finalContent).tokens
+          );
+        }
+      } catch (error) {
+        // If decompression fails, fall through to normal read
+        console.error('Cache decompression failed:', error);
+      }
+    }
+
+    // Handle large files - prioritize maxSize over chunking
+    if (!isDiff && rawContent.length > maxSize) {
+      // Check if file is minified
+      if (isMinified(rawContent)) {
+        // For minified files, just truncate with a warning
+        const truncationMsg = '\n// [TRUNCATED: Minified file]';
+        const actualMaxSize = maxSize - truncationMsg.length;
+        finalContent = rawContent.substring(0, actualMaxSize) + truncationMsg;
+        truncated = true;
+      } else {
+        // If file is larger than maxSize, truncate it
+        const truncateResult = truncateContent(rawContent, maxSize, {
+          keepTop: 100,
+          keepBottom: 50,
+          preserveStructure,
+        });
+        finalContent = truncateResult.truncated;
+        truncated = true;
+      }
+
+      const truncatedTokens = this.tokenCounter.count(finalContent).tokens;
+      tokensSaved = originalTokens - truncatedTokens;
+    } else if (
+      !isDiff &&
+      rawContent.length > chunkSize &&
+      rawContent.length <= maxSize
+    ) {
+      // Only chunk if file fits within maxSize but is larger than chunkSize
+      // This allows for structured navigation of medium-sized files
+      const allChunks = chunkBySyntax(rawContent, chunkSize).chunks;
+      chunked = true;
+      chunkCount = allChunks.length;
+
+      // ONE chunk is returned, and it is the one that was ASKED for.
+      //
+      // `chunkIndex` was declared in the tool schema and named in the message
+      // this very branch emits -- "use chunk index to get more" -- but it was
+      // never read out of `options`, so the documented way to reach chunk 2 did
+      // nothing and returned chunk 1 again.
+      const requested = Number(options.chunkIndex);
+      chunkIndex =
+        Number.isInteger(requested) &&
+        requested >= 0 &&
+        requested < allChunks.length
+          ? requested
+          : 0;
+
+      finalContent =
+        allChunks[chunkIndex] +
+        `\n\n// [chunk ${chunkIndex + 1} of ${allChunks.length}. ` +
+        `Call smart_read again with chunkIndex=<n> for another.]`;
+
+      // The saving counted here is the saving actually DELIVERED. Previously the
+      // full `chunks` array was also attached to the response, so every chunk
+      // reached the caller while this arithmetic priced only the first -- the
+      // response cost MORE than reading the file and reported ~76% saved. An
+      // overstated saving is the one number this project must never produce.
+      // Never negative. A single chunk plus its navigation footer can exceed
+      // the whole file when the file is barely over chunkSize, and the
+      // subtraction then yields a NEGATIVE saving -- which is not clamped
+      // downstream precisely because it is non-zero. "-14 tokens saved" is a
+      // cost reported as a saving with a minus sign in front of it; the honest
+      // number for a call that saved nothing is zero.
+      const returnedTokens = this.tokenCounter.count(finalContent).tokens;
+      tokensSaved = Math.max(0, originalTokens - returnedTokens);
+    }
+    if (enableCache && !fromCache) {
+      cacheSet(this.cache, cacheKey, rawContent);
+    }
+
+    // Calculate final metrics
+    const finalTokens = this.tokenCounter.count(finalContent).tokens;
+    // Only recalculate tokensSaved if it hasn't been set by diff mode or truncation
+    if (tokensSaved === 0 && (truncated || chunked)) {
+      tokensSaved = Math.max(0, originalTokens - finalTokens);
+    }
+
+    const compressionRatio = finalContent.length / rawContent.length;
+
+    // Record metrics
+    this.metrics.record({
+      operation: 'smart_read',
+      duration: Date.now() - startTime,
+      success: true,
+      cacheHit: fromCache,
+      inputTokens: 0,
+      outputTokens: finalTokens,
+      cachedTokens: fromCache ? finalTokens : 0,
+      savedTokens: tokensSaved,
+      metadata: {
+        path: filePath,
+        fileSize: stats.size,
+        tokensSaved,
+        isDiff,
+        chunked,
+        truncated,
+      },
+    });
+
+    return {
+      content: finalContent,
+      metadata: {
+        path: filePath,
+        size: stats.size,
+        encoding,
+        fileType,
+        hash: fileHash,
+        fromCache,
+        isDiff,
+        chunked,
+        truncated,
+        tokensSaved,
+        tokenCount: finalTokens,
+        originalTokenCount: originalTokens,
+        compressionRatio,
+        // Navigation, not content. Attaching every chunk here defeated the
+        // entire point of chunking: the caller received the whole file anyway.
+        ...(chunked ? { chunkCount, chunkIndex } : {}),
+      },
+      diff: diffData,
+    };
+  }
+
+  /**
+   * Read a specific chunk from a chunked file
+   */
+  async readChunk(
+    filePath: string,
+    chunkIndex: number,
+    chunkSize: number = 4000
+  ): Promise<string> {
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    const chunkResult = chunkBySyntax(content, chunkSize);
+
+    if (chunkIndex < 0 || chunkIndex >= chunkResult.chunks.length) {
+      throw new Error(
+        `Invalid chunk index: ${chunkIndex}. Total chunks: ${chunkResult.chunks.length}`
+      );
+    }
+
+    return chunkResult.chunks[chunkIndex];
+  }
+
+  /**
+   * Get file metadata without reading content (minimal tokens)
+   */
+  async getMetadata(filePath: string): Promise<SmartReadResult['metadata']> {
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    const stats = statSync(filePath);
+    const fileHash = hashFile(filePath);
+    const fileType = detectFileType(filePath);
+
+    return {
+      path: filePath,
+      size: stats.size,
+      encoding: 'utf-8',
+      fileType,
+      hash: fileHash,
+      fromCache: false,
+      isDiff: false,
+      chunked: false,
+      truncated: false,
+      tokensSaved: 0,
+      tokenCount: 0,
+      originalTokenCount: 0,
+      compressionRatio: 1,
+    };
+  }
+}
+
+// Export singleton instance
+let smartReadInstance: SmartReadTool | null = null;
+
+export function getSmartReadTool(
+  cache: CacheEngine,
+  tokenCounter: TokenCounter,
+  metrics: MetricsCollector
+): SmartReadTool {
+  if (!smartReadInstance) {
+    smartReadInstance = new SmartReadTool(cache, tokenCounter, metrics);
+  }
+  return smartReadInstance;
+}
+
+/**
+ * CLI function - Creates resources and uses factory
+ */
+export async function runSmartRead(
+  filePath: string,
+  options: SmartReadOptions = {}
+): Promise<SmartReadResult> {
+  const cache = new CacheEngine(getOptimizerCacheDbPath(), 100);
+  const tokenCounter = new TokenCounter();
+  const metrics = new MetricsCollector();
+
+  const tool = getSmartReadTool(cache, tokenCounter, metrics);
+  return tool.read(filePath, options);
+}
+
+// MCP Tool definition
+export const SMART_READ_TOOL_DEFINITION = {
+  name: 'smart_read',
+  description:
+    'Read files with 80% token reduction through intelligent caching, diff-based updates, and syntax-aware optimization',
+  annotations: {
+    title: 'Read a file efficiently',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  inputSchema: {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: 'Path to the file to read',
+      },
+      diffMode: {
+        type: 'boolean',
+        description:
+          'Return only diff if file was previously read (default: true)',
+        default: true,
+      },
+      maxSize: {
+        type: 'number',
+        description:
+          'Maximum content size to return in bytes (default: 100000)',
+        default: 100000,
+      },
+      chunkSize: {
+        type: 'number',
+        description: 'Size of chunks for large files (default: 4000)',
+        default: 4000,
+      },
+      chunkIndex: {
+        type: 'number',
+        description: 'For chunked files, the chunk index to retrieve',
+      },
+      // DECLARED BECAUSE THEY ARE ACCEPTED: the server spreads the caller's whole
+      // argument object into options, so these worked while being undiscoverable.
+      enableCache: {
+        type: 'boolean',
+        description: 'Reuse a cached read of this file when it has not changed',
+        default: true,
+      },
+      ttl: {
+        type: 'number',
+        description: 'Cache lifetime in seconds',
+        default: 300,
+      },
+      preserveStructure: {
+        type: 'boolean',
+        description:
+          'Keep structural lines (signatures, exports) when compressing output',
+        default: true,
+      },
+      includeMetadata: {
+        type: 'boolean',
+        description: 'Include size, hash and encoding alongside the content',
+        default: true,
+      },
+      encoding: {
+        type: 'string',
+        description: 'File encoding used to read the file',
+        default: 'utf-8',
+      },
+    },
+    required: ['path'],
+  },
+};

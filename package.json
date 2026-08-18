@@ -18,14 +18,21 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@toon-format/toon": "^4.1.1",
+    "better-sqlite3": "^13.0.3",
     "commander": "^15.0.0",
+    "diff": "^9.0.0",
+    "glob": "^13.0.6",
+    "lru-cache": "^11.5.2",
     "onnxruntime-node": "^1.27.0",
+    "tiktoken": "^1.0.22",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.24.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.2.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",

@@ -33,7 +33,21 @@ const plannedEntries = [
   { in: "src/handoff/checkpoint.ts", out: "plugin/dist/handoff/checkpoint" },
   { in: "src/handoff/restore.ts", out: "plugin/dist/handoff/restore" },
   { in: "src/transcript/render.ts", out: "plugin/dist/transcript/render" },
+  // Phase 5 (optimizer merge): the merged MCP server, launched by
+  // plugin/.mcp.json via `node plugin/dist/optimizer/server.js`.
+  { in: "src/optimizer/server.ts", out: "plugin/dist/optimizer/server" },
 ];
+
+/**
+ * Packages that must stay real `require`/`import` calls at runtime rather
+ * than being inlined by esbuild: `better-sqlite3` ships a native `.node`
+ * addon (bundling would break the addon's own relative-path loading logic),
+ * and `tiktoken` ships a `.wasm` file it loads relative to its own package
+ * directory at runtime for the same reason. Both need to stay resolvable
+ * from `node_modules` at the bundle's runtime location.
+ * @type {string[]}
+ */
+const nativeExternals = ["better-sqlite3", "tiktoken"];
 
 /**
  * Bundled directly to `plugin/hooks/*.mjs` (NOT `plugin/dist/`) — these are
@@ -116,6 +130,10 @@ if (existingEntries.length > 0) {
     format: "esm",
     sourcemap: true,
     logLevel: "info",
+    // See `nativeExternals`'s own comment above: only src/optimizer/server.ts
+    // actually imports these, but marking them external is a no-op for the
+    // other entries in this same build call.
+    external: nativeExternals,
   });
 }
 

@@ -71,6 +71,11 @@ var init_defaults = __esm({
       },
       telemetry: {
         enabled: false
+      },
+      kompress: {
+        enabled: false,
+        allowDownload: false,
+        variant: "int8"
       }
     };
   }
@@ -15158,7 +15163,7 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var EngineTokenOptimizerSchema, EngineHeadroomSchema, EnginesSchema, ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, OptiflowConfigSchema;
+var EngineTokenOptimizerSchema, EngineHeadroomSchema, EnginesSchema, ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, OptiflowConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
@@ -15212,6 +15217,11 @@ var init_schema = __esm({
     TelemetrySchema = external_exports.object({
       enabled: external_exports.boolean().default(DEFAULT_CONFIG.telemetry.enabled)
     });
+    KompressSchema = external_exports.object({
+      enabled: external_exports.boolean().default(DEFAULT_CONFIG.kompress.enabled),
+      allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
+      variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
+    });
     OptiflowConfigSchema = external_exports.object({
       engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
       chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -15219,7 +15229,8 @@ var init_schema = __esm({
       statusline: StatuslineSchema.default(DEFAULT_CONFIG.statusline),
       handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
       report: ReportSchema.default(DEFAULT_CONFIG.report),
-      telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry)
+      telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
+      kompress: KompressSchema.default(DEFAULT_CONFIG.kompress)
     });
   }
 });

@@ -150,6 +150,11 @@ var DEFAULT_CONFIG = {
   },
   telemetry: {
     enabled: false
+  },
+  kompress: {
+    enabled: false,
+    allowDownload: false,
+    variant: "int8"
   }
 };
 
@@ -14716,6 +14721,11 @@ var ReportSchema = external_exports.object({
 var TelemetrySchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.telemetry.enabled)
 });
+var KompressSchema = external_exports.object({
+  enabled: external_exports.boolean().default(DEFAULT_CONFIG.kompress.enabled),
+  allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
+  variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
+});
 var OptiflowConfigSchema = external_exports.object({
   engines: EnginesSchema.default(DEFAULT_CONFIG.engines),
   chop: ChopSchema.default(DEFAULT_CONFIG.chop),
@@ -14723,7 +14733,8 @@ var OptiflowConfigSchema = external_exports.object({
   statusline: StatuslineSchema.default(DEFAULT_CONFIG.statusline),
   handoff: HandoffSchema.default(DEFAULT_CONFIG.handoff),
   report: ReportSchema.default(DEFAULT_CONFIG.report),
-  telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry)
+  telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
+  kompress: KompressSchema.default(DEFAULT_CONFIG.kompress)
 });
 
 // src/handoff/checkpoint.ts
