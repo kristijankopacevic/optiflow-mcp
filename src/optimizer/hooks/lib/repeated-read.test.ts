@@ -14,7 +14,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { decide, remember, type NormalizedPayload } from "./decide.js";
-import { normalizeSeen, type SeenEntry } from "./policy.js";
+import { loadState, normalizeSeen, saveState, type SeenEntry } from "./policy.js";
 
 let dir: string;
 let filePath: string;
@@ -71,6 +71,55 @@ describe("normalizeSeen — migration off the old boolean shape", () => {
     const verdict = decide(payloadFor(filePath), state, ["smart_read"]);
     expect(verdict?.reason).toContain("smart_read");
     expect(verdict?.reason).not.toContain("has not changed");
+  });
+});
+
+describe("loadState — the real upgrade path, off disk", () => {
+  // normalizeSeen is unit-tested above, but the failure this migration
+  // guards against is a state file written by the PREVIOUS version sitting
+  // in the temp dir of a session that is running right now. That file is
+  // read by loadState, not by normalizeSeen directly, so the upgrade path
+  // is pinned here end to end rather than only at the function that
+  // implements it.
+  let stateDir: string;
+
+  beforeEach(() => {
+    stateDir = mkdtempSync(path.join(tmpdir(), "optiflow-state-migration-"));
+  });
+
+  afterEach(() => {
+    rmSync(stateDir, { recursive: true, force: true });
+  });
+
+  function writeLegacyStateFile(sessionId: string, contents: unknown): void {
+    writeFileSync(path.join(stateDir, `${sessionId}.json`), JSON.stringify(contents), "utf8");
+  }
+
+  it("reads a pre-upgrade state file without throwing, migrating `seen`", () => {
+    writeLegacyStateFile("legacy", { seen: { "/a.ts": true, "/b.ts": true }, denied: { "read:/a.ts": true } });
+
+    const state = loadState("legacy", null, { TOKEN_OPTIMIZER_STATE_DIR: stateDir } as NodeJS.ProcessEnv);
+
+    expect(state.seen["/a.ts"]).toEqual({ hash: "", at: 0 });
+    expect(state.seen["/b.ts"]).toEqual({ hash: "", at: 0 });
+    // The rest of the state must survive the migration untouched.
+    expect(state.denied["read:/a.ts"]).toBe(true);
+  });
+
+  it("round-trips a mixed-shape merge through saveState without corrupting either entry", () => {
+    // saveState merges `{...current.seen, ...state.seen}` and does NOT
+    // re-normalize, so a legacy entry read off disk and a new entry written
+    // in this process end up side by side in one file.
+    const env = { TOKEN_OPTIMIZER_STATE_DIR: stateDir } as NodeJS.ProcessEnv;
+    writeLegacyStateFile("mixed", { seen: { "/old.ts": true } });
+
+    const state = loadState("mixed", null, env);
+    state.seen["/new.ts"] = { hash: "deadbeef", at: 1_000 };
+    expect(saveState("mixed", state, null, env)).toBe(true);
+
+    const reloaded = loadState("mixed", null, env);
+    expect(reloaded.seen["/old.ts"]).toEqual({ hash: "", at: 0 });
+    expect(reloaded.seen["/new.ts"]).toEqual({ hash: "deadbeef", at: 1_000 });
   });
 });
 
