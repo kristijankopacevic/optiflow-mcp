@@ -41,6 +41,11 @@ jobs:
       # src/plugin-install.itest.ts's header for why this is a separate,
       # slower check from `npm test` rather than folded into it).
       - run: npm run test:plugin-install
+      # The live MCP-compression proof (`npm run test:mcp-e2e`) is NOT run
+      # here: it spawns a real `claude -p` session, which needs credentials CI
+      # does not have. It skips cleanly when the CLI is absent, so it is safe
+      # to add once an authenticated runner exists. Until then it is a
+      # pre-push check — see README.
 
   # A marketplace install ships no node_modules and Claude Code's automatic
   # dependency install runs with --ignore-scripts, so the plugin must run on
