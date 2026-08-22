@@ -81,7 +81,10 @@ jobs:
           # wrapped-signature bug shipped on.
           node -e "
             const lines = ['import fs from \"node:fs\";'];
-            for (let i = 0; i < 120; i++) {
+            // Must clear largeFileBytes() (25,600) or the Read is simply allowed
+            // and this gate passes vacuously -- the exact mistake this job's first
+            // version shipped with (~19KB, allowed, 'expected deny, got undefined').
+            for (let i = 0; i < 250; i++) {
               lines.push('export function fn' + i + '(a: number, b: number): number {');
               lines.push('  const c = a * b;');
               lines.push('  const d = c + a;');
@@ -91,6 +94,9 @@ jobs:
               lines.push('}');
             }
             require('fs').writeFileSync('big.ts', lines.join('\r\n'));
+            const size = require('fs').statSync('big.ts').size;
+            if (size <= 25600) throw new Error('fixture too small to trigger the router: ' + size);
+            console.log('fixture: ' + size + ' bytes, CRLF');
           "
           node -e "
             const { execFileSync } = require('child_process');
