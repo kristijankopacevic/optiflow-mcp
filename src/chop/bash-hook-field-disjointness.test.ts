@@ -66,13 +66,13 @@ function fieldsOf(output: HookOutput): string[] {
 }
 
 describe("chop and the merged optimizer hook never emit overlapping PreToolUse fields", () => {
-  it("a Bash command chop would rewrite: chop emits only updatedInput, optimizer emits only its own fields", () => {
+  it("a Bash command chop would rewrite: chop emits only updatedInput, optimizer emits only its own fields", async () => {
     const chopInput = { tool_name: "Bash", tool_input: { command: "git status" } };
     const chopDecision = decideChop(chopInput, { cwd: projectDir, home: homeDir });
     const chopOutput = buildChopOutput(chopInput, chopDecision);
 
     const optimizerRaw = { session_id: "s1", cwd: projectDir, tool_name: "Bash", tool_input: { command: "git status" } };
-    const optimizerOutput = decideOptimizer(optimizerRaw);
+    const optimizerOutput = await decideOptimizer(optimizerRaw);
 
     const chopFields = fieldsOf(chopOutput);
     const optimizerFields = fieldsOf(optimizerOutput);
@@ -82,14 +82,14 @@ describe("chop and the merged optimizer hook never emit overlapping PreToolUse f
     expect(chopFields.filter((f) => optimizerFields.includes(f))).toEqual([]);
   });
 
-  it("a Grep call the optimizer hook would deny: optimizer emits only its own fields, chop's own matcher wouldn't even fire (Bash-only) but its function still returns cleanly if given the input", () => {
+  it("a Grep call the optimizer hook would deny: optimizer emits only its own fields, chop's own matcher wouldn't even fire (Bash-only) but its function still returns cleanly if given the input", async () => {
     const chopInput = { tool_name: "Grep", tool_input: {} };
     const chopDecision = decideChop(chopInput, { cwd: projectDir, home: homeDir });
     const chopOutput = buildChopOutput(chopInput, chopDecision);
     expect(chopOutput).toEqual({});
 
     const optimizerRaw = { session_id: "s2", cwd: projectDir, tool_name: "Grep", tool_input: { pattern: "TODO" } };
-    const optimizerOutput = decideOptimizer(optimizerRaw);
+    const optimizerOutput = await decideOptimizer(optimizerRaw);
     const optimizerFields = fieldsOf(optimizerOutput);
     expect(optimizerFields.every((f) => (OPTIMIZER_EXCLUSIVE_FIELDS as readonly string[]).includes(f))).toBe(true);
     expect(optimizerFields.includes("updatedInput")).toBe(false);

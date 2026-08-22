@@ -13,8 +13,10 @@
 // consequences of that restructuring, both intentional:
 //
 //   1. Vendor's `allow()`/`deny()`/`advise()` call `process.exit()`
-//      directly; `decidePreToolUse` below returns a `HookOutput` object
-//      instead (see `lib/policy.ts`'s `Verdict`/`enforceVerdict`).
+//      directly; `decidePreToolUse` below returns a `Promise<HookOutput>`
+//      instead (see `lib/policy.ts`'s `Verdict`/`enforceVerdict`). It is
+//      `async` so the deny/redirect path can `await` real (async) work
+//      before answering — see that path's own comment below for what.
 //   2. Vendor's bounded-execution guarantee ("beat the host's five-second
 //      timeout and fail open deterministically", `lib/observability.mjs`'s
 //      `beginHookInvocation` deadline) is reimplemented here as a
@@ -118,7 +120,7 @@ function verdictToHookOutput(verdict: Verdict): HookOutput {
  * `process.exit`, so it is directly unit-testable, matching this repo's
  * other hooks.
  */
-export function decidePreToolUse(raw: PreToolUseRawPayload | null): HookOutput {
+export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promise<HookOutput> {
   if (!raw) return {};
   try {
     if (mode() === MODE_OFF) return {};

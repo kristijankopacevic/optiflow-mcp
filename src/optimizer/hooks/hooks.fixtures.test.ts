@@ -63,12 +63,12 @@ afterEach(() => {
 });
 
 describe("decidePreToolUse", () => {
-  it("fails open on a null payload", () => {
-    expect(decidePreToolUse(null)).toEqual({});
+  it("fails open on a null payload", async () => {
+    expect(await decidePreToolUse(null)).toEqual({});
   });
 
-  it("fails open (empty {}) on a payload with no tool_name", () => {
-    expect(decidePreToolUse({})).toEqual({});
+  it("fails open (empty {}) on a payload with no tool_name", async () => {
+    expect(await decidePreToolUse({})).toEqual({});
   });
 
   it("positive: Grep is always redirected toward smart_grep (no threshold, unlike Read)", async () => {
