@@ -23,7 +23,7 @@
 // -- and cleans that directory up afterward.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, cpSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, cpSync, existsSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,6 +67,75 @@ function runNode(
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
+}
+
+/**
+ * Same as `runNode`, but writes `stdin` to the child first — every Claude
+ * Code hook is invoked exactly this way (JSON on stdin, JSON on stdout), so
+ * this is the only shape that actually exercises the shipped hook bundles.
+ */
+function runNodeWithStdin(
+  args: string[],
+  cwd: string,
+  stdin: string,
+  extraEnv: Record<string, string> = {}
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd,
+      env: { ...isolatedEnv(), ...extraEnv },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (d) => (stdout += String(d)));
+    child.stderr?.on("data", (d) => (stderr += String(d)));
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, stdout, stderr }));
+    child.stdin?.end(stdin);
+  });
+}
+
+/**
+ * A synthetic TypeScript source file well over `largeFileBytes()` (25,600),
+ * built from declarations CodeCompressor is supposed to keep verbatim
+ * (imports, exported signatures, interfaces) wrapping bodies it is supposed
+ * to elide. Generated rather than copied out of this repo so the test's
+ * input can't drift when unrelated source files are edited.
+ */
+function generateLargeTypeScriptSource(functionCount: number): string {
+  const lines: string[] = [
+    'import { readFileSync, writeFileSync } from "node:fs";',
+    'import path from "node:path";',
+    "",
+    "export interface WidgetRecord {",
+    "  id: string;",
+    "  label: string;",
+    "  weight: number;",
+    "  tags: string[];",
+    "}",
+    "",
+  ];
+  for (let i = 0; i < functionCount; i++) {
+    lines.push(
+      `export function transformWidget${i}(record: WidgetRecord, factor: number): WidgetRecord {`,
+      "  const scaled = record.weight * factor;",
+      "  const normalized = Number.isFinite(scaled) ? scaled : 0;",
+      "  const tags = record.tags.filter((tag) => tag.length > 0);",
+      "  const label = record.label.trim().toLowerCase();",
+      "  const joined = tags.join(\",\");",
+      "  const digest = path.basename(joined || label || record.id);",
+      "  if (normalized > 1000) {",
+      "    tags.push(\"heavy\");",
+      "  } else if (normalized < 1) {",
+      "    tags.push(\"light\");",
+      "  }",
+      "  const payload = { id: record.id, label, weight: normalized, tags, digest };",
+      "  return payload;",
+      "}",
+      ""
+    );
+  }
+  return lines.join("\n");
 }
 
 let tmpDir: string;
@@ -151,5 +220,88 @@ describe("isolated marketplace-style plugin install (no node_modules present)", 
       }
     },
     30000
+  );
+
+  // The regression gate for the four shipping bugs found in one pass (MCP
+  // field shape, wrapped signatures, missing tree-sitter grammars, ESM
+  // `require`/`__dirname`). Every one of them worked in this repo and did
+  // nothing on an installed machine, and every one passed a green `npm
+  // test`, because the tests drove SOURCE in the DEV tree while the failure
+  // only exists in the SHIPPED bundle in a BARE tree. The two tests above
+  // prove the plugin *starts* in that tree; this one proves it actually
+  // *compresses* there.
+  //
+  // It deliberately drives `hooks/pretooluse-optimizer.mjs` over stdin --
+  // the exact bundle and the exact invocation Claude Code uses -- rather
+  // than importing `compressCode` from source, which is precisely the kind
+  // of test that stayed green through all four bugs. `compressCode` is
+  // fail-open by design (any throw degrades to the plain redirect verdict),
+  // so a missing grammar shows up here as a MISSING `additionalContext`,
+  // never as a crash.
+  it(
+    "compresses a large source file from the bare tree (deny-and-substitute reaches the model)",
+    async () => {
+      const hookPath = path.join(pluginDir, "hooks", "pretooluse-optimizer.mjs");
+      expect(existsSync(hookPath)).toBe(true);
+
+      const workDir = path.join(tmpDir, "work");
+      mkdirSync(workDir, { recursive: true });
+      const sourcePath = path.join(workDir, "widgets.ts");
+      const source = generateLargeTypeScriptSource(120);
+      writeFileSync(sourcePath, source, "utf8");
+
+      const sourceBytes = statSync(sourcePath).size;
+      // Must clear `largeFileBytes()` (25,600) or the Read is simply allowed
+      // and this test would pass vacuously.
+      expect(sourceBytes).toBeGreaterThan(25_600);
+
+      const result = await runNodeWithStdin(
+        [hookPath],
+        workDir,
+        JSON.stringify({
+          session_id: "plugin-install-compression-test",
+          cwd: workDir,
+          hook_event_name: "PreToolUse",
+          tool_name: "Read",
+          tool_input: { file_path: sourcePath },
+        }),
+        {
+          // Keep all session scratch state inside the temp tree, so this
+          // never reads or writes the real ~/.optiflow.
+          OPTIFLOW_HOME: path.join(tmpDir, "optiflow-home"),
+        }
+      );
+
+      expect(result.stderr).not.toMatch(/ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND/);
+      expect(result.code).toBe(0);
+
+      const output = JSON.parse(result.stdout);
+      const specific = output.hookSpecificOutput ?? {};
+      expect(specific.permissionDecision).toBe("deny");
+
+      const substitute: string | undefined = specific.additionalContext;
+      expect(
+        substitute,
+        "no additionalContext: compression silently failed open (the exact " +
+          "signature of a missing grammar / unloadable web-tree-sitter runtime)"
+      ).toBeTruthy();
+
+      // Structure kept verbatim...
+      expect(substitute).toContain('import { readFileSync, writeFileSync } from "node:fs"');
+      expect(substitute).toContain("export interface WidgetRecord");
+      expect(substitute).toContain("export function transformWidget0(");
+      // ...bodies elided...
+      expect(substitute).toMatch(/lines omitted/);
+      expect(substitute).not.toContain('tags.push("heavy")');
+      // ...and the model is told what it is looking at.
+      expect(substitute).toContain("optiflow: structure-preserving compression");
+
+      // The whole point: materially smaller than what Read would have put
+      // in the context window. Measured against the source, not against a
+      // fixture, so this number is real.
+      const substituteBytes = Buffer.byteLength(substitute as string, "utf8");
+      expect(substituteBytes).toBeLessThan(sourceBytes * 0.5);
+    },
+    60000
   );
 });
