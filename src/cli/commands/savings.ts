@@ -46,6 +46,15 @@ const AVOIDED_MODULE = "read-suppressed";
  */
 const REDIRECT_MODULE = "redirect";
 
+/**
+ * Complied-with redirects whose "before" is unknowable (searches: nobody can
+ * say what the built-in Grep/Glob would have returned without running it).
+ * Zero-byte rows — only the count means anything, and showing that count is
+ * the point: real but unquantifiable work stays visible instead of the
+ * measurable part silently posing as the whole.
+ */
+const REDIRECT_UNMEASURED_MODULE = "redirect-unmeasured";
+
 export interface ModuleSummary {
   module: string;
   calls: number;
@@ -63,6 +72,8 @@ export interface SavingsSummary {
   avoided: ModuleSummary | null;
   /** Complied-with redirects, likewise reported on their own terms. */
   redirected: ModuleSummary | null;
+  /** Complied-with redirects whose saving is unknowable — a count, nothing more. */
+  redirectedUnmeasured: number;
   totalCalls: number;
 }
 
@@ -84,6 +95,7 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
   const compression = emptySummary("compression total");
   let avoided: ModuleSummary | null = null;
   let redirected: ModuleSummary | null = null;
+  let redirectedUnmeasured = 0;
 
   for (const record of records) {
     const module = String(record.module || "unknown");
@@ -100,6 +112,8 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
     } else if (module === REDIRECT_MODULE) {
       redirected = redirected ?? emptySummary(REDIRECT_MODULE);
       accumulate(redirected, record);
+    } else if (module === REDIRECT_UNMEASURED_MODULE) {
+      redirectedUnmeasured += 1;
     } else if (COMPRESSION_MODULES.has(module)) {
       accumulate(compression, record);
     }
@@ -110,6 +124,7 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
     compression,
     avoided,
     redirected,
+    redirectedUnmeasured,
     totalCalls: records.length,
   };
 }
@@ -199,6 +214,15 @@ export function renderSavings(summary: SavingsSummary, options: RenderSavingsOpt
     if (saved < 0) {
       lines.push("               NEGATIVE: the replacements returned MORE than the originals.");
     }
+  }
+
+  if (summary.redirectedUnmeasured > 0) {
+    lines.push("");
+    lines.push(
+      `  Plus ${n(summary.redirectedUnmeasured)} redirect(s) with no measurable saving — searches,`
+    );
+    lines.push("               where no one can know what the built-in tool would have returned.");
+    lines.push("               Real work, deliberately not guessed at.");
   }
 
   if (summary.avoided) {

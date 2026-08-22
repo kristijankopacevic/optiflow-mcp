@@ -485,6 +485,13 @@ export function decide(
   if (tool === "Grep") {
     if (input.output_mode && input.output_mode !== "content") return null;
     if (!replacementAvailable(availableTools, "smart_grep")) return null;
+    // A single-file search is already cheap and bounded -- its output cannot
+    // exceed the file, and it usually returns a handful of lines. Redirecting
+    // one costs a full model turn for ~nothing, which on a search-heavy
+    // session added up to the plugin's single largest overhead. Only
+    // directory-scoped or unscoped searches (the unbounded ones) redirect.
+    const scope = input.path;
+    if (typeof scope === "string" && scope && fileSize(scope) >= 0) return null;
     const pattern = (input.pattern as string) || "";
     return {
       key: `grep:${pattern}:${(input.path as string) || ""}`,
@@ -511,38 +518,15 @@ export function decide(
     };
   }
 
-  if (tool === "Edit" || tool === "MultiEdit") {
-    if (!replacementAvailable(availableTools, "smart_edit")) return null;
-    const path = input.file_path;
-    if (!path) return null;
-    const size = fileSize(path);
-    if (size < threshold) return null;
-    return {
-      key: `edit:${path}`,
-      redirectTool: "smart_edit",
-      avoidedBytes: size,
-      reason:
-        `${path} is ${KB(size)} KB. Call the token-optimizer MCP tool ` +
-        `smart_edit with path="${path}" instead -- it applies the change and ` +
-        `returns a compact unified diff rather than echoing the file.`,
-    };
-  }
-
-  if (tool === "Write") {
-    if (!replacementAvailable(availableTools, "smart_write")) return null;
-    const path = input.file_path;
-    const content = input.content || "";
-    if (!path || content.length < threshold) return null;
-    return {
-      key: `write:${path}`,
-      redirectTool: "smart_write",
-      avoidedBytes: content.length,
-      reason:
-        `You are writing ${KB(content.length)} KB to ${path}. Call the ` +
-        `token-optimizer MCP tool smart_write instead -- it stores the content ` +
-        `through the cache so later reads of this file diff against it.`,
-    };
-  }
+  // Edit/MultiEdit and Write used to be redirected to smart_edit/smart_write
+  // here, on the vendored premise that the built-ins "echo the file". They
+  // do not: Claude Code's Edit takes old_string/new_string and returns a
+  // bounded snippet around the change, and Write returns a short
+  // confirmation -- the expensive part of editing a big file is the READ
+  // that finds old_string, which the Read branch above already governs. The
+  // rules burned a denied turn per edit (observed live on a 133KB CSS edit)
+  // while the measurement layer showed no corresponding saving, so they were
+  // removed rather than kept on an assumption their own numbers contradicted.
 
   if (tool === "Bash") {
     const command = input.command || "";
@@ -611,18 +595,31 @@ function safeHashFile(path: string): string {
 }
 
 /**
+ * Above this size a remembered read is recorded HASHLESS. Hashing means a
+ * synchronous full read + SHA-256 inside the hook, added to EVERY allowed
+ * Read — and an allowed Read is not necessarily small: advise mode, a ranged
+ * read of a huge file, and the unproven-capability bootstrap all allow reads
+ * of arbitrarily large files. A hashless entry still counts as "seen" (the
+ * redirect rule works unchanged); it just never licenses suppression, which
+ * is the same fail-closed degradation an unreadable file gets.
+ */
+const REMEMBER_HASH_MAX_BYTES = 4_000_000;
+
+/**
  * Records a successful (allowed) READ so a later repeat is recognised.
  * READ ONLY.
  *
  * Stores the content hash alongside, which is what lets the router
  * distinguish an unchanged re-read (nothing to return) from a changed one
- * (`smart_read` can diff it). An unhashable file records `""`, which never
- * licenses suppression.
+ * (`smart_read` can diff it). An unhashable or oversized file records `""`,
+ * which never licenses suppression.
  */
 export function remember(payload: NormalizedPayload, state: { seen: Record<string, SeenEntry> }): void {
   const path = payload.tool_input?.file_path;
   if (path && payload.tool_name === "Read") {
-    state.seen[path] = { hash: safeHashFile(path), at: Date.now() };
+    const size = fileSize(path);
+    const hash = size >= 0 && size <= REMEMBER_HASH_MAX_BYTES ? safeHashFile(path) : "";
+    state.seen[path] = { hash, at: Date.now() };
   }
 }
 

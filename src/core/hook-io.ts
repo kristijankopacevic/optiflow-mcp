@@ -55,7 +55,15 @@ export interface HookOutput {
   hookSpecificOutput?: HookSpecificOutput;
 }
 
-const DEFAULT_OUTPUT_CAP_CHARS = 10_000;
+/**
+ * Exported so producers of large payloads (the deny-and-substitute path in
+ * `src/optimizer/hooks/pretooluse.ts`) can fit their content to the envelope
+ * BEFORE serialization, instead of letting `toCappedJson` amputate it here.
+ * `toCappedJson`'s truncation is a structural last resort: it slices the
+ * longest string mid-anything, which for a code outline means cutting a
+ * signature in half while the preface still promises completeness.
+ */
+export const DEFAULT_OUTPUT_CAP_CHARS = 10_000;
 
 /**
  * Reads and parses the entire stdin payload Claude Code sends a hook.

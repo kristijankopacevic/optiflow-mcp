@@ -47,6 +47,74 @@ jobs:
       # to add once an authenticated runner exists. Until then it is a
       # pre-push check — see README.
 
+  # Both of this plugin's real users run Windows, and one shipped bug (the
+  # CRLF wrapped-signature failure in CodeCompressor) was Windows-specific
+  # while every CI job ran Ubuntu. This runs the SHIPPED tree standalone on
+  # windows-latest — no npm install, exactly like a marketplace install — and
+  # drives the pretooluse hook over stdin the way Claude Code does, asserting
+  # compression actually produces a substitute. That last step is the one
+  # that would have caught the CRLF bug.
+  install-on-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run the CLI and MCP server from an isolated copy of plugin/
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          cp -r plugin "$TMP/plugin"
+          cd "$TMP"
+          node "$TMP/plugin/bin/optiflow" --version
+          node "$TMP/plugin/bin/optiflow" doctor
+      - name: Compression produces a substitute on Windows (CRLF regression gate)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          cp -r plugin "$TMP/plugin"
+          cd "$TMP"
+          # A large TS file written with CRLF line endings, the case the
+          # wrapped-signature bug shipped on.
+          node -e "
+            const lines = ['import fs from \"node:fs\";'];
+            for (let i = 0; i < 120; i++) {
+              lines.push('export function fn' + i + '(a: number, b: number): number {');
+              lines.push('  const c = a * b;');
+              lines.push('  const d = c + a;');
+              lines.push('  const e = d - b;');
+              lines.push('  const f = e * 2;');
+              lines.push('  return f;');
+              lines.push('}');
+            }
+            require('fs').writeFileSync('big.ts', lines.join('\r\n'));
+          "
+          node -e "
+            const { execFileSync } = require('child_process');
+            const path = require('path');
+            const payload = JSON.stringify({
+              session_id: 'ci-windows', cwd: process.cwd(),
+              hook_event_name: 'PreToolUse', tool_name: 'Read',
+              tool_input: { file_path: path.resolve('big.ts') },
+            });
+            const out = execFileSync(process.execPath,
+              [path.resolve('plugin/hooks/pretooluse-optimizer.mjs')],
+              { input: payload, encoding: 'utf8',
+                env: { ...process.env,
+                  OPTIFLOW_HOME: path.resolve('of-home'),
+                  TOKEN_OPTIMIZER_STATE_DIR: path.resolve('of-state'),
+                  TOKEN_OPTIMIZER_MCP_CAPABILITIES: 'smart_read' } });
+            const o = JSON.parse(out).hookSpecificOutput || {};
+            if (o.permissionDecision !== 'deny') throw new Error('expected deny, got ' + o.permissionDecision);
+            const sub = String(o.additionalContext || '');
+            if (!sub.includes('lines omitted')) throw new Error('no elisions — compression silently failed open on Windows');
+            if (!sub.includes('export function fn0(')) throw new Error('signature missing from substitute');
+            console.log('Windows compression OK: substitute ' + sub.length + ' chars');
+          "
+
   # The OTHER install path the README documents: `npm install -g
   # github:kristijankopacevic/optiflow-mcp`, for running the `optiflow` CLI
   # from a normal terminal rather than through the plugin.

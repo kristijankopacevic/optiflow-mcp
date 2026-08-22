@@ -122,6 +122,9 @@ export const MCP_COMPRESSION_LEDGER_MODULE = "mcp-compression";
  */
 export const REDIRECT_LEDGER_MODULE = "redirect";
 
+/** Complied-with redirects whose "before" is unknowable — counted, never measured. */
+export const REDIRECT_UNMEASURED_LEDGER_MODULE = "redirect-unmeasured";
+
 export interface BuildHookOutputOptions {
   /**
    * Injected so `buildHookOutput` stays a pure function under test —
@@ -155,6 +158,15 @@ export function buildHookOutput(
   // comment for why it cannot live inside `genericFilter`.
   const nonTextBlocks = content.filter((block) => block.type !== "text");
   const replacementText = annotateCcrMarkers(filtered.text);
+
+  // No-op guard: when filtering changed nothing, emit NOTHING. Substituting
+  // identical text still collapses multiple text blocks into one (a
+  // structural change with zero benefit) and used to write a 0-savings
+  // ledger row per call — noise that made the report look busy while
+  // recording no work. `text` is already the joined form, so equality here
+  // means byte-for-byte no gain.
+  if (replacementText === text) return {};
+
   const newContent: McpContentBlock[] = [
     { type: "text", text: replacementText },
     ...nonTextBlocks,
@@ -168,6 +180,7 @@ export function buildHookOutput(
     options.writeLedger({
       module: MCP_COMPRESSION_LEDGER_MODULE,
       command_or_context: input.tool_name ?? "mcp__unknown",
+      session_id: input.session_id,
       tokensBefore: countTokens(text),
       tokensAfter: countTokens(replacementText),
       bytesBefore: Buffer.byteLength(text, "utf8"),
@@ -187,17 +200,40 @@ function recordRedirectSaving(input: PostToolUseMcpHookInput): void {
     const tool = optimizerToolFromMcpName(input.tool_name);
     if (!tool) return;
 
-    const avoidedBytes = resolvePendingRedirect(
+    const pending = resolvePendingRedirect(
       tool,
       input.session_id,
       input.transcript_path ?? null
     );
-    if (avoidedBytes === null) return;
+    if (pending === null) return;
+
+    // A redirect with no knowable "before" (Grep/Glob) is COUNTED, not
+    // measured: a zero-byte row whose calls column is the only meaningful
+    // figure. `optiflow savings` renders these as "N redirects taken whose
+    // saving can't be measured" — visible instead of vanished, never summed
+    // with anything.
+    if (pending.unmeasured) {
+      appendLedger({
+        module: REDIRECT_UNMEASURED_LEDGER_MODULE,
+        command_or_context: tool,
+        session_id: input.session_id,
+        tokensBefore: 0,
+        tokensAfter: 0,
+        bytesBefore: 0,
+        bytesAfter: 0,
+      });
+      return;
+    }
 
     const content = normalizeToolResponse(input.tool_response);
     const delivered = content ? extractText(content) : "";
     const deliveredBytes = Buffer.byteLength(delivered, "utf8");
 
+    // Both token fields derive from bytes with the SAME estimator. The
+    // "before" side only ever existed as a byte count, so counting the
+    // "after" side with a real tokenizer would mix two units in one row and
+    // skew its percentage. Bytes remain the measured truth either way.
+    //
     // A replacement that returned MORE than the original would have is not a
     // saving, and recording it as one (or clamping it to zero) would both
     // mislead. Recorded as-is; `optiflow savings` sums honestly and a
@@ -205,9 +241,10 @@ function recordRedirectSaving(input: PostToolUseMcpHookInput): void {
     appendLedger({
       module: REDIRECT_LEDGER_MODULE,
       command_or_context: tool,
-      tokensBefore: estimateTokens(avoidedBytes),
-      tokensAfter: countTokens(delivered),
-      bytesBefore: avoidedBytes,
+      session_id: input.session_id,
+      tokensBefore: estimateTokens(pending.avoidedBytes),
+      tokensAfter: estimateTokens(deliveredBytes),
+      bytesBefore: pending.avoidedBytes,
       bytesAfter: deliveredBytes,
     });
   } catch {

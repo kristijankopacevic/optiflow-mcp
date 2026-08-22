@@ -4211,7 +4211,7 @@ function denyWithSubstitute(hookEventName, reason, context) {
 }
 
 // src/core/ledger.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path2 from "node:path";
 
 // src/core/paths.ts
@@ -4229,14 +4229,25 @@ function getOptiflowHome() {
 function ledgerPath(home) {
   return path2.join(home, "ledger.jsonl");
 }
+var ROTATE_AT_BYTES = 5 * 1024 * 1024;
+function rotateIfOversized(file) {
+  try {
+    const { size } = statSync(file);
+    if (size < ROTATE_AT_BYTES) return;
+    renameSync(file, `${file}.1`);
+  } catch {
+  }
+}
 function appendLedger(record2, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
     mkdirSync(home, { recursive: true });
+    rotateIfOversized(ledgerPath(home));
     const full = {
       timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
       module: record2.module,
       command_or_context: record2.command_or_context,
+      ...record2.session_id ? { session_id: record2.session_id } : {},
       tokensBefore: record2.tokensBefore,
       tokensAfter: record2.tokensAfter,
       bytesBefore: record2.bytesBefore,
@@ -4254,11 +4265,11 @@ function estimateTokens(byteLength) {
 
 // src/optimizer/hooks/lib/policy.ts
 import {
-  statSync,
+  statSync as statSync2,
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync2,
   writeFileSync,
-  renameSync,
+  renameSync as renameSync2,
   openSync,
   closeSync,
   unlinkSync
@@ -4425,7 +4436,7 @@ function isMachineOwned(path5) {
 function fileSize(path5) {
   if (!isFsSafePath(path5)) return -1;
   try {
-    const st = statSync(path5);
+    const st = statSync2(path5);
     return st.isFile() ? st.size : -1;
   } catch {
     return -1;
@@ -4442,7 +4453,6 @@ function emptyState() {
   return {
     seen: {},
     pendingRedirects: {},
-    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -4479,8 +4489,13 @@ function normalizePendingRedirects(raw) {
   for (const [tool, value] of Object.entries(raw)) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const entry = value;
-    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
-    out2[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+    const e = entry;
+    if (!Number.isFinite(e.avoidedBytes) || !Number.isFinite(e.at)) continue;
+    out2[tool] = {
+      avoidedBytes: Number(e.avoidedBytes),
+      at: Number(e.at),
+      ...e.unmeasured === true ? { unmeasured: true } : {}
+    };
   }
   return out2;
 }
@@ -4491,7 +4506,6 @@ function loadState(sessionId, agent, env = process.env) {
     return {
       seen: normalizeSeen(parsed.seen),
       pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
-      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects) ? Number(parsed.unmeasuredRedirects) : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},
@@ -4522,7 +4536,7 @@ function takeLock(sessionId, agent, env, { attempts = 20, staleMs = 5e3, waitMs 
       return path5;
     } catch {
       try {
-        if (Date.now() - statSync(path5).mtimeMs > staleMs) {
+        if (Date.now() - statSync2(path5).mtimeMs > staleMs) {
           unlinkSync(path5);
           continue;
         }
@@ -4547,10 +4561,6 @@ function saveState(sessionId, state, agent, env = process.env) {
       // resolver before saving, so merging `current` first would resurrect
       // it. `state` is therefore authoritative for this field.
       pendingRedirects: { ...state.pendingRedirects },
-      unmeasuredRedirects: Math.max(
-        Number(current.unmeasuredRedirects) || 0,
-        Number(state.unmeasuredRedirects) || 0
-      ),
       denied: { ...current.denied, ...state.denied },
       injected: [.../* @__PURE__ */ new Set([...current.injected || [], ...state.injected || []])],
       actCounts: (() => {
@@ -4585,7 +4595,7 @@ function saveState(sessionId, state, agent, env = process.env) {
     const target = statePath(sessionId, agent, env);
     const temporary = `${target}.${process.pid}.tmp`;
     writeFileSync(temporary, JSON.stringify(merged), { mode: 384 });
-    renameSync(temporary, target);
+    renameSync2(temporary, target);
     return true;
   } catch {
     return false;
@@ -4618,12 +4628,12 @@ function enforceVerdict(reason, deniedBefore, currentMode = mode(), substitute) 
 }
 
 // src/optimizer/hooks/lib/decide.ts
-import { statSync as statSync4 } from "node:fs";
+import { statSync as statSync5 } from "node:fs";
 import { join as join4 } from "node:path";
 
 // src/optimizer/tools/shared/hash-utils.ts
 import { createHash as createHash2 } from "crypto";
-import { readFileSync as readFileSync3, statSync as statSync2 } from "fs";
+import { readFileSync as readFileSync3, statSync as statSync3 } from "fs";
 function hashContent(content) {
   return createHash2("sha256").update(content).digest("hex");
 }
@@ -4661,9 +4671,9 @@ import {
   openSync as openSync2,
   closeSync as closeSync2,
   unlinkSync as unlinkSync2,
-  statSync as statSync3,
+  statSync as statSync4,
   writeFileSync as writeFileSync2,
-  renameSync as renameSync2
+  renameSync as renameSync3
 } from "node:fs";
 import { join as join3, dirname } from "node:path";
 import { createHash as createHash3 } from "node:crypto";
@@ -4743,7 +4753,7 @@ function withLock(dir, write) {
       break;
     } catch {
       try {
-        if (Date.now() - statSync3(lockPath).mtimeMs > 5e3) unlinkSync2(lockPath);
+        if (Date.now() - statSync4(lockPath).mtimeMs > 5e3) unlinkSync2(lockPath);
       } catch {
       }
     }
@@ -4801,12 +4811,12 @@ function compactIfWasteful(dir) {
   const path5 = logPath(dir);
   let size = 0;
   try {
-    size = statSync3(path5).size;
+    size = statSync4(path5).size;
   } catch {
     return;
   }
   try {
-    size += statSync3(snapshotsPath(dir)).size;
+    size += statSync4(snapshotsPath(dir)).size;
   } catch {
   }
   if (size < compactFloorBytes() || size < compactionBaseline(dir) * 2) return;
@@ -4880,11 +4890,11 @@ function compactIfWasteful(dir) {
     const out2 = [...edges.values(), ...nodes.values()].join("\n") + "\n";
     const tmp = path5 + ".compact";
     writeFileSync2(tmp, out2, { mode: 384 });
-    renameSync2(tmp, path5);
+    renameSync3(tmp, path5);
     const snapOut = [...keep.entries()].map(([id, v]) => JSON.stringify({ t: "s", v: GRAPH_VERSION, id, snapshot: v.snapshot, at: v.at })).join("\n") + (keep.size ? "\n" : "");
     const snapTmp = snapshotsPath(dir) + ".compact";
     writeFileSync2(snapTmp, snapOut, { mode: 384 });
-    renameSync2(snapTmp, snapshotsPath(dir));
+    renameSync3(snapTmp, snapshotsPath(dir));
     writeFileSync2(
       markerPath(dir),
       JSON.stringify({ sizeAfter: out2.length + snapOut.length, at: Date.now() }),
@@ -4990,7 +5000,7 @@ var KB = (bytes) => Math.round(bytes / 1024);
 function isDirectory(path5) {
   if (!isFsSafePath(path5)) return false;
   try {
-    return statSync4(path5).isDirectory();
+    return statSync5(path5).isDirectory();
   } catch {
     return false;
   }
@@ -5305,6 +5315,8 @@ function decide(payload, state, availableTools) {
   if (tool === "Grep") {
     if (input.output_mode && input.output_mode !== "content") return null;
     if (!replacementAvailable(availableTools, "smart_grep")) return null;
+    const scope = input.path;
+    if (typeof scope === "string" && scope && fileSize(scope) >= 0) return null;
     const pattern = input.pattern || "";
     return {
       key: `grep:${pattern}:${input.path || ""}`,
@@ -5321,31 +5333,6 @@ function decide(payload, state, availableTools) {
       key: `glob:${pattern}`,
       redirectTool: "smart_glob",
       reason: `Call the token-optimizer MCP tool smart_glob instead of the built-in Glob (pattern="${pattern}"). It returns filtered, paginated paths rather than an unbounded match list.`
-    };
-  }
-  if (tool === "Edit" || tool === "MultiEdit") {
-    if (!replacementAvailable(availableTools, "smart_edit")) return null;
-    const path5 = input.file_path;
-    if (!path5) return null;
-    const size = fileSize(path5);
-    if (size < threshold) return null;
-    return {
-      key: `edit:${path5}`,
-      redirectTool: "smart_edit",
-      avoidedBytes: size,
-      reason: `${path5} is ${KB(size)} KB. Call the token-optimizer MCP tool smart_edit with path="${path5}" instead -- it applies the change and returns a compact unified diff rather than echoing the file.`
-    };
-  }
-  if (tool === "Write") {
-    if (!replacementAvailable(availableTools, "smart_write")) return null;
-    const path5 = input.file_path;
-    const content = input.content || "";
-    if (!path5 || content.length < threshold) return null;
-    return {
-      key: `write:${path5}`,
-      redirectTool: "smart_write",
-      avoidedBytes: content.length,
-      reason: `You are writing ${KB(content.length)} KB to ${path5}. Call the token-optimizer MCP tool smart_write instead -- it stores the content through the cache so later reads of this file diff against it.`
     };
   }
   if (tool === "Bash") {
@@ -5389,10 +5376,13 @@ function safeHashFile(path5) {
     return "";
   }
 }
+var REMEMBER_HASH_MAX_BYTES = 4e6;
 function remember(payload, state) {
   const path5 = payload.tool_input?.file_path;
   if (path5 && payload.tool_name === "Read") {
-    state.seen[path5] = { hash: safeHashFile(path5), at: Date.now() };
+    const size = fileSize(path5);
+    const hash = size >= 0 && size <= REMEMBER_HASH_MAX_BYTES ? safeHashFile(path5) : "";
+    state.seen[path5] = { hash, at: Date.now() };
   }
 }
 function readCostBytes(payload) {
@@ -5404,13 +5394,13 @@ function readCostBytes(payload) {
 }
 
 // src/optimizer/hooks/lib/metrics.ts
-import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync4, chmodSync as chmodSync2, statSync as statSync5, existsSync as existsSync3, readFileSync as readFileSync6 } from "node:fs";
+import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync4, chmodSync as chmodSync2, statSync as statSync6, existsSync as existsSync3, readFileSync as readFileSync6 } from "node:fs";
 import { join as join5 } from "node:path";
 import { randomBytes } from "node:crypto";
 var metricsPath = (dir) => join5(dir, "metrics.jsonl");
 function fingerprint(path5) {
   try {
-    const st = statSync5(path5);
+    const st = statSync6(path5);
     return `${st.size}:${Math.round(st.mtimeMs)}`;
   } catch {
     return null;
@@ -5632,7 +5622,7 @@ function rememberOptimizerTools(state, _evidence, _observedAt = Date.now()) {
 }
 
 // src/optimizer/hooks/lib/ucr-guard.ts
-import { appendFileSync as appendFileSync4, existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync6 } from "node:fs";
+import { appendFileSync as appendFileSync4, existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync7 } from "node:fs";
 import { createHash as createHash4 } from "node:crypto";
 import { join as join7, resolve } from "node:path";
 var MAX_INDEX_BYTES = 1e6;
@@ -5651,7 +5641,7 @@ function indexRoot() {
 }
 function loadActiveUcrGuards() {
   const path5 = join7(indexRoot(), "active-guards.json");
-  if (!existsSync5(path5) || statSync6(path5).size > MAX_INDEX_BYTES) return [];
+  if (!existsSync5(path5) || statSync7(path5).size > MAX_INDEX_BYTES) return [];
   try {
     const parsed = JSON.parse(readFileSync8(path5, "utf8"));
     const { indexHash, ...body2 } = parsed;
@@ -5749,6 +5739,30 @@ var CODE_SUBSTITUTE_LEDGER_MODULE = "code-substitute";
 var READ_SUPPRESSED_LEDGER_MODULE = "read-suppressed";
 var HARVEST_MAX_BYTES = Number(process.env.TOKEN_OPTIMIZER_HARVEST_MAX_BYTES) || 4e6;
 var SUBSTITUTE_PREFACE = '[optiflow: structure-preserving compression of this file -- imports/exports, signatures, and types are kept verbatim, but most function/method bodies are elided (see the inline "lines omitted" markers). Call the token-optimizer MCP tool smart_read with the same path if you need the full, uncompressed contents.]';
+function fitSubstituteToEnvelope(reason, compressed) {
+  const lines = compressed.split("\n");
+  const totalLines = lines.length;
+  const build = (keep2) => {
+    const omitted = totalLines - keep2;
+    const marker = omitted > 0 ? `
+
+[optiflow: OUTPUT CAP -- this outline is INCOMPLETE. The last ${omitted} of ${totalLines} lines of structure were cut to fit the hook output limit. Do NOT assume the file ends here; call smart_read with the same path for the rest.]` : "";
+    return `${SUBSTITUTE_PREFACE}
+
+${lines.slice(0, keep2).join("\n")}${marker}`;
+  };
+  const envelopeLen = (substitute) => JSON.stringify(denyWithSubstitute("PreToolUse", reason, substitute)).length;
+  let keep = totalLines;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const candidate = build(keep);
+    const over = envelopeLen(candidate) - DEFAULT_OUTPUT_CAP_CHARS;
+    if (over <= 0) return candidate;
+    const avgLine = Math.max(1, Math.ceil(envelopeLen(candidate) / Math.max(1, keep)));
+    keep -= Math.max(1, Math.ceil(over * 1.15 / avgLine));
+    if (keep < 12) return void 0;
+  }
+  return void 0;
+}
 function verdictToHookOutput(verdict) {
   if (verdict.kind === "allow") return {};
   if (verdict.kind === "allowWithContext") return allowWithContext("PreToolUse", verdict.context);
@@ -5911,7 +5925,7 @@ ${surfaced.text}` : surfaced.text;
       if (typeof avoided === "number" && avoided > 0) {
         state.pendingRedirects[redirectTool] = { avoidedBytes: avoided, at: Date.now() };
       } else {
-        state.unmeasuredRedirects = (state.unmeasuredRedirects || 0) + 1;
+        state.pendingRedirects[redirectTool] = { avoidedBytes: 0, at: Date.now(), unmeasured: true };
       }
     }
     saveState(payload.session_id, state, agentScope);
@@ -5946,17 +5960,20 @@ ${surfaced.text}` : surfaced.text;
             const { compressCode: compressCode2 } = await Promise.resolve().then(() => (init_code_compressor(), code_compressor_exports));
             const codeResult = await compressCode2(source);
             if (codeResult.language !== "unknown" && codeResult.wasModified && codeResult.compressed.length < source.length && codeResult.compressedTokens < codeResult.originalTokens) {
-              substitute = `${SUBSTITUTE_PREFACE}
-
-${codeResult.compressed}`;
-              appendLedger({
-                module: CODE_SUBSTITUTE_LEDGER_MODULE,
-                command_or_context: filePath,
-                tokensBefore: codeResult.originalTokens,
-                tokensAfter: codeResult.compressedTokens,
-                bytesBefore: Buffer.byteLength(source, "utf8"),
-                bytesAfter: Buffer.byteLength(substitute, "utf8")
-              });
+              substitute = fitSubstituteToEnvelope(reason, codeResult.compressed);
+              if (substitute) {
+                const bytesBefore = Buffer.byteLength(source, "utf8");
+                const bytesAfter = Buffer.byteLength(substitute, "utf8");
+                appendLedger({
+                  module: CODE_SUBSTITUTE_LEDGER_MODULE,
+                  command_or_context: filePath,
+                  session_id: payload.session_id,
+                  tokensBefore: estimateTokens(bytesBefore),
+                  tokensAfter: estimateTokens(bytesAfter),
+                  bytesBefore,
+                  bytesAfter
+                });
+              }
             }
           }
         }
@@ -5972,6 +5989,7 @@ ${codeResult.compressed}`;
       appendLedger({
         module: READ_SUPPRESSED_LEDGER_MODULE,
         command_or_context: payload.tool_input.file_path ?? "unknown",
+        session_id: payload.session_id,
         tokensBefore: estimateTokens(suppressedBytes),
         tokensAfter: 0,
         bytesBefore: suppressedBytes,

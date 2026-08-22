@@ -14856,19 +14856,30 @@ ${issues}
 }
 
 // src/core/ledger.ts
-import { appendFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync2 } from "node:fs";
+import { appendFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync2, renameSync, statSync } from "node:fs";
 import path3 from "node:path";
 function ledgerPath(home) {
   return path3.join(home, "ledger.jsonl");
+}
+var ROTATE_AT_BYTES = 5 * 1024 * 1024;
+function rotateIfOversized(file2) {
+  try {
+    const { size } = statSync(file2);
+    if (size < ROTATE_AT_BYTES) return;
+    renameSync(file2, `${file2}.1`);
+  } catch {
+  }
 }
 function appendLedger(record2, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
     mkdirSync(home, { recursive: true });
+    rotateIfOversized(ledgerPath(home));
     const full = {
       timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
       module: record2.module,
       command_or_context: record2.command_or_context,
+      ...record2.session_id ? { session_id: record2.session_id } : {},
       tokensBefore: record2.tokensBefore,
       tokensAfter: record2.tokensAfter,
       bytesBefore: record2.bytesBefore,
@@ -14896,11 +14907,11 @@ function estimateTokens(byteLength) {
 
 // src/optimizer/hooks/lib/policy.ts
 import {
-  statSync,
+  statSync as statSync2,
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync3,
   writeFileSync,
-  renameSync,
+  renameSync as renameSync2,
   openSync,
   closeSync,
   unlinkSync
@@ -14919,7 +14930,6 @@ function emptyState() {
   return {
     seen: {},
     pendingRedirects: {},
-    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -14956,8 +14966,13 @@ function normalizePendingRedirects(raw) {
   for (const [tool, value] of Object.entries(raw)) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const entry = value;
-    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
-    out[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+    const e = entry;
+    if (!Number.isFinite(e.avoidedBytes) || !Number.isFinite(e.at)) continue;
+    out[tool] = {
+      avoidedBytes: Number(e.avoidedBytes),
+      at: Number(e.at),
+      ...e.unmeasured === true ? { unmeasured: true } : {}
+    };
   }
   return out;
 }
@@ -14968,7 +14983,6 @@ function loadState(sessionId, agent, env = process.env) {
     return {
       seen: normalizeSeen(parsed.seen),
       pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
-      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects) ? Number(parsed.unmeasuredRedirects) : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},
@@ -14999,7 +15013,7 @@ function takeLock(sessionId, agent, env, { attempts = 20, staleMs = 5e3, waitMs 
       return path6;
     } catch {
       try {
-        if (Date.now() - statSync(path6).mtimeMs > staleMs) {
+        if (Date.now() - statSync2(path6).mtimeMs > staleMs) {
           unlinkSync(path6);
           continue;
         }
@@ -15024,10 +15038,6 @@ function saveState(sessionId, state, agent, env = process.env) {
       // resolver before saving, so merging `current` first would resurrect
       // it. `state` is therefore authoritative for this field.
       pendingRedirects: { ...state.pendingRedirects },
-      unmeasuredRedirects: Math.max(
-        Number(current.unmeasuredRedirects) || 0,
-        Number(state.unmeasuredRedirects) || 0
-      ),
       denied: { ...current.denied, ...state.denied },
       injected: [.../* @__PURE__ */ new Set([...current.injected || [], ...state.injected || []])],
       actCounts: (() => {
@@ -15062,7 +15072,7 @@ function saveState(sessionId, state, agent, env = process.env) {
     const target = statePath(sessionId, agent, env);
     const temporary = `${target}.${process.pid}.tmp`;
     writeFileSync(temporary, JSON.stringify(merged), { mode: 384 });
-    renameSync(temporary, target);
+    renameSync2(temporary, target);
     return true;
   } catch {
     return false;
@@ -15083,7 +15093,7 @@ function resolvePendingRedirect(tool, sessionId, agent, env = process.env, now =
     delete state.pendingRedirects[tool];
     saveState(sessionId, state, agent, env);
     if (now - pending.at > PENDING_REDIRECT_TTL_MS) return null;
-    return pending.avoidedBytes;
+    return pending;
   } catch {
     return null;
   }
@@ -16128,6 +16138,7 @@ function decidePostToolUseMcp(input, loadOptions = {}) {
 }
 var MCP_COMPRESSION_LEDGER_MODULE = "mcp-compression";
 var REDIRECT_LEDGER_MODULE = "redirect";
+var REDIRECT_UNMEASURED_LEDGER_MODULE = "redirect-unmeasured";
 function buildHookOutput(input, decision, options = {}) {
   if (!decision.compress) return {};
   const content = normalizeToolResponse(input.tool_response);
@@ -16136,6 +16147,7 @@ function buildHookOutput(input, decision, options = {}) {
   const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
   const nonTextBlocks = content.filter((block) => block.type !== "text");
   const replacementText = annotateCcrMarkers(filtered.text);
+  if (replacementText === text) return {};
   const newContent = [
     { type: "text", text: replacementText },
     ...nonTextBlocks
@@ -16144,6 +16156,7 @@ function buildHookOutput(input, decision, options = {}) {
     options.writeLedger({
       module: MCP_COMPRESSION_LEDGER_MODULE,
       command_or_context: input.tool_name ?? "mcp__unknown",
+      session_id: input.session_id,
       tokensBefore: countTokens(text),
       tokensAfter: countTokens(replacementText),
       bytesBefore: Buffer.byteLength(text, "utf8"),
@@ -16156,21 +16169,34 @@ function recordRedirectSaving(input) {
   try {
     const tool = optimizerToolFromMcpName(input.tool_name);
     if (!tool) return;
-    const avoidedBytes = resolvePendingRedirect(
+    const pending = resolvePendingRedirect(
       tool,
       input.session_id,
       input.transcript_path ?? null
     );
-    if (avoidedBytes === null) return;
+    if (pending === null) return;
+    if (pending.unmeasured) {
+      appendLedger({
+        module: REDIRECT_UNMEASURED_LEDGER_MODULE,
+        command_or_context: tool,
+        session_id: input.session_id,
+        tokensBefore: 0,
+        tokensAfter: 0,
+        bytesBefore: 0,
+        bytesAfter: 0
+      });
+      return;
+    }
     const content = normalizeToolResponse(input.tool_response);
     const delivered = content ? extractText(content) : "";
     const deliveredBytes = Buffer.byteLength(delivered, "utf8");
     appendLedger({
       module: REDIRECT_LEDGER_MODULE,
       command_or_context: tool,
-      tokensBefore: estimateTokens(avoidedBytes),
-      tokensAfter: countTokens(delivered),
-      bytesBefore: avoidedBytes,
+      session_id: input.session_id,
+      tokensBefore: estimateTokens(pending.avoidedBytes),
+      tokensAfter: estimateTokens(deliveredBytes),
+      bytesBefore: pending.avoidedBytes,
       bytesAfter: deliveredBytes
     });
   } catch {
@@ -16200,6 +16226,7 @@ if (isDirectRun) {
 export {
   MCP_COMPRESSION_LEDGER_MODULE,
   REDIRECT_LEDGER_MODULE,
+  REDIRECT_UNMEASURED_LEDGER_MODULE,
   buildHookOutput,
   decidePostToolUseMcp,
   normalizeToolResponse,

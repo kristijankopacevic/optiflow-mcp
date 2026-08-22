@@ -168,3 +168,26 @@ describe("redirects — the third claim type", () => {
     expect(summary.redirected?.tokensAfter).toBe(600);
   });
 });
+
+describe("unmeasured redirects", () => {
+  it("counts them and says why there is no number", () => {
+    const out = renderSavings(
+      summarizeSavings([
+        record({ module: "redirect-unmeasured", tokensBefore: 0, tokensAfter: 0, bytesBefore: 0, bytesAfter: 0 }),
+        record({ module: "redirect-unmeasured", tokensBefore: 0, tokensAfter: 0, bytesBefore: 0, bytesAfter: 0 }),
+      ]),
+      { exactTokens: true, rangeLabel: "all time" }
+    );
+    expect(out).toContain("2 redirect(s) with no measurable saving");
+    expect(out).toContain("not guessed at");
+  });
+
+  it("keeps them out of every total", () => {
+    const summary = summarizeSavings([
+      record({ module: "redirect-unmeasured", tokensBefore: 0, tokensAfter: 0 }),
+    ]);
+    expect(summary.compression.calls).toBe(0);
+    expect(summary.redirected).toBeNull();
+    expect(summary.redirectedUnmeasured).toBe(1);
+  });
+});

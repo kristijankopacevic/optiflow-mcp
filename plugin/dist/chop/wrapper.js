@@ -15360,19 +15360,30 @@ var init_load = __esm({
 
 // src/core/ledger.ts
 init_paths();
-import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path2 from "node:path";
 function ledgerPath(home) {
   return path2.join(home, "ledger.jsonl");
+}
+var ROTATE_AT_BYTES = 5 * 1024 * 1024;
+function rotateIfOversized(file2) {
+  try {
+    const { size } = statSync(file2);
+    if (size < ROTATE_AT_BYTES) return;
+    renameSync(file2, `${file2}.1`);
+  } catch {
+  }
 }
 function appendLedger(record2, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
     mkdirSync(home, { recursive: true });
+    rotateIfOversized(ledgerPath(home));
     const full = {
       timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
       module: record2.module,
       command_or_context: record2.command_or_context,
+      ...record2.session_id ? { session_id: record2.session_id } : {},
       tokensBefore: record2.tokensBefore,
       tokensAfter: record2.tokensAfter,
       bytesBefore: record2.bytesBefore,

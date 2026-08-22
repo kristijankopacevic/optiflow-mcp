@@ -21371,19 +21371,30 @@ function registerStatuslineCommand(program2) {
 
 // src/core/ledger.ts
 init_paths();
-import { appendFileSync as appendFileSync2, existsSync as existsSync10, mkdirSync as mkdirSync4, readFileSync as readFileSync8 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync as existsSync10, mkdirSync as mkdirSync4, readFileSync as readFileSync8, renameSync as renameSync2, statSync } from "node:fs";
 import path12 from "node:path";
 function ledgerPath(home) {
   return path12.join(home, "ledger.jsonl");
+}
+var ROTATE_AT_BYTES = 5 * 1024 * 1024;
+function rotateIfOversized(file2) {
+  try {
+    const { size } = statSync(file2);
+    if (size < ROTATE_AT_BYTES) return;
+    renameSync2(file2, `${file2}.1`);
+  } catch {
+  }
 }
 function appendLedger(record2, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
     mkdirSync4(home, { recursive: true });
+    rotateIfOversized(ledgerPath(home));
     const full = {
       timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
       module: record2.module,
       command_or_context: record2.command_or_context,
+      ...record2.session_id ? { session_id: record2.session_id } : {},
       tokensBefore: record2.tokensBefore,
       tokensAfter: record2.tokensAfter,
       bytesBefore: record2.bytesBefore,
@@ -22250,6 +22261,7 @@ function registerCcrRetrieveCommand(program2) {
 var COMPRESSION_MODULES = /* @__PURE__ */ new Set(["chop", "mcp-compression", "code-substitute"]);
 var AVOIDED_MODULE = "read-suppressed";
 var REDIRECT_MODULE = "redirect";
+var REDIRECT_UNMEASURED_MODULE = "redirect-unmeasured";
 function emptySummary(module) {
   return { module, calls: 0, tokensBefore: 0, tokensAfter: 0, bytesBefore: 0, bytesAfter: 0 };
 }
@@ -22265,6 +22277,7 @@ function summarizeSavings(records) {
   const compression = emptySummary("compression total");
   let avoided = null;
   let redirected = null;
+  let redirectedUnmeasured = 0;
   for (const record2 of records) {
     const module = String(record2.module || "unknown");
     let summary = byModule.get(module);
@@ -22279,6 +22292,8 @@ function summarizeSavings(records) {
     } else if (module === REDIRECT_MODULE) {
       redirected = redirected ?? emptySummary(REDIRECT_MODULE);
       accumulate(redirected, record2);
+    } else if (module === REDIRECT_UNMEASURED_MODULE) {
+      redirectedUnmeasured += 1;
     } else if (COMPRESSION_MODULES.has(module)) {
       accumulate(compression, record2);
     }
@@ -22288,6 +22303,7 @@ function summarizeSavings(records) {
     compression,
     avoided,
     redirected,
+    redirectedUnmeasured,
     totalCalls: records.length
   };
 }
@@ -22355,6 +22371,14 @@ function renderSavings(summary, options) {
     if (saved < 0) {
       lines.push("               NEGATIVE: the replacements returned MORE than the originals.");
     }
+  }
+  if (summary.redirectedUnmeasured > 0) {
+    lines.push("");
+    lines.push(
+      `  Plus ${n(summary.redirectedUnmeasured)} redirect(s) with no measurable saving \u2014 searches,`
+    );
+    lines.push("               where no one can know what the built-in tool would have returned.");
+    lines.push("               Real work, deliberately not guessed at.");
   }
   if (summary.avoided) {
     const a = summary.avoided;

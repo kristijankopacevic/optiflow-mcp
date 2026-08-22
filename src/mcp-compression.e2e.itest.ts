@@ -115,7 +115,24 @@ describe.skipIf(!AVAILABLE)("MCP tool-result compression reaches the model", () 
           "--verbose",
           "Call the fixture MCP tool get_service_rows exactly once, then say DONE.",
         ],
-        { cwd: tmpDir, encoding: "utf8", shell: false, timeout: 240_000, input: "" }
+        {
+          cwd: tmpDir,
+          encoding: "utf8",
+          shell: false,
+          timeout: 240_000,
+          input: "",
+          // The spawned claude's hooks inherit this env, and without these
+          // two overrides they write into the REAL ~/.optiflow ledger and
+          // real session-state dir — which is exactly what happened: 27
+          // `mcp__fixture__*` rows from this test were found polluting the
+          // production ledger that `optiflow savings` and the statusline
+          // report from. Tests must never write the numbers a user reads.
+          env: {
+            ...process.env,
+            OPTIFLOW_HOME: path.join(tmpDir, "optiflow-home"),
+            TOKEN_OPTIMIZER_STATE_DIR: path.join(tmpDir, "hook-state"),
+          },
+        }
       );
 
       expect(result.status, `claude exited ${result.status}: ${result.stderr}`).toBe(0);

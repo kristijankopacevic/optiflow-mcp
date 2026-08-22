@@ -3,7 +3,7 @@
 // modules. Writes never throw; reads skip unparseable lines rather than
 // throwing, so one corrupt line can't take down the whole ledger.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import { getOptiflowHome } from "./paths.js";
 
@@ -11,6 +11,13 @@ export interface LedgerRecord {
   timestamp: string;
   module: string;
   command_or_context: string;
+  /**
+   * The Claude Code session that produced this row, when the writer had one
+   * (hooks do; the chop CLI wrapper does not). What makes test pollution
+   * findable and per-session reporting possible -- rows written before this
+   * field existed simply lack it.
+   */
+  session_id?: string;
   tokensBefore: number;
   tokensAfter: number;
   bytesBefore: number;
@@ -30,6 +37,25 @@ function ledgerPath(home: string): string {
   return path.join(home, "ledger.jsonl");
 }
 
+/**
+ * Rotate once the ledger passes this size. Append-only JSONL with no pruning
+ * meant unbounded growth and an ever-slower full-file `readLedger` scan; one
+ * archived generation (`ledger.jsonl.1`, overwritten on the next rotation)
+ * keeps recent history cheap without silently deleting everything.
+ */
+const ROTATE_AT_BYTES = 5 * 1024 * 1024;
+
+function rotateIfOversized(file: string): void {
+  try {
+    const { size } = statSync(file);
+    if (size < ROTATE_AT_BYTES) return;
+    renameSync(file, `${file}.1`);
+  } catch {
+    // Missing file (first write) or a race with another writer -- either
+    // way the append below proceeds against whatever exists.
+  }
+}
+
 /** Appends one record to the ledger. Never throws. */
 export function appendLedger(
   record: LedgerRecordInput,
@@ -38,10 +64,12 @@ export function appendLedger(
   try {
     const home = options.home ?? getOptiflowHome();
     mkdirSync(home, { recursive: true });
+    rotateIfOversized(ledgerPath(home));
     const full: LedgerRecord = {
       timestamp: record.timestamp ?? new Date().toISOString(),
       module: record.module,
       command_or_context: record.command_or_context,
+      ...(record.session_id ? { session_id: record.session_id } : {}),
       tokensBefore: record.tokensBefore,
       tokensAfter: record.tokensAfter,
       bytesBefore: record.bytesBefore,

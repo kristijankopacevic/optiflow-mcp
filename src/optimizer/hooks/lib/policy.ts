@@ -212,6 +212,15 @@ export interface PendingRedirect {
   avoidedBytes: number;
   /** Epoch ms, so a stale redirect cannot be paired with an unrelated later call. */
   at: number;
+  /**
+   * True for a redirect whose "before" size is genuinely unknowable
+   * (Grep/Glob: nobody can say what the built-in would have returned without
+   * running it). Such a redirect is still COUNTED on compliance — as a
+   * zero-byte `redirect-unmeasured` ledger row — so the report can state how
+   * many savings it is not measuring, instead of silently presenting the
+   * measurable part as the whole.
+   */
+  unmeasured?: boolean;
 }
 
 /** Beyond this, a pending redirect is too old to be what the model is responding to. */
@@ -221,12 +230,6 @@ export interface SessionState {
   seen: Record<string, SeenEntry>;
   /** Keyed by replacement tool name (`smart_read`, ...). Last redirect wins. */
   pendingRedirects: Record<string, PendingRedirect>;
-  /**
-   * Redirects issued whose saving is genuinely unknowable. Counted so
-   * `optiflow savings` can SAY how much it is not measuring, instead of
-   * quietly reporting only the measurable part as if it were the whole.
-   */
-  unmeasuredRedirects: number;
   denied: Record<string, boolean>;
   injected: string[];
   actCounts: Record<string, number>;
@@ -261,7 +264,6 @@ function emptyState(): SessionState {
   return {
     seen: {},
     pendingRedirects: {},
-    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -313,8 +315,13 @@ export function normalizePendingRedirects(raw: unknown): Record<string, PendingR
   for (const [tool, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const entry = value as { avoidedBytes?: unknown; at?: unknown };
-    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
-    out[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+    const e = entry as { avoidedBytes?: unknown; at?: unknown; unmeasured?: unknown };
+    if (!Number.isFinite(e.avoidedBytes) || !Number.isFinite(e.at)) continue;
+    out[tool] = {
+      avoidedBytes: Number(e.avoidedBytes),
+      at: Number(e.at),
+      ...(e.unmeasured === true ? { unmeasured: true } : {}),
+    };
   }
   return out;
 }
@@ -336,9 +343,6 @@ export function loadState(
     return {
       seen: normalizeSeen(parsed.seen),
       pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
-      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects)
-        ? Number(parsed.unmeasuredRedirects)
-        : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts:
@@ -430,10 +434,6 @@ export function saveState(
       // resolver before saving, so merging `current` first would resurrect
       // it. `state` is therefore authoritative for this field.
       pendingRedirects: { ...state.pendingRedirects },
-      unmeasuredRedirects: Math.max(
-        Number(current.unmeasuredRedirects) || 0,
-        Number(state.unmeasuredRedirects) || 0
-      ),
       denied: { ...current.denied, ...state.denied },
       injected: [...new Set([...(current.injected || []), ...(state.injected || [])])],
       actCounts: (() => {
@@ -503,7 +503,7 @@ export function resolvePendingRedirect(
   agent?: string | null,
   env: NodeJS.ProcessEnv = process.env,
   now: number = Date.now()
-): number | null {
+): PendingRedirect | null {
   try {
     const state = loadState(sessionId, agent, env);
     const pending = state.pendingRedirects[tool];
@@ -513,7 +513,7 @@ export function resolvePendingRedirect(
     saveState(sessionId, state, agent, env);
 
     if (now - pending.at > PENDING_REDIRECT_TTL_MS) return null;
-    return pending.avoidedBytes;
+    return pending;
   } catch {
     return null;
   }

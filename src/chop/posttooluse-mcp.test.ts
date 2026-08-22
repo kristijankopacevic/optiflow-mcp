@@ -137,10 +137,14 @@ describe("buildHookOutput", () => {
 
   it("preserves non-text content blocks verbatim", () => {
     enableChop(0);
+    // The text block must be genuinely COMPRESSIBLE (a uniform array), not
+    // filler: since the no-op guard landed, a payload the filter cannot
+    // improve emits {} and never rewrites at all — which is its own test
+    // below.
     const input: PostToolUseMcpHookInput = {
       tool_name: "mcp__example__tool",
       tool_response: [
-        { type: "text", text: "x".repeat(500) },
+        { type: "text", text: JSON.stringify(Array.from({ length: 40 }, (_, i) => ({ id: i, name: `svc-${i}`, status: "ok" }))) },
         { type: "image", data: "base64stuff" },
       ],
     };
@@ -148,6 +152,25 @@ describe("buildHookOutput", () => {
     const output = buildHookOutput(input, decision);
     const content = output.hookSpecificOutput!.updatedMCPToolOutput as Array<Record<string, unknown>>;
     expect(content.some((block) => block.type === "image")).toBe(true);
+  });
+
+
+  it("emits a bare {} when the filter cannot improve the payload (no-op guard)", () => {
+    enableChop(0);
+    // Incompressible filler over the size floor: eligible, filtered, and
+    // unchanged. Rewriting identical text would collapse the two text blocks
+    // into one — a structural change with zero benefit — and write a
+    // 0-savings ledger row per call. The guard emits nothing instead.
+    const input: PostToolUseMcpHookInput = {
+      tool_name: "mcp__example__tool",
+      tool_response: [{ type: "text", text: "x".repeat(500) }],
+    };
+    const decision = decidePostToolUseMcp(input, { cwd: projectDir, home: homeDir });
+    expect(decision.compress).toBe(true);
+    const rows: unknown[] = [];
+    const output = buildHookOutput(input, decision, { writeLedger: (r) => void rows.push(r) });
+    expect(output).toEqual({});
+    expect(rows).toEqual([]);
   });
 
   it("emits a bare {} for the non-compress path", () => {

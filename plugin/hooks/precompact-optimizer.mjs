@@ -194,7 +194,6 @@ function emptyState() {
   return {
     seen: {},
     pendingRedirects: {},
-    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -231,8 +230,13 @@ function normalizePendingRedirects(raw) {
   for (const [tool, value] of Object.entries(raw)) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const entry = value;
-    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
-    out[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+    const e = entry;
+    if (!Number.isFinite(e.avoidedBytes) || !Number.isFinite(e.at)) continue;
+    out[tool] = {
+      avoidedBytes: Number(e.avoidedBytes),
+      at: Number(e.at),
+      ...e.unmeasured === true ? { unmeasured: true } : {}
+    };
   }
   return out;
 }
@@ -243,7 +247,6 @@ function loadState(sessionId, agent, env = process.env) {
     return {
       seen: normalizeSeen(parsed.seen),
       pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
-      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects) ? Number(parsed.unmeasuredRedirects) : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},

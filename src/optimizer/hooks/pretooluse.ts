@@ -62,6 +62,7 @@ import {
   allowWithContext as hookAllowWithContext,
   denyWithSubstitute as hookDenyWithSubstitute,
   type HookOutput,
+  DEFAULT_OUTPUT_CAP_CHARS,
 } from "../../core/hook-io.js";
 import { appendLedger } from "../../core/ledger.js";
 import { estimateTokens } from "../../core/tokens.js";
@@ -136,6 +137,61 @@ const SUBSTITUTE_PREFACE =
   "signatures, and types are kept verbatim, but most function/method bodies are " +
   "elided (see the inline \"lines omitted\" markers). Call the token-optimizer MCP " +
   "tool smart_read with the same path if you need the full, uncompressed contents.]";
+
+/**
+ * Fits a compressed outline into the hook's output envelope, truncating at a
+ * LINE boundary and saying so, instead of letting `toCappedJson` slice it
+ * mid-signature downstream.
+ *
+ * Why this exists: the preface above promises "signatures are kept
+ * verbatim", and the 10,000-char envelope cap used to silently cut a large
+ * outline anywhere -- on a 120-function file, functions 82-119 simply
+ * vanished while the preface still claimed completeness. A model reading
+ * that can reasonably conclude the missing declarations do not exist. If the
+ * outline must be cut, the cut has to be clean (whole lines) and DECLARED
+ * (the marker below overrides the preface's completeness claim).
+ *
+ * Fitting is done against the REAL serialized envelope -- the same
+ * `denyWithSubstitute(reason, substitute)` object the hook will emit,
+ * measured with `JSON.stringify` -- because JSON escaping inflates code
+ * (every newline is two chars) and a raw-length budget would systematically
+ * overshoot.
+ *
+ * Returns `undefined` when even a minimal useful outline cannot fit, in
+ * which case the caller falls back to the plain redirect, exactly as if
+ * compression had declined.
+ */
+function fitSubstituteToEnvelope(reason: string, compressed: string): string | undefined {
+  const lines = compressed.split("\n");
+  const totalLines = lines.length;
+
+  const build = (keep: number): string => {
+    const omitted = totalLines - keep;
+    const marker =
+      omitted > 0
+        ? `\n\n[optiflow: OUTPUT CAP -- this outline is INCOMPLETE. The last ${omitted} of ` +
+          `${totalLines} lines of structure were cut to fit the hook output limit. Do NOT ` +
+          `assume the file ends here; call smart_read with the same path for the rest.]`
+        : "";
+    return `${SUBSTITUTE_PREFACE}\n\n${lines.slice(0, keep).join("\n")}${marker}`;
+  };
+  const envelopeLen = (substitute: string): number =>
+    JSON.stringify(hookDenyWithSubstitute("PreToolUse", reason, substitute)).length;
+
+  let keep = totalLines;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const candidate = build(keep);
+    const over = envelopeLen(candidate) - DEFAULT_OUTPUT_CAP_CHARS;
+    if (over <= 0) return candidate;
+
+    // Shrink by the overflow's share of the average serialized line length,
+    // slightly over-trimming so this converges in a few passes.
+    const avgLine = Math.max(1, Math.ceil(envelopeLen(candidate) / Math.max(1, keep)));
+    keep -= Math.max(1, Math.ceil((over * 1.15) / avgLine));
+    if (keep < 12) return undefined; // not enough structure left to be worth a substitute
+  }
+  return undefined;
+}
 
 export interface PreToolUseRawPayload {
   [key: string]: unknown;
@@ -363,7 +419,10 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
       if (typeof avoided === "number" && avoided > 0) {
         state.pendingRedirects[redirectTool] = { avoidedBytes: avoided, at: Date.now() };
       } else {
-        state.unmeasuredRedirects = (state.unmeasuredRedirects || 0) + 1;
+        // Unknowable "before" (Grep/Glob). Still parked, flagged unmeasured,
+        // so compliance produces a countable zero-byte row instead of the
+        // redirect vanishing from the report entirely.
+        state.pendingRedirects[redirectTool] = { avoidedBytes: 0, at: Date.now(), unmeasured: true };
       }
     }
 
@@ -420,24 +479,29 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
               codeResult.compressed.length < source.length &&
               codeResult.compressedTokens < codeResult.originalTokens
             ) {
-              substitute = `${SUBSTITUTE_PREFACE}\n\n${codeResult.compressed}`;
+              // Fit to the output envelope FIRST -- a substitute the cap
+              // would amputate mid-signature is worse than none, and the
+              // ledger must record what was DELIVERED, not what was built.
+              substitute = fitSubstituteToEnvelope(reason, codeResult.compressed);
 
-              // Record the saving. Note this measures the substitute as
-              // BUILT, not as delivered: `writeHookOutput`'s envelope cap
-              // can still truncate it downstream, so a very large outline
-              // is credited with slightly more than reached the model.
-              // `compressCode` already produced real token counts here, so
-              // unlike the byte-derived paths these two numbers are the
-              // compressor's own — see `optiflow savings` for how the
-              // report labels that.
-              appendLedger({
-                module: CODE_SUBSTITUTE_LEDGER_MODULE,
-                command_or_context: filePath,
-                tokensBefore: codeResult.originalTokens,
-                tokensAfter: codeResult.compressedTokens,
-                bytesBefore: Buffer.byteLength(source, "utf8"),
-                bytesAfter: Buffer.byteLength(substitute, "utf8"),
-              });
+              if (substitute) {
+                // Both sides counted with the same counter (estimateTokens
+                // over measured bytes) so the row never mixes units. The
+                // compressor's own token counts gated the decision above;
+                // they are not reused here because `substitute` may have
+                // been cut to fit and the "after" would then be stale.
+                const bytesBefore = Buffer.byteLength(source, "utf8");
+                const bytesAfter = Buffer.byteLength(substitute, "utf8");
+                appendLedger({
+                  module: CODE_SUBSTITUTE_LEDGER_MODULE,
+                  command_or_context: filePath,
+                  session_id: payload.session_id,
+                  tokensBefore: estimateTokens(bytesBefore),
+                  tokensAfter: estimateTokens(bytesAfter),
+                  bytesBefore,
+                  bytesAfter,
+                });
+              }
             }
           }
         }
@@ -480,6 +544,7 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
       appendLedger({
         module: READ_SUPPRESSED_LEDGER_MODULE,
         command_or_context: payload.tool_input.file_path ?? "unknown",
+        session_id: payload.session_id,
         tokensBefore: estimateTokens(suppressedBytes),
         tokensAfter: 0,
         bytesBefore: suppressedBytes,

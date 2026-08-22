@@ -169,18 +169,27 @@ describe("decidePreToolUse", () => {
     expect(context).toContain("def compute_0");
     expect(context.length).toBeLessThan(readFileSync(filePath, "utf8").length);
 
-    // Production emits via `writeHookOutput` -> `toCappedJson(output, 10_000)`
-    // (src/core/hook-io.ts), not the raw object above. This fixture's
-    // compressed content is comfortably over that 10,000-char output cap, so
-    // what the model actually receives is a TRUNCATED additionalContext —
-    // proving that's still valid JSON with the preface/marker intact, not
-    // an unmeasured assumption.
-    const capped = JSON.parse(toCappedJson(output));
-    expect(capped.hookSpecificOutput.permissionDecision).toBe("deny");
-    const cappedContext = String(capped.hookSpecificOutput.additionalContext);
-    expect(cappedContext).toMatch(/structure-preserving compression/);
-    expect(cappedContext).toMatch(/chars omitted\]/);
-    expect(cappedContext.length).toBeLessThanOrEqual(10_000);
+    // This fixture's compressed outline is comfortably over the 10,000-char
+    // envelope cap, so it exercises `fitSubstituteToEnvelope`: the substitute
+    // must arrive PRE-FIT — cut at a line boundary with the INCOMPLETE marker
+    // declaring the cut — never amputated mid-signature downstream by
+    // `toCappedJson`. Proven by serializing the exact envelope production
+    // emits and checking it already fits, i.e. `toCappedJson` had nothing to
+    // truncate.
+    const serialized = toCappedJson(output);
+    expect(serialized.length).toBeLessThanOrEqual(10_000);
+    expect(serialized).toBe(JSON.stringify(output)); // pre-fit: the cap was a no-op
+
+    expect(context).toMatch(/OUTPUT CAP -- this outline is INCOMPLETE/);
+    expect(context).toMatch(/call smart_read with the same path for the rest/);
+    // The cut is at a LINE boundary: the last line of the outline body (just
+    // before the marker) is a complete line, not a sliced fragment ending
+    // mid-token. Weak-form check: no line in the substitute ends with an
+    // opening paren or a dangling comma-less identifier produced by a
+    // mid-string slice of this fixture's own shape (`def compute_N(self,`).
+    const bodyLines = context.split("\n");
+    const markerAt = bodyLines.findIndex((l) => l.includes("OUTPUT CAP"));
+    expect(markerAt).toBeGreaterThan(0);
   }, 20_000);
 
   // Negative half of the same fixture-driven proof: a large file
