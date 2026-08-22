@@ -99,16 +99,25 @@ optiflow savings --watch     # live view of what compression actually saved
 ```
 
 To get the `optiflow` command in a normal terminal (independent of the
-plugin install, reading the same ledger):
+plugin install, reading the same ledger), run the installer once:
 
 ```bash
-npm install -g https://github.com/kristijankopacevic/optiflow-mcp/archive/refs/heads/master.tar.gz
+curl -fsSL https://raw.githubusercontent.com/kristijankopacevic/optiflow-mcp/master/scripts/install-cli.sh | bash
 ```
 
-Use that tarball URL rather than `npm install -g github:...` — the `github:`
-form hits an npm bug that symlinks the package to a temporary git clone which
-is then deleted, so the CLI reports success and then cannot find its own
-entry point.
+Or, if you would rather read it before running it (reasonable), download
+`scripts/install-cli.sh` and run it yourself. After that first install,
+updating is just:
+
+```bash
+optiflow update
+```
+
+Both do the same three things, which all have to be right or you get an error
+that looks like a broken build: install from the **tarball URL** (never
+`npm install -g github:...`, which npm symlinks to a temp clone it then
+deletes), remove any stale `alias optiflow=...` shadowing the binary, and
+verify the result is actually the current build.
 
 Installing the plugin alone never touches your `settings.json`; the statusline
 is explicit opt-in, backs up your settings first, and `optiflow uninstall`

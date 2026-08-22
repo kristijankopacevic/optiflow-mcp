@@ -330,10 +330,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path16) {
-  if (!path16)
+function getElementAtPath(obj, path17) {
+  if (!path17)
     return obj;
-  return path16.reduce((acc, key) => acc?.[key], obj);
+  return path17.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -661,11 +661,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path16, issues) {
+function prefixIssues(path17, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path16);
+    iss.path.unshift(path17);
     return iss;
   });
 }
@@ -882,16 +882,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path16 = []) => {
+  const processError = (error52, path17 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path16, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path17, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
       } else {
-        const fullpath = [...path16, ...issue2.path];
+        const fullpath = [...path17, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -918,17 +918,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path16 = []) => {
+  const processError = (error52, path17 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path16, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path17, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path16, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path17, ...issue2.path]);
       } else {
-        const fullpath = [...path16, ...issue2.path];
+        const fullpath = [...path17, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -960,8 +960,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path16 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path16) {
+  const path17 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path17) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -14391,13 +14391,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path16 = ref.slice(1).split("/").filter(Boolean);
-  if (path16.length === 0) {
+  const path17 = ref.slice(1).split("/").filter(Boolean);
+  if (path17.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path16[0] === defsKey) {
-    const key = path16[1];
+  if (path17[0] === defsKey) {
+    const key = path17[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -18516,9 +18516,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
    * @param {string} [path]
    * @return {(string|null|Command)}
    */
-  executableDir(path16) {
-    if (path16 === void 0) return this._executableDir;
-    this._executableDir = path16;
+  executableDir(path17) {
+    if (path17 === void 0) return this._executableDir;
+    this._executableDir = path17;
     return this;
   }
   /**
@@ -19438,30 +19438,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path16) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path16);
-  return transformChildren(normalizeValue(replaced), replacer, path16);
+function transformReplaced(original, replaced, replacer, path17) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path17);
+  return transformChildren(normalizeValue(replaced), replacer, path17);
 }
-function transformChildren(value, replacer, path16) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path16);
-  if (isJsonArray(value)) return transformArray(value, replacer, path16);
+function transformChildren(value, replacer, path17) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path17);
+  if (isJsonArray(value)) return transformArray(value, replacer, path17);
   return value;
 }
-function transformObject(obj, replacer, path16) {
+function transformObject(obj, replacer, path17) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path16, key];
+    const childPath = [...path17, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path16) {
+function transformArray(arr, replacer, path17) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path16, i];
+    const childPath = [...path17, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -22402,6 +22402,86 @@ function registerSavingsCommand(program2) {
   });
 }
 
+// src/cli/commands/update.ts
+import { execFileSync } from "node:child_process";
+import { existsSync as existsSync14, readFileSync as readFileSync10, writeFileSync as writeFileSync4 } from "node:fs";
+import { homedir as homedir5 } from "node:os";
+import path16 from "node:path";
+var TARBALL_URL = "https://github.com/kristijankopacevic/optiflow-mcp/archive/refs/heads/master.tar.gz";
+var RC_FILES = [".bashrc", ".bash_profile", ".zshrc", ".profile"];
+var ALIAS_RE = /^\s*alias\s+optiflow\s*=/;
+function stripOptiflowAliases(home = homedir5()) {
+  const results = [];
+  for (const name of RC_FILES) {
+    const file2 = path16.join(home, name);
+    try {
+      if (!existsSync14(file2)) continue;
+      const original = readFileSync10(file2, "utf8");
+      const lines = original.split("\n");
+      const kept = lines.filter((line) => !ALIAS_RE.test(line));
+      const removed = lines.length - kept.length;
+      if (removed > 0) {
+        writeFileSync4(`${file2}.optiflow-backup-${Date.now()}`, original, "utf8");
+        writeFileSync4(file2, kept.join("\n"), "utf8");
+        results.push({ file: file2, removedLines: removed });
+      }
+    } catch {
+    }
+  }
+  return results;
+}
+function defaultRunNpm(args) {
+  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", args, {
+    stdio: "inherit"
+  });
+}
+function runUpdateCli(options = {}) {
+  const runNpm = options.runNpm ?? defaultRunNpm;
+  const lines = [];
+  const stripped = stripOptiflowAliases(options.home);
+  for (const result of stripped) {
+    lines.push(
+      `Removed ${result.removedLines} stale \`alias optiflow=\` line(s) from ${result.file}`
+    );
+  }
+  try {
+    runNpm(["uninstall", "-g", "optiflow-mcp"]);
+  } catch {
+  }
+  runNpm(["install", "-g", TARBALL_URL]);
+  lines.push("");
+  lines.push("Updated. Verify with:");
+  lines.push("  optiflow --version && optiflow savings");
+  if (stripped.length > 0) {
+    lines.push("");
+    lines.push("An alias was shadowing the real binary in this shell. Run:");
+    lines.push("  unalias optiflow; hash -r");
+    lines.push("...or just open a new terminal. A child process cannot remove");
+    lines.push("an alias from the shell that launched it.");
+  }
+  return lines;
+}
+function registerUpdateCommand(program2) {
+  program2.command("update").description(
+    "Reinstall the optiflow CLI from the latest master, clearing any stale global install or shell alias that would shadow it."
+  ).action(() => {
+    try {
+      for (const line of runUpdateCli()) {
+        process.stdout.write(line + "\n");
+      }
+    } catch (error51) {
+      process.stderr.write(
+        `[optiflow update] failed: ${error51 instanceof Error ? error51.message : String(error51)}
+You can run it by hand:
+  npm uninstall -g optiflow-mcp
+  npm install -g ${TARBALL_URL}
+`
+      );
+      process.exitCode = 1;
+    }
+  });
+}
+
 // src/cli/index.ts
 function buildProgram() {
   const program2 = new Command();
@@ -22419,6 +22499,7 @@ function buildProgram() {
   registerInitCommand(program2);
   registerCcrRetrieveCommand(program2);
   registerSavingsCommand(program2);
+  registerUpdateCommand(program2);
   return program2;
 }
 buildProgram().parseAsync(process.argv).catch((err) => {

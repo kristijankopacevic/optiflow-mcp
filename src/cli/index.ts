@@ -14,6 +14,7 @@ import { registerChopCommand } from "./commands/chop.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerCcrRetrieveCommand } from "./commands/ccr-retrieve.js";
 import { registerSavingsCommand } from "./commands/savings.js";
+import { registerUpdateCommand } from "./commands/update.js";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -43,6 +44,7 @@ export function buildProgram(): Command {
   registerInitCommand(program);
   registerCcrRetrieveCommand(program);
   registerSavingsCommand(program);
+  registerUpdateCommand(program);
 
   return program;
 }
