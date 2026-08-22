@@ -47,6 +47,45 @@ jobs:
       # to add once an authenticated runner exists. Until then it is a
       # pre-push check — see README.
 
+  # The OTHER install path the README documents: `npm install -g
+  # github:kristijankopacevic/optiflow-mcp`, for running the `optiflow` CLI
+  # from a normal terminal rather than through the plugin.
+  #
+  # This was broken and nobody noticed, because nothing ever exercised it: with
+  # every build-time package sitting in `dependencies` and no `files` field,
+  # npm packed the whole repo and then tried to build @huggingface/transformers'
+  # native tree (onnxruntime-node, onnxruntime-web, sharp). A real user hit
+  # `spawn sh ENOENT` on sharp and got no CLI at all.
+  #
+  # Nothing in `dependencies` was ever needed to RUN the shipped tree -- esbuild
+  # either bundles it or lists it in `nativeExternals` (lazily required, absent
+  # by design in a real install), which the job below already proves. So this
+  # asserts the honest packaging: a dependency-free install that still runs.
+  pack-and-install-the-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Pack, install into an isolated prefix, and run the CLI
+        run: |
+          set -euo pipefail
+          TARBALL="$(npm pack --silent)"
+          TMP="$(mktemp -d)"
+          mv "$TARBALL" "$TMP/"
+          cd "$TMP"
+          npm install --prefix "$TMP/pfx" "$TMP/$TARBALL"
+          # Must pull in NOTHING but optiflow-mcp itself. A second entry here
+          # means a runtime dependency crept back into package.json.
+          installed="$(ls "$TMP/pfx/node_modules")"
+          if [ "$installed" != "optiflow-mcp" ]; then
+            echo "FAILED: expected only optiflow-mcp, got:"; echo "$installed"; exit 1
+          fi
+          BIN="$TMP/pfx/node_modules/optiflow-mcp/plugin/bin/optiflow"
+          node "$BIN" --version
+          node "$BIN" doctor
+
   # A marketplace install ships no node_modules and Claude Code's automatic
   # dependency install runs with --ignore-scripts, so the plugin must run on
   # whatever Node the host already has. Ubuntu LTS still ships Node 18, and a

@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "description": "A single Claude Code plugin merging token-optimizer-mcp's 76 smart_*/analytics MCP tools and enforcement hooks with headroom's real Rust compression core (via WASM), plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion.",
   "private": false,
-  "type": "module",
   "license": "MIT",
+  "type": "module",
+  "files": [
+    "plugin"
+  ],
   "bin": {
     "optiflow": "plugin/bin/optiflow",
     "optiflow-chop": "plugin/bin/optiflow-chop"
@@ -17,39 +20,37 @@
     "lint": "tsc --noEmit",
     "test:mcp-e2e": "node esbuild.config.mjs && vitest run --config vitest.mcp-e2e.config.ts"
   },
-  "dependencies": {
+  "overrides": {
+    "onnxruntime-node": "1.24.3"
+  },
+  "devDependencies": {
     "@babel/parser": "^7.29.8",
     "@babel/types": "^7.29.8",
     "@huggingface/transformers": "^4.2.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@toon-format/toon": "^4.1.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/d3-force": "^3.0.10",
+    "@types/iarna__toml": "^2.0.5",
+    "@types/node": "^26.2.0",
     "better-sqlite3": "^13.0.3",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "d3-force": "^3.0.0",
     "diff": "^9.0.0",
+    "esbuild": "^0.28.2",
     "glob": "^13.0.6",
     "graphlib": "^2.1.8",
     "lru-cache": "^11.5.2",
     "onnxruntime-node": "1.24.3",
     "tiktoken": "^1.0.22",
     "tree-sitter-wasms": "^0.1.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
     "web-tree-sitter": "^0.24.7",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
-  },
-  "overrides": {
-    "onnxruntime-node": "1.24.3"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0",
-    "@types/d3-force": "^3.0.10",
-    "@types/iarna__toml": "^2.0.5",
-    "@types/node": "^26.2.0",
-    "esbuild": "^0.28.2",
-    "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=18"

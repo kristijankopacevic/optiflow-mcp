@@ -13,3 +13,6 @@ native/*/target/
 # `cargo`/`wasm-pack` - if this weren't committed, the compression pipeline
 # would silently fail to load for anyone who didn't happen to build it
 # locally in the exact right place first.
+
+# npm pack output (see the pack-and-install CI job)
+*.tgz
