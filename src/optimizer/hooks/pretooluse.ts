@@ -390,7 +390,10 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
             }
           }
         }
-      } catch {
+      } catch (err) {
+        if (process.env.OPTIFLOW_DEBUG_SUBSTITUTE) {
+          console.error("[substitute-debug]", err instanceof Error ? err.stack : String(err));
+        }
         // Any failure here falls back to the plain redirect, which always works.
       }
     }

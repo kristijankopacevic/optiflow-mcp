@@ -1,3 +1,10 @@
+import { createRequire as __optiflowCreateRequire } from "node:module";
+import { fileURLToPath as __optiflowFileURLToPath } from "node:url";
+import { dirname as __optiflowDirname } from "node:path";
+const require = __optiflowCreateRequire(import.meta.url);
+const __filename = __optiflowFileURLToPath(import.meta.url);
+const __dirname = __optiflowDirname(__filename);
+
 // src/handoff/activity-hook.ts
 import { pathToFileURL } from "node:url";
 

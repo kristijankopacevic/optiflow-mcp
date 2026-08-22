@@ -149,6 +149,39 @@ const hookEntries = [
  */
 const scriptEntries = [{ in: "src/statusline/cli.ts", out: "statusline" }];
 
+/**
+ * Injected at the top of every ESM bundle so a CommonJS `require` exists at
+ * runtime.
+ *
+ * `web-tree-sitter` is an Emscripten build that calls `require("fs")`,
+ * `require("path")` and `require("crypto")` internally when it loads its
+ * `.wasm` runtime. Bundled into ESM those calls hit esbuild's
+ * `__require` shim, which throws `Dynamic require of "fs" is not
+ * supported` -- the SAME failure mode already documented on
+ * `nativeExternals` for `yaml`/`@iarna/toml`.
+ *
+ * That throw was swallowed by CodeCompressor's fail-open passthrough, so
+ * the symptom was silent: `smart_read`'s compression branch and the
+ * PreToolUse deny-and-substitute path returned files uncompressed on every
+ * installed machine, while the in-repo tests (which import the unbundled
+ * source, where `require` is unnecessary) all passed.
+ *
+ * Marking web-tree-sitter external instead would be the other option, but
+ * that only moves the problem: an install ships no `node_modules` for it to
+ * be resolved from. Defining `require` keeps it bundled AND working. Only
+ * Node builtins are ever requested through it.
+ */
+const esmRequireBanner = {
+  js: [
+    'import { createRequire as __optiflowCreateRequire } from "node:module";',
+    'import { fileURLToPath as __optiflowFileURLToPath } from "node:url";',
+    'import { dirname as __optiflowDirname } from "node:path";',
+    'const require = __optiflowCreateRequire(import.meta.url);',
+    'const __filename = __optiflowFileURLToPath(import.meta.url);',
+    'const __dirname = __optiflowDirname(__filename);',
+  ].join(String.fromCharCode(10)),
+};
+
 function partitionByExistence(entries) {
   const existing = entries.filter((entry) => existsSync(path.join(__dirname, entry.in)));
   const missing = entries.filter((entry) => !existing.includes(entry));
@@ -187,6 +220,7 @@ if (existingEntries.length > 0) {
     platform: "node",
     target: "es2022",
     format: "esm",
+    banner: esmRequireBanner,
     sourcemap: true,
     logLevel: "info",
     // See `nativeExternals`'s own comment above: only src/optimizer/server.ts
@@ -208,6 +242,7 @@ if (existingHookEntries.length > 0) {
     platform: "node",
     target: "es2022",
     format: "esm",
+    banner: esmRequireBanner,
     sourcemap: true,
     logLevel: "info",
   });
@@ -225,6 +260,7 @@ if (existingScriptEntries.length > 0) {
     platform: "node",
     target: "es2022",
     format: "esm",
+    banner: esmRequireBanner,
     sourcemap: true,
     logLevel: "info",
   });

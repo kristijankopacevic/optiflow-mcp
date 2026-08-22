@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+import { createRequire as __optiflowCreateRequire } from "node:module";
+import { fileURLToPath as __optiflowFileURLToPath } from "node:url";
+import { dirname as __optiflowDirname } from "node:path";
+const require = __optiflowCreateRequire(import.meta.url);
+const __filename = __optiflowFileURLToPath(import.meta.url);
+const __dirname = __optiflowDirname(__filename);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -3243,8 +3249,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path10) {
-      let input = path10;
+    function removeDotSegments(path11) {
+      let input = path11;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3496,8 +3502,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path10, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path10 && path10 !== "/" ? path10 : void 0;
+        const [path11, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path11 && path11 !== "/" ? path11 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -8965,11 +8971,11 @@ var require_tree_sitter = __commonJS({
               throw toThrow;
             };
             var scriptDirectory = "";
-            function locateFile(path10) {
+            function locateFile(path11) {
               if (Module["locateFile"]) {
-                return Module["locateFile"](path10, scriptDirectory);
+                return Module["locateFile"](path11, scriptDirectory);
               }
-              return scriptDirectory + path10;
+              return scriptDirectory + path11;
             }
             var readAsync, readBinary;
             if (ENVIRONMENT_IS_NODE) {
@@ -14401,11 +14407,11 @@ var require_baseGet = __commonJS({
   "node_modules/lodash/_baseGet.js"(exports2, module2) {
     var castPath = require_castPath();
     var toKey = require_toKey();
-    function baseGet(object3, path10) {
-      path10 = castPath(path10, object3);
-      var index2 = 0, length = path10.length;
+    function baseGet(object3, path11) {
+      path11 = castPath(path11, object3);
+      var index2 = 0, length = path11.length;
       while (object3 != null && index2 < length) {
-        object3 = object3[toKey(path10[index2++])];
+        object3 = object3[toKey(path11[index2++])];
       }
       return index2 && index2 == length ? object3 : void 0;
     }
@@ -14417,8 +14423,8 @@ var require_baseGet = __commonJS({
 var require_get = __commonJS({
   "node_modules/lodash/get.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function get2(object3, path10, defaultValue) {
-      var result = object3 == null ? void 0 : baseGet(object3, path10);
+    function get2(object3, path11, defaultValue) {
+      var result = object3 == null ? void 0 : baseGet(object3, path11);
       return result === void 0 ? defaultValue : result;
     }
     module2.exports = get2;
@@ -14444,11 +14450,11 @@ var require_hasPath = __commonJS({
     var isIndex = require_isIndex();
     var isLength = require_isLength();
     var toKey = require_toKey();
-    function hasPath(object3, path10, hasFunc) {
-      path10 = castPath(path10, object3);
-      var index2 = -1, length = path10.length, result = false;
+    function hasPath(object3, path11, hasFunc) {
+      path11 = castPath(path11, object3);
+      var index2 = -1, length = path11.length, result = false;
       while (++index2 < length) {
-        var key = toKey(path10[index2]);
+        var key = toKey(path11[index2]);
         if (!(result = object3 != null && hasFunc(object3, key))) {
           break;
         }
@@ -14469,8 +14475,8 @@ var require_hasIn = __commonJS({
   "node_modules/lodash/hasIn.js"(exports2, module2) {
     var baseHasIn = require_baseHasIn();
     var hasPath = require_hasPath();
-    function hasIn(object3, path10) {
-      return object3 != null && hasPath(object3, path10, baseHasIn);
+    function hasIn(object3, path11) {
+      return object3 != null && hasPath(object3, path11, baseHasIn);
     }
     module2.exports = hasIn;
   }
@@ -14488,13 +14494,13 @@ var require_baseMatchesProperty = __commonJS({
     var toKey = require_toKey();
     var COMPARE_PARTIAL_FLAG = 1;
     var COMPARE_UNORDERED_FLAG = 2;
-    function baseMatchesProperty(path10, srcValue) {
-      if (isKey(path10) && isStrictComparable(srcValue)) {
-        return matchesStrictComparable(toKey(path10), srcValue);
+    function baseMatchesProperty(path11, srcValue) {
+      if (isKey(path11) && isStrictComparable(srcValue)) {
+        return matchesStrictComparable(toKey(path11), srcValue);
       }
       return function(object3) {
-        var objValue = get2(object3, path10);
-        return objValue === void 0 && objValue === srcValue ? hasIn(object3, path10) : baseIsEqual(srcValue, objValue, COMPARE_PARTIAL_FLAG | COMPARE_UNORDERED_FLAG);
+        var objValue = get2(object3, path11);
+        return objValue === void 0 && objValue === srcValue ? hasIn(object3, path11) : baseIsEqual(srcValue, objValue, COMPARE_PARTIAL_FLAG | COMPARE_UNORDERED_FLAG);
       };
     }
     module2.exports = baseMatchesProperty;
@@ -14517,9 +14523,9 @@ var require_baseProperty = __commonJS({
 var require_basePropertyDeep = __commonJS({
   "node_modules/lodash/_basePropertyDeep.js"(exports2, module2) {
     var baseGet = require_baseGet();
-    function basePropertyDeep(path10) {
+    function basePropertyDeep(path11) {
       return function(object3) {
-        return baseGet(object3, path10);
+        return baseGet(object3, path11);
       };
     }
     module2.exports = basePropertyDeep;
@@ -14533,8 +14539,8 @@ var require_property = __commonJS({
     var basePropertyDeep = require_basePropertyDeep();
     var isKey = require_isKey();
     var toKey = require_toKey();
-    function property(path10) {
-      return isKey(path10) ? baseProperty(toKey(path10)) : basePropertyDeep(path10);
+    function property(path11) {
+      return isKey(path11) ? baseProperty(toKey(path11)) : basePropertyDeep(path11);
     }
     module2.exports = property;
   }
@@ -14596,8 +14602,8 @@ var require_has = __commonJS({
   "node_modules/lodash/has.js"(exports2, module2) {
     var baseHas = require_baseHas();
     var hasPath = require_hasPath();
-    function has(object3, path10) {
-      return object3 != null && hasPath(object3, path10, baseHas);
+    function has(object3, path11) {
+      return object3 != null && hasPath(object3, path11, baseHas);
     }
     module2.exports = has;
   }
@@ -45471,10 +45477,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path10) {
-  if (!path10)
+function getElementAtPath(obj, path11) {
+  if (!path11)
     return obj;
-  return path10.reduce((acc, key) => acc?.[key], obj);
+  return path11.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -45883,11 +45889,11 @@ function explicitlyAborted(x4, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path10, issues) {
+function prefixIssues(path11, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path10);
+    iss.path.unshift(path11);
     return iss;
   });
 }
@@ -46034,16 +46040,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path10 = []) => {
+  const processError = (error52, path11 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path11, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else {
-        const fullpath = [...path10, ...issue2.path];
+        const fullpath = [...path11, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -46070,17 +46076,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path10 = []) => {
+  const processError = (error52, path11 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path11, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else {
-        const fullpath = [...path10, ...issue2.path];
+        const fullpath = [...path11, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -46112,8 +46118,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path10 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path10) {
+  const path11 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path11) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -59111,13 +59117,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path10 = ref.slice(1).split("/").filter(Boolean);
-  if (path10.length === 0) {
+  const path11 = ref.slice(1).split("/").filter(Boolean);
+  if (path11.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path10[0] === defsKey) {
-    const key = path10[1];
+  if (path11[0] === defsKey) {
+    const key = path11[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -62831,7 +62837,7 @@ init_cache_engine();
 init_paths2();
 init_token_counter();
 init_metrics();
-import { readFileSync as readFileSync4, existsSync as existsSync4, statSync as statSync3 } from "fs";
+import { readFileSync as readFileSync4, existsSync as existsSync5, statSync as statSync3 } from "fs";
 
 // node_modules/diff/libesm/diff/base.js
 var Diff = class {
@@ -62933,16 +62939,16 @@ var Diff = class {
       }
     }
   }
-  addToPath(path10, added, removed, oldPosInc, options) {
-    const last = path10.lastComponent;
+  addToPath(path11, added, removed, oldPosInc, options) {
+    const last = path11.lastComponent;
     if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
       return {
-        oldPos: path10.oldPos + oldPosInc,
+        oldPos: path11.oldPos + oldPosInc,
         lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
       };
     } else {
       return {
-        oldPos: path10.oldPos + oldPosInc,
+        oldPos: path11.oldPos + oldPosInc,
         lastComponent: { count: 1, added, removed, previousComponent: last }
       };
     }
@@ -63713,6 +63719,9 @@ function isMinified(content) {
 // src/native/code-compressor.ts
 var import_web_tree_sitter = __toESM(require_tree_sitter(), 1);
 import { createRequire as createRequire3 } from "node:module";
+import { existsSync as existsSync2 } from "node:fs";
+import path4 from "node:path";
+import { fileURLToPath } from "node:url";
 var nodeRequire = createRequire3(import.meta.url);
 var DEFAULT_CODE_COMPRESSOR_CONFIG = {
   preserveImports: true,
@@ -63731,13 +63740,31 @@ var DEFAULT_CODE_COMPRESSOR_CONFIG = {
   ccrTtl: 300
 };
 function grammarWasmDir() {
+  try {
+    let dir = path4.dirname(fileURLToPath(import.meta.url));
+    for (let i2 = 0; i2 < 6; i2++) {
+      const candidate = path4.join(dir, "grammars");
+      if (existsSync2(path4.join(candidate, "tree-sitter-typescript.wasm"))) {
+        return candidate;
+      }
+      const parent = path4.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+  }
   const pkgJsonPath = nodeRequire.resolve("tree-sitter-wasms/package.json");
   return pkgJsonPath.slice(0, -"package.json".length) + "out";
 }
 var initPromise2 = null;
 async function ensureInit() {
   if (!initPromise2) {
-    initPromise2 = import_web_tree_sitter.default.init();
+    const shippedRuntime = path4.join(grammarWasmDir(), "tree-sitter.wasm");
+    initPromise2 = existsSync2(shippedRuntime) ? import_web_tree_sitter.default.init({
+      locateFile(scriptName) {
+        return scriptName === "tree-sitter.wasm" ? shippedRuntime : scriptName;
+      }
+    }) : import_web_tree_sitter.default.init();
   }
   return initPromise2;
 }
@@ -64805,7 +64832,7 @@ async function compressCode(code, opts = {}) {
 init_paths();
 import {
   createWriteStream,
-  existsSync as existsSync2,
+  existsSync as existsSync3,
   mkdirSync,
   readFileSync as readFileSync2,
   renameSync,
@@ -64813,7 +64840,7 @@ import {
   unlinkSync,
   writeFileSync
 } from "node:fs";
-import path4 from "node:path";
+import path5 from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 var KOMPRESS_HF_REPO = "chopratejas/kompress-v2-base";
@@ -64832,13 +64859,13 @@ var TOKENIZER_REPO_FILENAMES = [
   "special_tokens_map.json"
 ];
 function cacheRoot(home) {
-  return path4.join(home, "models", "kompress");
+  return path5.join(home, "models", "kompress");
 }
 function onnxLocalPath(home, variant) {
-  return path4.join(cacheRoot(home), ONNX_LOCAL_FILENAMES[variant]);
+  return path5.join(cacheRoot(home), ONNX_LOCAL_FILENAMES[variant]);
 }
 function tokenizerDirPath(home) {
-  return path4.join(cacheRoot(home), "tokenizer");
+  return path5.join(cacheRoot(home), "tokenizer");
 }
 function metaPath(filePath) {
   return `${filePath}.optiflow-meta.json`;
@@ -64856,7 +64883,7 @@ function readMeta(filePath) {
   }
 }
 function isFileValidCached(filePath) {
-  if (!existsSync2(filePath)) return false;
+  if (!existsSync3(filePath)) return false;
   const meta3 = readMeta(filePath);
   if (!meta3) return true;
   try {
@@ -64869,11 +64896,11 @@ function hfResolveUrl(repoPath) {
   return `https://huggingface.co/${KOMPRESS_HF_REPO}/resolve/${KOMPRESS_PINNED_REVISION}/${repoPath}`;
 }
 async function downloadFileAtomic(url2, destPath, fetchImpl) {
-  const dir = path4.dirname(destPath);
+  const dir = path5.dirname(destPath);
   mkdirSync(dir, { recursive: true });
-  const tempPath = path4.join(
+  const tempPath = path5.join(
     dir,
-    `.${path4.basename(destPath)}.optiflow-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.${path5.basename(destPath)}.optiflow-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
   let response;
   try {
@@ -64944,7 +64971,7 @@ async function ensureModelDownloaded(options = {}) {
   const fetchImpl = options.fetchImpl ?? fetch;
   const onnxPath = onnxLocalPath(home, variant);
   const tokDir = tokenizerDirPath(home);
-  const tokenizerPaths = TOKENIZER_REPO_FILENAMES.map((f) => path4.join(tokDir, f));
+  const tokenizerPaths = TOKENIZER_REPO_FILENAMES.map((f) => path5.join(tokDir, f));
   const missing = [onnxPath, ...tokenizerPaths].filter((p) => !isFileValidCached(p));
   if (missing.length === 0) {
     return { available: true, onnxPath, tokenizerDir: tokDir, cached: true, variant };
@@ -64952,7 +64979,7 @@ async function ensureModelDownloaded(options = {}) {
   if (!allowDownload) {
     return {
       available: false,
-      reason: `Kompress model not cached locally (missing: ${missing.map((p) => path4.basename(p)).join(", ")}) and allowDownload is false \u2014 set kompress.allowDownload: true to permit a one-time ~274MB download from HuggingFace.`
+      reason: `Kompress model not cached locally (missing: ${missing.map((p) => path5.basename(p)).join(", ")}) and allowDownload is false \u2014 set kompress.allowDownload: true to permit a one-time ~274MB download from HuggingFace.`
     };
   }
   if (!isFileValidCached(onnxPath)) {
@@ -64964,7 +64991,7 @@ async function ensureModelDownloaded(options = {}) {
     if (!result.ok) return { available: false, reason: result.error };
   }
   for (const filename of TOKENIZER_REPO_FILENAMES) {
-    const dest = path4.join(tokDir, filename);
+    const dest = path5.join(tokDir, filename);
     if (isFileValidCached(dest)) continue;
     const result = await downloadFileAtomic(hfResolveUrl(filename), dest, fetchImpl);
     if (!result.ok) return { available: false, reason: result.error };
@@ -65218,8 +65245,8 @@ async function compressWithKompress(text, options = {}) {
 }
 
 // src/config/load.ts
-import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
-import path5 from "node:path";
+import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
+import path6 from "node:path";
 
 // src/config/defaults.ts
 var DEFAULT_CONFIG = {
@@ -65360,7 +65387,7 @@ var TOP_LEVEL_SECTIONS = [
 ];
 function readJsonObject(filePath) {
   try {
-    if (!existsSync3(filePath)) return null;
+    if (!existsSync4(filePath)) return null;
     const raw = readFileSync3(filePath, "utf8");
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -65393,9 +65420,9 @@ function mergeLayers(...layers) {
 function loadConfig(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const home = options.home ?? getOptiflowHome();
-  const userGlobalPath = path5.join(home, "config.json");
+  const userGlobalPath = path6.join(home, "config.json");
   const projectRoot = findProjectRoot(cwd);
-  const projectPath = path5.join(projectRoot, "optiflow.config.json");
+  const projectPath = path6.join(projectRoot, "optiflow.config.json");
   const userGlobalRaw = readJsonObject(userGlobalPath);
   const projectRaw = readJsonObject(projectPath);
   const merged = mergeLayers(userGlobalRaw, projectRaw);
@@ -65452,7 +65479,7 @@ var SmartReadTool = class {
         `smart_read requires a non-empty "path" argument (received: ${JSON.stringify(filePath)})`
       );
     }
-    if (!existsSync4(filePath)) {
+    if (!existsSync5(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
     const stats = statSync3(filePath);
@@ -65639,7 +65666,7 @@ var SmartReadTool = class {
    * Read a specific chunk from a chunked file
    */
   async readChunk(filePath, chunkIndex, chunkSize = 4e3) {
-    if (!existsSync4(filePath)) {
+    if (!existsSync5(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
     const content = readFileSync4(filePath, "utf-8");
@@ -65655,7 +65682,7 @@ var SmartReadTool = class {
    * Get file metadata without reading content (minimal tokens)
    */
   async getMetadata(filePath) {
-    if (!existsSync4(filePath)) {
+    if (!existsSync5(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
     const stats = statSync3(filePath);
@@ -65759,7 +65786,7 @@ init_paths2();
 import {
   readFileSync as readFileSync5,
   writeFileSync as writeFileSync3,
-  existsSync as existsSync5,
+  existsSync as existsSync6,
   renameSync as renameSync2,
   unlinkSync as unlinkSync3,
   mkdirSync as mkdirSync3
@@ -65851,7 +65878,7 @@ var SmartWriteTool = class {
       mode: options.mode ?? 420
     };
     try {
-      const fileExists = existsSync5(filePath);
+      const fileExists = existsSync6(filePath);
       let originalContent = "";
       let originalSize = 0;
       if (fileExists) {
@@ -65914,7 +65941,7 @@ var SmartWriteTool = class {
       }
       if (opts.createDirectories) {
         const dir = dirname(filePath);
-        if (!existsSync5(dir)) {
+        if (!existsSync6(dir)) {
           mkdirSync3(dir, { recursive: true });
         }
       }
@@ -66023,7 +66050,7 @@ var SmartWriteTool = class {
       return Buffer.from(content).length;
     } catch (error51) {
       try {
-        if (existsSync5(tempPath)) {
+        if (existsSync6(tempPath)) {
           unlinkSync3(tempPath);
         }
       } catch {
@@ -66235,7 +66262,7 @@ var SMART_WRITE_TOOL_DEFINITION = {
 // src/optimizer/tools/file-operations/smart-edit.ts
 init_cache_engine();
 init_paths2();
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, existsSync as existsSync6 } from "fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, existsSync as existsSync7 } from "fs";
 init_token_counter();
 init_metrics();
 function detectLineEnding(text) {
@@ -66269,7 +66296,7 @@ var SmartEditTool = class {
       encoding: options.encoding ?? "utf-8"
     };
     try {
-      if (!existsSync6(filePath)) {
+      if (!existsSync7(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
       const originalContent = readFileSync6(filePath, opts.encoding);
@@ -69754,10 +69781,10 @@ import { relative, basename as basename3, extname, join as join4, isAbsolute as 
 // src/optimizer/utils/search-scope.ts
 import { statSync as statSync4 } from "fs";
 import { dirname as dirname2, basename as basename2, isAbsolute, join as join3, resolve, sep } from "path";
-function resolveSearchScope(path10, cwd, fallback) {
+function resolveSearchScope(path11, cwd, fallback) {
   const base = cwd ?? fallback;
-  if (!path10) return { cwd: base, files: null, file: null };
-  const resolved = isAbsolute(path10) ? path10 : join3(base, path10);
+  if (!path11) return { cwd: base, files: null, file: null };
+  const resolved = isAbsolute(path11) ? path11 : join3(base, path11);
   let stats;
   try {
     stats = statSync4(resolved);
@@ -69780,8 +69807,8 @@ function resolveSearchScope(path10, cwd, fallback) {
     file: resolved
   };
 }
-function comparable(path10) {
-  const normalized = resolve(path10).split(/[\\/]/).join(sep);
+function comparable(path11) {
+  const normalized = resolve(path11).split(/[\\/]/).join(sep);
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 function limitToScopedFile(paths, scope) {
@@ -70941,7 +70968,7 @@ init_cache_engine();
 init_paths2();
 init_token_counter();
 init_metrics();
-import { existsSync as existsSync7, statSync as statSync7 } from "fs";
+import { existsSync as existsSync8, statSync as statSync7 } from "fs";
 import { join as join5 } from "path";
 var SmartStatusTool = class {
   constructor(cache, tokenCounter, metrics) {
@@ -71021,7 +71048,7 @@ var SmartStatusTool = class {
         for (const file2 of paginatedFiles) {
           try {
             const filePath = join5(opts.cwd, file2.path);
-            if (existsSync7(filePath) && file2.status !== "deleted") {
+            if (existsSync8(filePath) && file2.status !== "deleted") {
               const stats = statSync7(filePath);
               file2.size = stats.size;
             }
@@ -71211,12 +71238,12 @@ var SmartStatusTool = class {
    * Parse git status codes
    */
   parseStatusCodes(index2, workTree, filePath) {
-    let path10 = filePath;
+    let path11 = filePath;
     let oldPath;
     if (filePath.includes(" -> ")) {
       const parts2 = filePath.split(" -> ");
       oldPath = parts2[0].trim();
-      path10 = parts2[1].trim();
+      path11 = parts2[1].trim();
     }
     let status;
     let staged = false;
@@ -71248,7 +71275,7 @@ var SmartStatusTool = class {
       return null;
     }
     return {
-      path: path10,
+      path: path11,
       status,
       oldPath,
       staged
@@ -73477,7 +73504,7 @@ var SMART_MERGE_TOOL_DEFINITION = {
 // src/optimizer/tools/configuration/smart-env.ts
 init_cache_engine();
 import * as fs4 from "fs";
-import * as path6 from "path";
+import * as path7 from "path";
 import { createHash as createHash6 } from "crypto";
 var REDACTED = "[redacted]";
 function redactValues(vars) {
@@ -73576,8 +73603,8 @@ var SmartEnv = class {
       content = options.envContent;
     } else {
       filePath = options.envFile || ".env";
-      if (!path6.isAbsolute(filePath)) {
-        filePath = path6.join(process.cwd(), filePath);
+      if (!path7.isAbsolute(filePath)) {
+        filePath = path7.join(process.cwd(), filePath);
       }
       if (!fs4.existsSync(filePath)) {
         throw new Error(`Environment file not found: ${filePath}`);
@@ -74024,7 +74051,7 @@ var SMART_ENV_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/configuration/smart-package-json.ts
-import { readFileSync as readFileSync12, existsSync as existsSync10 } from "fs";
+import { readFileSync as readFileSync12, existsSync as existsSync11 } from "fs";
 import { join as join9 } from "path";
 import { createHash as createHash7 } from "crypto";
 init_cache_engine();
@@ -74036,21 +74063,21 @@ init_paths2();
 import {
   spawn as spawn2
 } from "child_process";
-import { existsSync as existsSync9, readFileSync as readFileSync11 } from "fs";
+import { existsSync as existsSync10, readFileSync as readFileSync11 } from "fs";
 import { join as join8, dirname as dirname3, resolve as resolve2 } from "path";
 function resolveBinScript(packageName, binName, fromDir) {
   let dir = resolve2(fromDir);
   for (let depth = 0; depth < 40; depth++) {
     const pkgDir = join8(dir, "node_modules", packageName);
     const manifest = join8(pkgDir, "package.json");
-    if (existsSync9(manifest)) {
+    if (existsSync10(manifest)) {
       try {
         const pkg = JSON.parse(readFileSync11(manifest, "utf8"));
         const bin = pkg.bin;
         const relative7 = typeof bin === "string" ? bin : bin?.[binName] ?? Object.values(bin ?? {})[0];
         if (relative7) {
           const script = join8(pkgDir, relative7);
-          if (existsSync9(script)) return script;
+          if (existsSync10(script)) return script;
         }
       } catch {
       }
@@ -74086,7 +74113,7 @@ function resolveNpmScript() {
     join8(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
     join8(nodeDir, "..", "node_modules", "npm", "bin", "npm-cli.js")
   ];
-  return candidates.find((c2) => existsSync9(c2)) ?? null;
+  return candidates.find((c2) => existsSync10(c2)) ?? null;
 }
 function spawnNpm(args2, options, toolName) {
   const script = resolveNpmScript();
@@ -74131,7 +74158,7 @@ var SmartPackageJson = class {
       maxTreeDepth = 3
     } = options;
     const packageJsonPath = join9(this.projectRoot, "package.json");
-    if (!existsSync10(packageJsonPath)) {
+    if (!existsSync11(packageJsonPath)) {
       throw new Error(`package.json not found in ${this.projectRoot}`);
     }
     const fileContent = readFileSync12(packageJsonPath, "utf-8");
@@ -74178,10 +74205,10 @@ var SmartPackageJson = class {
    * Detect which package manager is in use
    */
   detectPackageManager() {
-    if (existsSync10(join9(this.projectRoot, "pnpm-lock.yaml"))) {
+    if (existsSync11(join9(this.projectRoot, "pnpm-lock.yaml"))) {
       return "pnpm";
     }
-    if (existsSync10(join9(this.projectRoot, "yarn.lock"))) {
+    if (existsSync11(join9(this.projectRoot, "yarn.lock"))) {
       return "yarn";
     }
     return "npm";
@@ -74884,7 +74911,7 @@ var SMART_PACKAGE_JSON_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { readFileSync as readFileSync13, existsSync as existsSync11, statSync as statSync8 } from "fs";
+import { readFileSync as readFileSync13, existsSync as existsSync12, statSync as statSync8 } from "fs";
 init_paths2();
 var yamlLoadPromise = null;
 function loadYaml() {
@@ -74939,7 +74966,7 @@ var SmartConfigReadTool = class {
       schema = void 0,
       strictMode = false
     } = options;
-    if (!existsSync11(filePath)) {
+    if (!existsSync12(filePath)) {
       throw new Error(`Config file not found: ${filePath}`);
     }
     const stats = statSync8(filePath);
@@ -75228,24 +75255,24 @@ var SmartConfigReadTool = class {
     }
     return errors;
   }
-  validatePropertyType(path10, value, property) {
+  validatePropertyType(path11, value, property) {
     const errors = [];
     const actualType = Array.isArray(value) ? "array" : typeof value;
     const expectedTypes = Array.isArray(property.type) ? property.type : [property.type];
     if (!expectedTypes.includes(actualType)) {
       errors.push({
-        path: path10,
+        path: path11,
         message: `Type mismatch: expected ${expectedTypes.join(" | ")}, got ${actualType}`,
         severity: "error",
-        suggestion: `Change "${path10}" to type ${expectedTypes[0]}`
+        suggestion: `Change "${path11}" to type ${expectedTypes[0]}`
       });
     }
     if (property.enum && !property.enum.includes(value)) {
       errors.push({
-        path: path10,
+        path: path11,
         message: `Invalid value: must be one of ${property.enum.join(", ")}`,
         severity: "error",
-        suggestion: `Set "${path10}" to one of: ${property.enum.join(", ")}`
+        suggestion: `Set "${path11}" to one of: ${property.enum.join(", ")}`
       });
     }
     if (actualType === "object" && property.properties) {
@@ -75263,7 +75290,7 @@ var SmartConfigReadTool = class {
       errors.push(
         ...nestedErrors.map((err2) => ({
           ...err2,
-          path: `${path10}.${err2.path}`
+          path: `${path11}.${err2.path}`
         }))
       );
     }
@@ -75469,7 +75496,7 @@ init_token_counter();
 init_metrics();
 import { readFile } from "fs/promises";
 import { resolve as resolve3, dirname as dirname4, join as join10 } from "path";
-import { existsSync as existsSync12 } from "fs";
+import { existsSync as existsSync13 } from "fs";
 init_paths2();
 var SmartTsConfig = class {
   cache;
@@ -75574,7 +75601,7 @@ var SmartTsConfig = class {
       return resolve3(this.projectRoot, configPath);
     }
     const defaultPath = join10(this.projectRoot, "tsconfig.json");
-    if (existsSync12(defaultPath)) {
+    if (existsSync13(defaultPath)) {
       return defaultPath;
     }
     throw new Error("tsconfig.json not found. Specify configPath option.");
@@ -75647,7 +75674,7 @@ var SmartTsConfig = class {
       return nodeModulePath;
     } catch {
       const nodeModulePath = join10(configDir, "node_modules", extendsPath);
-      if (existsSync12(nodeModulePath)) {
+      if (existsSync13(nodeModulePath)) {
         return nodeModulePath;
       }
       throw new Error(`Cannot resolve extends: ${extendsPath}`);
@@ -75851,7 +75878,7 @@ var SMART_TSCONFIG_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/configuration/smart-workflow.ts
-import { readFileSync as readFileSync14, existsSync as existsSync13, statSync as statSync9, readdirSync as readdirSync2 } from "fs";
+import { readFileSync as readFileSync14, existsSync as existsSync14, statSync as statSync9, readdirSync as readdirSync2 } from "fs";
 import { join as join11 } from "path";
 var yamlLoadPromise2 = null;
 function loadYaml2() {
@@ -75884,7 +75911,7 @@ var SmartWorkflowTool = class {
       includeSecurityAnalysis = true,
       includePerformanceRecommendations = true
     } = options;
-    if (!existsSync13(filePath)) {
+    if (!existsSync14(filePath)) {
       throw new Error(`Workflow file not found: ${filePath}`);
     }
     const stats = statSync9(filePath);
@@ -75999,7 +76026,7 @@ var SmartWorkflowTool = class {
     const workflowPaths = [];
     try {
       const githubWorkflowsDir = join11(projectRoot, ".github", "workflows");
-      if (existsSync13(githubWorkflowsDir)) {
+      if (existsSync14(githubWorkflowsDir)) {
         const files = readdirSync2(githubWorkflowsDir);
         for (const file2 of files) {
           if (file2.endsWith(".yml") || file2.endsWith(".yaml")) {
@@ -76008,11 +76035,11 @@ var SmartWorkflowTool = class {
         }
       }
       const gitlabCIPath = join11(projectRoot, ".gitlab-ci.yml");
-      if (existsSync13(gitlabCIPath)) workflowPaths.push(gitlabCIPath);
+      if (existsSync14(gitlabCIPath)) workflowPaths.push(gitlabCIPath);
       const circleCIPath = join11(projectRoot, ".circleci", "config.yml");
-      if (existsSync13(circleCIPath)) workflowPaths.push(circleCIPath);
+      if (existsSync14(circleCIPath)) workflowPaths.push(circleCIPath);
       const azurePipelinesPath = join11(projectRoot, "azure-pipelines.yml");
-      if (existsSync13(azurePipelinesPath))
+      if (existsSync14(azurePipelinesPath))
         workflowPaths.push(azurePipelinesPath);
     } catch (error51) {
       console.error("Error listing workflows:", error51);
@@ -81311,15 +81338,15 @@ var SmartUser = class {
   /**
    * Get permission information for a path
    */
-  async getPermissionInfo(path10, username) {
+  async getPermissionInfo(path11, username) {
     const platform = process.platform;
     if (platform === "win32") {
       try {
-        assertSafeArg(path10, "path");
-        const { stdout } = await execFileSafe("icacls", [path10]);
+        assertSafeArg(path11, "path");
+        const { stdout } = await execFileSafe("icacls", [path11]);
         const lines = stdout.split("\n");
         return {
-          path: path10,
+          path: path11,
           owner: "N/A",
           group: "N/A",
           permissions: lines[1] || "N/A",
@@ -81336,8 +81363,8 @@ var SmartUser = class {
       }
     } else {
       try {
-        assertSafeArg(path10, "path");
-        const { stdout: lsOut } = await execFileSafe("ls", ["-ld", path10]);
+        assertSafeArg(path11, "path");
+        const { stdout: lsOut } = await execFileSafe("ls", ["-ld", path11]);
         const parts2 = lsOut.trim().split(/\s+/);
         const permissions = parts2[0];
         const owner = parts2[2];
@@ -81376,7 +81403,7 @@ var SmartUser = class {
           canExecute = permStr[8] === "x" || permStr[8] === "t";
         }
         return {
-          path: path10,
+          path: path11,
           owner,
           group,
           permissions,
@@ -81396,14 +81423,14 @@ var SmartUser = class {
   /**
    * Get ACL entries for a path
    */
-  async getACLEntries(path10) {
+  async getACLEntries(path11) {
     const platform = process.platform;
     if (platform === "win32") {
       return [];
     }
     try {
-      assertSafeArg(path10, "path");
-      const { stdout } = await execFileSafe("getfacl", [path10], {
+      assertSafeArg(path11, "path");
+      const { stdout } = await execFileSafe("getfacl", [path11], {
         ignoreExitCode: true
       });
       const lines = stdout.split("\n");
@@ -83109,15 +83136,15 @@ var KnowledgeGraphTool = class {
     return score;
   }
   reconstructPath(dijkstraResult, source, target) {
-    const path10 = [];
+    const path11 = [];
     let current = target;
     while (current && current !== source) {
-      path10.unshift(current);
+      path11.unshift(current);
       current = dijkstraResult[current]?.predecessor;
     }
     if (current === source) {
-      path10.unshift(source);
-      return path10;
+      path11.unshift(source);
+      return path11;
     }
     return [];
   }
@@ -83136,17 +83163,17 @@ var KnowledgeGraphTool = class {
   findAllPaths(graphData, source, target, maxHops) {
     const paths = [];
     const visited = /* @__PURE__ */ new Set();
-    const dfs = (current, path10) => {
+    const dfs = (current, path11) => {
       if (current === target) {
-        paths.push([...path10]);
+        paths.push([...path11]);
         return;
       }
-      if (path10.length >= maxHops + 1) return;
+      if (path11.length >= maxHops + 1) return;
       visited.add(current);
       const neighbors = graphData.graphlib.successors(current) || [];
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor)) {
-          dfs(neighbor, [...path10, neighbor]);
+          dfs(neighbor, [...path11, neighbor]);
         }
       }
       visited.delete(current);
@@ -83185,16 +83212,16 @@ var KnowledgeGraphTool = class {
         }
       }
     }
-    const path10 = [];
+    const path11 = [];
     let current = target;
     while (current && current !== source) {
-      path10.unshift(current);
+      path11.unshift(current);
       current = predecessor.get(current);
-      if (path10.length > maxHops) break;
+      if (path11.length > maxHops) break;
     }
     if (current === source) {
-      path10.unshift(source);
-      return path10;
+      path11.unshift(source);
+      return path11;
     }
     return [];
   }
@@ -84925,12 +84952,12 @@ var SENTIMENT_ANALYSIS_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/intelligence/wiki-read.ts
-import path7 from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import path8 from "path";
+import { fileURLToPath as fileURLToPath2, pathToFileURL } from "url";
 import { dirname as dirname5 } from "path";
-var here = dirname5(fileURLToPath(import.meta.url));
+var here = dirname5(fileURLToPath2(import.meta.url));
 function coreUrl(name2) {
-  return pathToFileURL(path7.join(here, "..", "..", "..", "hooks-core", name2)).href;
+  return pathToFileURL(path8.join(here, "..", "..", "..", "hooks-core", name2)).href;
 }
 function toFinding(node) {
   return {
@@ -85064,12 +85091,12 @@ var WIKI_READ_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/intelligence/wiki-write.ts
-import path8 from "path";
-import { fileURLToPath as fileURLToPath2, pathToFileURL as pathToFileURL2 } from "url";
+import path9 from "path";
+import { fileURLToPath as fileURLToPath3, pathToFileURL as pathToFileURL2 } from "url";
 import { dirname as dirname6 } from "path";
-var here2 = dirname6(fileURLToPath2(import.meta.url));
+var here2 = dirname6(fileURLToPath3(import.meta.url));
 function coreUrl2(name2) {
-  return pathToFileURL2(path8.join(here2, "..", "..", "..", "hooks-core", name2)).href;
+  return pathToFileURL2(path9.join(here2, "..", "..", "..", "hooks-core", name2)).href;
 }
 var FINDING_TYPES = [
   "finding",
@@ -87984,9 +88011,9 @@ var SmartGraphQL = class _SmartGraphQL {
    */
   detectFragmentOpportunities(parsed) {
     const groups = /* @__PURE__ */ new Map();
-    const traverse = (selections, path10) => {
+    const traverse = (selections, path11) => {
       for (const selection of selections) {
-        const here3 = [...path10, selection.name];
+        const here3 = [...path11, selection.name];
         if (selection.fields.length > 1) {
           const fields = selection.fields.map((f) => f.name).sort();
           const key = fields.join(",");
@@ -88123,8 +88150,8 @@ var SmartGraphQL = class _SmartGraphQL {
       const n7 = Number(raw);
       return Number.isFinite(n7) && n7 > 0 ? n7 : null;
     };
-    const walk2 = (selection, path10) => {
-      const here3 = [...path10, selection.name];
+    const walk2 = (selection, path11) => {
+      const here3 = [...path11, selection.name];
       if (this.isListField(selection)) {
         const nestedLists = selection.fields.filter((f) => this.isListField(f));
         for (const nested of nestedLists) {
@@ -89549,15 +89576,15 @@ var SmartREST = class {
       url2 = `${scheme}://${spec.host}${basePath}`;
     }
     const paths = Object.keys(spec.paths);
-    const endpoints = paths.reduce((count, path10) => {
-      return count + Object.keys(spec.paths[path10]).filter(
+    const endpoints = paths.reduce((count, path11) => {
+      return count + Object.keys(spec.paths[path11]).filter(
         (key) => ["get", "post", "put", "delete", "patch", "options", "head"].includes(
           key.toLowerCase()
         )
       ).length;
     }, 0);
     const resources = new Set(
-      paths.map((path10) => this.extractResourceName(path10))
+      paths.map((path11) => this.extractResourceName(path11))
     ).size;
     return {
       title: spec.info.title,
@@ -89570,8 +89597,8 @@ var SmartREST = class {
   analyzeEndpoints(spec, options) {
     const endpoints = [];
     const methodFilter = options.methods?.map((m2) => m2.toLowerCase());
-    for (const [path10, pathItem] of Object.entries(spec.paths)) {
-      if (options.resourceFilter && !path10.includes(options.resourceFilter)) {
+    for (const [path11, pathItem] of Object.entries(spec.paths)) {
+      if (options.resourceFilter && !path11.includes(options.resourceFilter)) {
         continue;
       }
       for (const [method, operation] of Object.entries(pathItem)) {
@@ -89583,7 +89610,7 @@ var SmartREST = class {
           continue;
         }
         const endpoint = {
-          path: path10,
+          path: path11,
           method: method.toUpperCase(),
           summary: operation.summary,
           description: operation.description,
@@ -89657,8 +89684,8 @@ var SmartREST = class {
     }
     return resources.sort((a2, b) => b.endpoints - a2.endpoints);
   }
-  extractResourceName(path10) {
-    const parts2 = path10.split("/").filter((p) => p && !p.startsWith("{"));
+  extractResourceName(path11) {
+    const parts2 = path11.split("/").filter((p) => p && !p.startsWith("{"));
     return parts2[0] || "root";
   }
   checkAPIHealth(spec, endpoints) {
@@ -90268,20 +90295,20 @@ var SmartSchema = class {
     const visited = /* @__PURE__ */ new Set();
     const recursionStack = /* @__PURE__ */ new Set();
     const cycles = [];
-    const dfs = (node, path10) => {
+    const dfs = (node, path11) => {
       visited.add(node);
       recursionStack.add(node);
-      path10.push(node);
+      path11.push(node);
       const neighbors = graph.edges.get(node);
       if (neighbors) {
         for (const neighbor of neighbors) {
           if (!visited.has(neighbor)) {
-            if (dfs(neighbor, [...path10])) {
+            if (dfs(neighbor, [...path11])) {
               return true;
             }
           } else if (recursionStack.has(neighbor)) {
-            const cycleStart = path10.indexOf(neighbor);
-            const cycle = path10.slice(cycleStart);
+            const cycleStart = path11.indexOf(neighbor);
+            const cycle = path11.slice(cycleStart);
             cycles.push({
               cycle: [...cycle, neighbor],
               affectedTables: new Set(cycle)
@@ -91714,7 +91741,7 @@ var SMART_WEBSOCKET_TOOL_DEFINITION = {
 init_cache_engine();
 init_token_counter();
 init_metrics();
-import { existsSync as existsSync14, statSync as statSync10, readdirSync as readdirSync3 } from "fs";
+import { existsSync as existsSync15, statSync as statSync10, readdirSync as readdirSync3 } from "fs";
 import { join as join12, relative as relative3 } from "path";
 var AST_GREP_PACKAGE = "@ast-grep/cli";
 var SmartAstGrepTool = class _SmartAstGrepTool {
@@ -91759,7 +91786,7 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
       respectGitignore = true,
       incrementalIndexing = true
     } = options;
-    if (!existsSync14(projectPath)) {
+    if (!existsSync15(projectPath)) {
       throw new Error(`Project path not found: ${projectPath}`);
     }
     const detectedLanguage = language || this.detectLanguage(pattern, projectPath);
@@ -91908,7 +91935,7 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
     let cached2 = 0;
     const fileEntries = Array.from(index2.files.entries());
     for (const [filePath, entry] of fileEntries) {
-      if (!existsSync14(filePath)) {
+      if (!existsSync15(filePath)) {
         index2.files.delete(filePath);
         continue;
       }
@@ -92116,7 +92143,7 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
    */
   detectLanguage(pattern, projectPath) {
     if (pattern.includes("interface") || pattern.includes("type ") || pattern.includes("import")) {
-      if (existsSync14(join12(projectPath, "tsconfig.json"))) {
+      if (existsSync15(join12(projectPath, "tsconfig.json"))) {
         return "ts";
       }
       return "js";
@@ -92157,8 +92184,8 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
         version: data.version,
         projectPath: data.projectPath,
         files: new Map(
-          Object.entries(data.files).map(([path10, entry]) => [
-            path10,
+          Object.entries(data.files).map(([path11, entry]) => [
+            path11,
             {
               ...entry,
               patterns: new Set(entry.patterns || [])
@@ -92184,8 +92211,8 @@ var SmartAstGrepTool = class _SmartAstGrepTool {
   cacheIndex(key, index2, ttl) {
     try {
       const filesArray = Array.from(index2.files.entries()).map(
-        ([path10, entry]) => [
-          path10,
+        ([path11, entry]) => [
+          path11,
           {
             ...entry,
             patterns: Array.from(entry.patterns)
@@ -92372,7 +92399,7 @@ init_metrics();
 init_token_counter();
 init_paths2();
 import { createHash as createHash23 } from "crypto";
-import { readFileSync as readFileSync16, existsSync as existsSync15, statSync as statSync11, readdirSync as readdirSync4 } from "fs";
+import { readFileSync as readFileSync16, existsSync as existsSync16, statSync as statSync11, readdirSync as readdirSync4 } from "fs";
 import { join as join13, relative as relative4, extname as extname2 } from "path";
 var VULNERABILITY_PATTERNS = [
   // SQL Injection
@@ -92767,7 +92794,7 @@ var SmartSecurity = class {
   async discoverFiles(targets, exclude) {
     const files = [];
     const scanDirectory = (dir) => {
-      if (!existsSync15(dir)) return;
+      if (!existsSync16(dir)) return;
       const entries = readdirSync4(dir, { withFileTypes: true });
       for (const entry of entries) {
         const fullPath = join13(dir, entry.name);
@@ -92800,7 +92827,7 @@ var SmartSecurity = class {
     if (targets.length > 0) {
       for (const target of targets) {
         const fullPath = join13(this.projectRoot, target);
-        if (existsSync15(fullPath)) {
+        if (existsSync16(fullPath)) {
           const stat = statSync11(fullPath);
           if (stat.isDirectory()) {
             scanDirectory(fullPath);
@@ -92854,7 +92881,7 @@ var SmartSecurity = class {
    * Scan a single file for vulnerabilities
    */
   async scanFile(filePath) {
-    if (!existsSync15(filePath)) return null;
+    if (!existsSync16(filePath)) return null;
     try {
       const content = readFileSync16(filePath, "utf-8");
       const lines = content.split("\n");
@@ -93153,7 +93180,7 @@ var SmartSecurity = class {
    * Generate hash for a single file
    */
   generateFileHash(filePath) {
-    if (!existsSync15(filePath)) return "";
+    if (!existsSync16(filePath)) return "";
     const content = readFileSync16(filePath, "utf-8");
     const hash2 = createHash23("sha256");
     hash2.update(content);
@@ -93254,7 +93281,7 @@ var SMART_SECURITY_TOOL_DEFINITION = {
 
 // src/optimizer/tools/code-analysis/smart-dependencies.ts
 var import_parser = __toESM(require_lib2(), 1);
-import { readFileSync as readFileSync17, existsSync as existsSync16 } from "fs";
+import { readFileSync as readFileSync17, existsSync as existsSync17 } from "fs";
 init_cache_engine();
 import { relative as relative5, resolve as resolve4, dirname as dirname7, join as join14 } from "path";
 init_token_counter();
@@ -93686,7 +93713,7 @@ var SmartDependenciesTool = class {
     const changed = [];
     for (const [file2, node] of Array.from(graph.entries())) {
       const fullPath = resolve4(opts.cwd, file2);
-      if (!existsSync16(fullPath)) {
+      if (!existsSync17(fullPath)) {
         changed.push(file2);
         continue;
       }
@@ -93708,7 +93735,7 @@ var SmartDependenciesTool = class {
     const updatedGraph = new Map(graph);
     for (const file2 of changedFiles) {
       const fullPath = resolve4(opts.cwd, file2);
-      if (!existsSync16(fullPath)) {
+      if (!existsSync17(fullPath)) {
         updatedGraph.delete(file2);
       } else {
         const node = this.analyzeFile(fullPath, opts.cwd);
@@ -93727,10 +93754,10 @@ var SmartDependenciesTool = class {
     const circular = [];
     const visited = /* @__PURE__ */ new Set();
     const stack = /* @__PURE__ */ new Set();
-    const detectCycle = (file2, path10) => {
+    const detectCycle = (file2, path11) => {
       if (stack.has(file2)) {
-        const cycleStart = path10.indexOf(file2);
-        const cycle = path10.slice(cycleStart).concat(file2);
+        const cycleStart = path11.indexOf(file2);
+        const cycle = path11.slice(cycleStart).concat(file2);
         const depth = cycle.length - 1;
         let severity = "low";
         if (depth >= 5) severity = "high";
@@ -93743,12 +93770,12 @@ var SmartDependenciesTool = class {
       }
       visited.add(file2);
       stack.add(file2);
-      path10.push(file2);
+      path11.push(file2);
       const node = graph.get(file2);
       if (node) {
         for (const imp of node.imports) {
           if (!imp.isExternal) {
-            detectCycle(imp.source, [...path10]);
+            detectCycle(imp.source, [...path11]);
           }
         }
       }
@@ -93905,14 +93932,14 @@ var SmartDependenciesTool = class {
       path: [opts.targetFile, f]
     }));
     while (queue.length > 0) {
-      const { file: file2, depth, path: path10 } = queue.shift();
+      const { file: file2, depth, path: path11 } = queue.shift();
       if (visited.has(file2) || depth > opts.maxDepth) {
         continue;
       }
       visited.add(file2);
       indirectDependents.push(file2);
-      if (path10.length >= 3) {
-        criticalPath.push(path10);
+      if (path11.length >= 3) {
+        criticalPath.push(path11);
       }
       const node = graph.get(file2);
       if (node) {
@@ -93921,7 +93948,7 @@ var SmartDependenciesTool = class {
             queue.push({
               file: dependent,
               depth: depth + 1,
-              path: [...path10, dependent]
+              path: [...path11, dependent]
             });
           }
         }
@@ -94043,17 +94070,17 @@ var SmartDependenciesTool = class {
     const resolved = resolve4(fileDir, source);
     let relativePath = relative5(cwd, resolved);
     const extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
-    if (!existsSync16(resolved)) {
+    if (!existsSync17(resolved)) {
       for (const ext of extensions) {
         const withExt = `${resolved}${ext}`;
-        if (existsSync16(withExt)) {
+        if (existsSync17(withExt)) {
           relativePath = relative5(cwd, withExt);
           break;
         }
       }
       const indexFiles = extensions.map((ext) => join14(resolved, `index${ext}`));
       for (const indexFile of indexFiles) {
-        if (existsSync16(indexFile)) {
+        if (existsSync17(indexFile)) {
           relativePath = relative5(cwd, indexFile);
           break;
         }
@@ -94263,7 +94290,7 @@ init_cache_engine();
 init_metrics();
 init_token_counter();
 init_paths2();
-import { existsSync as existsSync17, readFileSync as readFileSync18 } from "fs";
+import { existsSync as existsSync18, readFileSync as readFileSync18 } from "fs";
 import { join as join15, isAbsolute as isAbsolute4 } from "path";
 import { createHash as createHash24 } from "crypto";
 
@@ -94358,7 +94385,7 @@ var SmartComplexityTool = class {
       content = fileContent;
     } else if (filePath) {
       absolutePath = isAbsolute4(filePath) ? filePath : join15(projectRoot, filePath);
-      if (!existsSync17(absolutePath)) {
+      if (!existsSync18(absolutePath)) {
         throw new Error(`File not found: ${absolutePath}`);
       }
       content = readFileSync18(absolutePath, "utf-8");
@@ -94801,7 +94828,7 @@ var import_parser3 = __toESM(require_lib2(), 1);
 init_cache_engine();
 init_metrics();
 init_token_counter();
-import { existsSync as existsSync18, readFileSync as readFileSync19 } from "fs";
+import { existsSync as existsSync19, readFileSync as readFileSync19 } from "fs";
 import { join as join16, isAbsolute as isAbsolute5 } from "path";
 import { createHash as createHash25 } from "crypto";
 init_paths2();
@@ -94846,7 +94873,7 @@ var SmartRefactorTool = class {
       content = fileContent;
     } else if (filePath) {
       absolutePath = isAbsolute5(filePath) ? filePath : join16(projectRoot, filePath);
-      if (!existsSync18(absolutePath)) {
+      if (!existsSync19(absolutePath)) {
         throw new Error(`File not found: ${absolutePath}`);
       }
       content = readFileSync19(absolutePath, "utf-8");
@@ -95326,7 +95353,7 @@ init_token_counter();
 init_paths2();
 import { createHash as createHash26 } from "crypto";
 import { join as join17 } from "path";
-import { existsSync as existsSync19, readFileSync as readFileSync20 } from "fs";
+import { existsSync as existsSync20, readFileSync as readFileSync20 } from "fs";
 function parseSource(content) {
   const ast = (0, import_parser4.parse)(content, {
     sourceType: "module",
@@ -95366,7 +95393,7 @@ var SmartImportsTool = class {
       content = fileContent;
       fileName = "inline.ts";
     } else if (filePath) {
-      if (!existsSync19(filePath)) {
+      if (!existsSync20(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
       content = readFileSync20(filePath, "utf-8");
@@ -95748,10 +95775,10 @@ var SmartImportsTool = class {
     const cycles = [];
     const visited = /* @__PURE__ */ new Set();
     const recursionStack = /* @__PURE__ */ new Set();
-    const detectCycle = (currentFile, path10) => {
+    const detectCycle = (currentFile, path11) => {
       if (recursionStack.has(currentFile)) {
-        const cycleStart = path10.indexOf(currentFile);
-        const cycle = path10.slice(cycleStart).concat(currentFile);
+        const cycleStart = path11.indexOf(currentFile);
+        const cycle = path11.slice(cycleStart).concat(currentFile);
         cycles.push({
           cycle,
           severity: "warning",
@@ -95769,7 +95796,7 @@ var SmartImportsTool = class {
         if (imp.module.startsWith(".")) {
           const resolvedPath = this.resolveImportPath(currentFile, imp.module);
           if (resolvedPath) {
-            detectCycle(resolvedPath, [...path10, currentFile]);
+            detectCycle(resolvedPath, [...path11, currentFile]);
           }
         }
       }
@@ -95782,7 +95809,7 @@ var SmartImportsTool = class {
    * Get imports for a file
    */
   getImportsForFile(filePath) {
-    if (!existsSync19(filePath)) {
+    if (!existsSync20(filePath)) {
       return [];
     }
     try {
@@ -95811,7 +95838,7 @@ var SmartImportsTool = class {
       ];
       for (const ext of extensions) {
         const withExt = resolved + ext;
-        if (existsSync19(withExt)) {
+        if (existsSync20(withExt)) {
           return withExt;
         }
       }
@@ -95941,7 +95968,7 @@ init_token_counter();
 init_paths2();
 import { createHash as createHash27 } from "crypto";
 import { join as join18 } from "path";
-import { existsSync as existsSync20, readFileSync as readFileSync21, readdirSync as readdirSync5, statSync as statSync12 } from "fs";
+import { existsSync as existsSync21, readFileSync as readFileSync21, readdirSync as readdirSync5, statSync as statSync12 } from "fs";
 function parseSource2(content) {
   const ast = (0, import_parser5.parse)(content, {
     sourceType: "module",
@@ -95981,7 +96008,7 @@ var SmartExportsTool = class {
       content = fileContent;
       fileName = "inline.ts";
     } else if (filePath) {
-      if (!existsSync20(filePath)) {
+      if (!existsSync21(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
       content = readFileSync21(filePath, "utf-8");
@@ -96486,7 +96513,7 @@ init_token_counter();
 var import_parser6 = __toESM(require_lib2(), 1);
 init_paths2();
 import { createHash as createHash28 } from "crypto";
-import { readFileSync as readFileSync22, existsSync as existsSync21 } from "fs";
+import { readFileSync as readFileSync22, existsSync as existsSync22 } from "fs";
 import { join as join19, relative as relative6, isAbsolute as isAbsolute6 } from "path";
 function parseSource3(content) {
   const ast = (0, import_parser6.parse)(content, {
@@ -96530,7 +96557,7 @@ var SmartSymbolsTool = class {
     } = options;
     const startTime = Date.now();
     const absolutePath = isAbsolute6(filePath) ? filePath : join19(this.projectRoot, filePath);
-    if (!existsSync21(absolutePath)) {
+    if (!existsSync22(absolutePath)) {
       throw new Error(`File not found: ${absolutePath}`);
     }
     const cacheKey = await this.generateCacheKey(
@@ -96755,7 +96782,7 @@ var SmartSymbolsTool = class {
     const hash2 = createHash28("sha256");
     hash2.update(this.cacheNamespace);
     hash2.update(filePath);
-    if (existsSync21(filePath)) {
+    if (existsSync22(filePath)) {
       const content = readFileSync22(filePath, "utf-8");
       hash2.update(content);
     }
@@ -106500,7 +106527,7 @@ var CACHE_WARMUP_TOOL_DEFINITION = {
 };
 
 // src/optimizer/tools/advanced-caching/predictive-cache.ts
-import { readFileSync as readFileSync23, writeFileSync as writeFileSync7, existsSync as existsSync22 } from "fs";
+import { readFileSync as readFileSync23, writeFileSync as writeFileSync7, existsSync as existsSync23 } from "fs";
 import { EventEmitter as EventEmitter8 } from "events";
 var PredictiveCacheTool = class extends EventEmitter8 {
   cache;
@@ -106830,7 +106857,7 @@ var PredictiveCacheTool = class extends EventEmitter8 {
     if (!modelPath) {
       throw new Error("modelPath is required for import-model operation");
     }
-    if (!existsSync22(modelPath)) {
+    if (!existsSync23(modelPath)) {
       throw new Error(`Model file not found: ${modelPath}`);
     }
     const fileContent = readFileSync23(modelPath, "utf-8");
@@ -109304,7 +109331,7 @@ function getOptimizationReportTool(analyticsManager) {
 // src/optimizer/analytics/analytics-storage.ts
 init_paths2();
 import fs5 from "node:fs";
-import path9 from "node:path";
+import path10 from "node:path";
 var betterSqlite3LoadPromise = null;
 async function loadBetterSqlite3() {
   if (!betterSqlite3LoadPromise) {
@@ -109330,14 +109357,14 @@ function warnAnalyticsFallbackOnce(err2) {
   );
 }
 function fallbackPathFor(dbPath) {
-  const dir = path9.dirname(dbPath);
-  const base = path9.basename(dbPath, path9.extname(dbPath)) || "analytics";
-  return path9.join(dir, `${base}.fallback.jsonl`);
+  const dir = path10.dirname(dbPath);
+  const base = path10.basename(dbPath, path10.extname(dbPath)) || "analytics";
+  return path10.join(dir, `${base}.fallback.jsonl`);
 }
 var JsonlAnalyticsFallback = class _JsonlAnalyticsFallback {
   constructor(filePath) {
     this.filePath = filePath;
-    const dir = path9.dirname(filePath);
+    const dir = path10.dirname(filePath);
     try {
       if (!fs5.existsSync(dir)) {
         fs5.mkdirSync(dir, { recursive: true });
@@ -109455,7 +109482,7 @@ var SqliteAnalyticsStorage = class {
           if (!Ctor) {
             throw new Error("better-sqlite3 native module could not be loaded");
           }
-          const dir = path9.dirname(this.finalPath);
+          const dir = path10.dirname(this.finalPath);
           if (!fs5.existsSync(dir)) {
             fs5.mkdirSync(dir, { recursive: true });
           }
@@ -110205,7 +110232,7 @@ init_cache_engine();
 init_token_counter();
 init_metrics();
 import { createHash as createHash34 } from "crypto";
-import { readFileSync as readFileSync24, existsSync as existsSync23, readdirSync as readdirSync6, statSync as statSync13 } from "fs";
+import { readFileSync as readFileSync24, existsSync as existsSync24, readdirSync as readdirSync6, statSync as statSync13 } from "fs";
 import { join as join21 } from "path";
 init_paths2();
 var SmartBuild = class {
@@ -110348,7 +110375,7 @@ var SmartBuild = class {
    */
   countSourceFiles() {
     const srcDir = join21(this.projectRoot, "src");
-    if (!existsSync23(srcDir)) {
+    if (!existsSync24(srcDir)) {
       return 0;
     }
     let count = 0;
@@ -110374,12 +110401,12 @@ var SmartBuild = class {
     const hash2 = createHash34("sha256");
     hash2.update(this.cacheNamespace);
     const tsconfigPath = join21(this.projectRoot, tsconfig);
-    if (existsSync23(tsconfigPath)) {
+    if (existsSync24(tsconfigPath)) {
       const content = readFileSync24(tsconfigPath, "utf-8");
       hash2.update(content);
     }
     const packageJsonPath = join21(this.projectRoot, "package.json");
-    if (existsSync23(packageJsonPath)) {
+    if (existsSync24(packageJsonPath)) {
       const content = readFileSync24(packageJsonPath, "utf-8");
       hash2.update(content);
     }
@@ -110598,7 +110625,7 @@ init_cache_engine();
 init_paths2();
 import { spawn as spawn4 } from "child_process";
 import { createHash as createHash35 } from "crypto";
-import { readFileSync as readFileSync25, existsSync as existsSync24 } from "fs";
+import { readFileSync as readFileSync25, existsSync as existsSync25 } from "fs";
 import { join as join22 } from "path";
 var SmartDocker = class {
   cache;
@@ -110808,9 +110835,9 @@ var SmartDocker = class {
       this.projectRoot,
       options.dockerfile || "Dockerfile"
     );
-    if (existsSync24(dockerfilePath)) {
+    if (existsSync25(dockerfilePath)) {
       const dockerfileContent = readFileSync25(dockerfilePath, "utf-8");
-      if (!existsSync24(join22(this.projectRoot, ".dockerignore"))) {
+      if (!existsSync25(join22(this.projectRoot, ".dockerignore"))) {
         suggestions.push({
           type: "size",
           message: "Add .dockerignore to reduce build context size.",
@@ -110857,7 +110884,7 @@ var SmartDocker = class {
         this.projectRoot,
         options.dockerfile || "Dockerfile"
       );
-      if (existsSync24(dockerfilePath)) {
+      if (existsSync25(dockerfilePath)) {
         const hash2 = createHash35("md5").update(readFileSync25(dockerfilePath)).digest("hex");
         keyParts.push(hash2);
       }
@@ -111076,7 +111103,7 @@ var SMART_DOCKER_TOOL_DEFINITION = {
 // src/optimizer/tools/build-systems/smart-install.ts
 init_cache_engine();
 import { createHash as createHash36 } from "crypto";
-import { readFileSync as readFileSync26, existsSync as existsSync25 } from "fs";
+import { readFileSync as readFileSync26, existsSync as existsSync26 } from "fs";
 import { join as join23 } from "path";
 init_paths2();
 var SmartInstall = class {
@@ -111123,7 +111150,7 @@ var SmartInstall = class {
       }
     }
     const lockFile = detectedPm === "npm" ? "package-lock.json" : detectedPm === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
-    const hadLockfileBeforeInstall = existsSync25(
+    const hadLockfileBeforeInstall = existsSync26(
       join23(this.projectRoot, lockFile)
     );
     const cacheKey = this.generateCacheKey(detectedPm, packages, dev);
@@ -111150,13 +111177,13 @@ var SmartInstall = class {
    */
   detectPackageManager() {
     const projectRoot = this.projectRoot;
-    if (existsSync25(join23(projectRoot, "pnpm-lock.yaml"))) {
+    if (existsSync26(join23(projectRoot, "pnpm-lock.yaml"))) {
       return "pnpm";
     }
-    if (existsSync25(join23(projectRoot, "yarn.lock"))) {
+    if (existsSync26(join23(projectRoot, "yarn.lock"))) {
       return "yarn";
     }
-    if (existsSync25(join23(projectRoot, "package-lock.json"))) {
+    if (existsSync26(join23(projectRoot, "package-lock.json"))) {
       return "npm";
     }
     return "npm";
@@ -111222,7 +111249,7 @@ var SmartInstall = class {
   parseInstalledPackages(_output, requestedPackages) {
     const packages = [];
     const packageJsonPath = join23(this.projectRoot, "package.json");
-    if (existsSync25(packageJsonPath)) {
+    if (existsSync26(packageJsonPath)) {
       const packageJson = JSON.parse(readFileSync26(packageJsonPath, "utf-8"));
       if (requestedPackages.length > 0) {
         for (const pkg of requestedPackages) {
@@ -111300,7 +111327,7 @@ var SmartInstall = class {
     }
     const lockFile = result.packageManager === "npm" ? "package-lock.json" : result.packageManager === "yarn" ? "yarn.lock" : "pnpm-lock.yaml";
     const hadLockfile = result.hadLockfileBeforeInstall;
-    if (hadLockfile === false || !hadLockfile && !existsSync25(join23(this.projectRoot, lockFile))) {
+    if (hadLockfile === false || !hadLockfile && !existsSync26(join23(this.projectRoot, lockFile))) {
       recommendations.push({
         type: "security",
         message: `Missing ${lockFile}. Commit it for reproducible builds.`,
@@ -111321,7 +111348,7 @@ var SmartInstall = class {
    */
   generateCacheKey(packageManager, packages, dev) {
     const packageJsonPath = join23(this.projectRoot, "package.json");
-    const packageJsonHash = existsSync25(packageJsonPath) ? createHash36("md5").update(readFileSync26(packageJsonPath)).digest("hex") : "no-package-json";
+    const packageJsonHash = existsSync26(packageJsonPath) ? createHash36("md5").update(readFileSync26(packageJsonPath)).digest("hex") : "no-package-json";
     const key = `${packageManager}:${packages.join(",")}:${dev}:${packageJsonHash}`;
     return createHash36("md5").update(key).digest("hex");
   }
@@ -111478,7 +111505,7 @@ init_cache_engine();
 init_token_counter();
 init_metrics();
 import { createHash as createHash37 } from "crypto";
-import { readFileSync as readFileSync27, existsSync as existsSync26 } from "fs";
+import { readFileSync as readFileSync27, existsSync as existsSync27 } from "fs";
 import { join as join24 } from "path";
 init_paths2();
 var SmartLint = class {
@@ -111580,12 +111607,12 @@ var SmartLint = class {
     hash2.update(this.cacheNamespace);
     hash2.update(files.join(":"));
     const eslintConfigPath = join24(this.projectRoot, "eslint.config.js");
-    if (existsSync26(eslintConfigPath)) {
+    if (existsSync27(eslintConfigPath)) {
       const content = readFileSync27(eslintConfigPath, "utf-8");
       hash2.update(content);
     }
     const packageJsonPath = join24(this.projectRoot, "package.json");
-    if (existsSync26(packageJsonPath)) {
+    if (existsSync27(packageJsonPath)) {
       const packageJson = readFileSync27(packageJsonPath, "utf-8");
       const pkg = JSON.parse(packageJson);
       const eslintDeps = Object.keys(pkg.devDependencies || {}).filter((dep) => dep.includes("eslint")).sort().map((dep) => `${dep}:${pkg.devDependencies[dep]}`).join(",");
@@ -111701,8 +111728,8 @@ var SmartLint = class {
         ruleId,
         count: data.occurrences.length,
         fixable: data.fixable,
-        files: Array.from(fileMap.entries()).map(([path10, locations]) => ({
-          path: path10,
+        files: Array.from(fileMap.entries()).map(([path11, locations]) => ({
+          path: path11,
           locations
         }))
       };
@@ -111837,7 +111864,7 @@ var SMART_LINT_TOOL_DEFINITION = {
 init_cache_engine();
 init_paths2();
 import { createHash as createHash38 } from "crypto";
-import { existsSync as existsSync27, readFileSync as readFileSync28 } from "fs";
+import { existsSync as existsSync28, readFileSync as readFileSync28 } from "fs";
 import { join as join25 } from "path";
 var SmartLogs = class {
   cache;
@@ -111935,7 +111962,7 @@ var SmartLogs = class {
   getDefaultLogSources() {
     const sources = [];
     const appLogPath = join25(this.projectRoot, "logs");
-    if (existsSync27(appLogPath)) {
+    if (existsSync28(appLogPath)) {
       sources.push(join25(appLogPath, "app.log"));
       sources.push(join25(appLogPath, "error.log"));
     }
@@ -111946,7 +111973,7 @@ var SmartLogs = class {
     } else {
       sources.push("/var/log/syslog");
     }
-    return sources.filter((s) => existsSync27(s) || s.startsWith("system:"));
+    return sources.filter((s) => existsSync28(s) || s.startsWith("system:"));
   }
   /**
    * Read logs from a single source
@@ -111962,7 +111989,7 @@ var SmartLogs = class {
    * Read logs from a file
    */
   async readFileLog(filePath, tail) {
-    if (!existsSync27(filePath)) {
+    if (!existsSync28(filePath)) {
       return [];
     }
     const entries = [];
@@ -113407,9 +113434,9 @@ import { spawn as spawn6 } from "child_process";
 
 // src/optimizer/utils/disk-output.ts
 var pct2 = (used, total) => Math.round(used / total * 100 * 100) / 100;
-function parseWindowsDiskOutput(output, path10) {
+function parseWindowsDiskOutput(output, path11) {
   const lines = output.split("\n").filter((l) => l.trim());
-  const drive = /^([A-Za-z]:)/.exec(path10)?.[1]?.toUpperCase();
+  const drive = /^([A-Za-z]:)/.exec(path11)?.[1]?.toUpperCase();
   const dataLine = lines.find((l) => {
     const caption = l.trim().split(/\s+/)[0]?.toUpperCase();
     if (!caption?.endsWith(":")) return false;
@@ -113425,7 +113452,7 @@ function parseWindowsDiskOutput(output, path10) {
   const used = total - free;
   return { path: parts2[0], total, used, free, usagePercent: pct2(used, total) };
 }
-function parseUnixDiskOutput(output, path10) {
+function parseUnixDiskOutput(output, path11) {
   const lines = output.split("\n").filter((l) => l.trim());
   const dataLine = lines.slice(1).find((l) => {
     const parts3 = l.trim().split(/\s+/);
@@ -113442,7 +113469,7 @@ function parseUnixDiskOutput(output, path10) {
   if (!Number.isFinite(total) || !Number.isFinite(used) || !Number.isFinite(free))
     return null;
   if (!Number.isFinite(usagePercent)) return null;
-  return { path: path10, total, used, free, usagePercent };
+  return { path: path11, total, used, free, usagePercent };
 }
 
 // src/optimizer/tools/build-systems/smart-system-metrics.ts
@@ -113574,8 +113601,8 @@ var SmartSystemMetrics = class {
    */
   async getDiskMetrics(paths) {
     const metrics = [];
-    for (const path10 of paths) {
-      const diskInfo = await this.getDiskInfo(path10);
+    for (const path11 of paths) {
+      const diskInfo = await this.getDiskInfo(path11);
       if (diskInfo) {
         metrics.push(diskInfo);
       }
@@ -113585,7 +113612,7 @@ var SmartSystemMetrics = class {
   /**
    * Get disk info for a specific path
    */
-  async getDiskInfo(path10) {
+  async getDiskInfo(path11) {
     return new Promise((resolve5) => {
       let output = "";
       let command;
@@ -113595,20 +113622,20 @@ var SmartSystemMetrics = class {
         args2 = ["logicaldisk", "get", "size,freespace,caption"];
       } else {
         try {
-          assertSafePathArg(path10, "path");
+          assertSafePathArg(path11, "path");
         } catch {
           resolve5(null);
           return;
         }
         command = "df";
-        args2 = ["-k", path10];
+        args2 = ["-k", path11];
       }
       const child = spawn6(command, args2, { shell: false, windowsHide: true });
       child.stdout.on("data", (data) => {
         output += data.toString();
       });
       child.on("close", () => {
-        const parsed = this.parseDiskOutput(output, path10);
+        const parsed = this.parseDiskOutput(output, path11);
         resolve5(parsed);
       });
       child.on("error", () => {
@@ -113619,8 +113646,8 @@ var SmartSystemMetrics = class {
   /**
    * Parse disk output
    */
-  parseDiskOutput(output, path10) {
-    return process.platform === "win32" ? parseWindowsDiskOutput(output, path10) : parseUnixDiskOutput(output, path10);
+  parseDiskOutput(output, path11) {
+    return process.platform === "win32" ? parseWindowsDiskOutput(output, path11) : parseUnixDiskOutput(output, path11);
   }
   /**
    * Detect anomalies by comparing current with previous
@@ -113874,7 +113901,7 @@ init_cache_engine();
 init_token_counter();
 init_metrics();
 import { createHash as createHash41 } from "crypto";
-import { readFileSync as readFileSync29, existsSync as existsSync28 } from "fs";
+import { readFileSync as readFileSync29, existsSync as existsSync29 } from "fs";
 import { join as join26 } from "path";
 init_paths2();
 
@@ -114211,7 +114238,7 @@ var SmartTest = class {
   resolveFramework(explicit) {
     if (explicit && explicit !== "unknown") return explicit;
     const manifest = join26(this.projectRoot, "package.json");
-    if (!existsSync28(manifest)) return "unknown";
+    if (!existsSync29(manifest)) return "unknown";
     try {
       return detectFramework(JSON.parse(readFileSync29(manifest, "utf8")));
     } catch {
@@ -114347,7 +114374,7 @@ ${tail}` : "")
       "coverage",
       "coverage-summary.json"
     );
-    if (!existsSync28(summaryPath)) return void 0;
+    if (!existsSync29(summaryPath)) return void 0;
     try {
       const parsed = JSON.parse(readFileSync29(summaryPath, "utf8"));
       return parsed?.total ? { total: parsed.total } : void 0;
@@ -114363,12 +114390,12 @@ ${tail}` : "")
     hash2.update(this.cacheNamespace);
     hash2.update(pattern || "all");
     const packageJsonPath = join26(this.projectRoot, "package.json");
-    if (existsSync28(packageJsonPath)) {
+    if (existsSync29(packageJsonPath)) {
       const packageJson = readFileSync29(packageJsonPath, "utf-8");
       hash2.update(packageJson);
     }
     const jestConfigPath = join26(this.projectRoot, "jest.config.js");
-    if (existsSync28(jestConfigPath)) {
+    if (existsSync29(jestConfigPath)) {
       const jestConfig = readFileSync29(jestConfigPath, "utf-8");
       hash2.update(jestConfig);
     }
@@ -114612,7 +114639,7 @@ init_cache_engine();
 init_metrics();
 init_token_counter();
 import { createHash as createHash42 } from "crypto";
-import { readFileSync as readFileSync30, existsSync as existsSync29 } from "fs";
+import { readFileSync as readFileSync30, existsSync as existsSync30 } from "fs";
 import { join as join27 } from "path";
 init_paths2();
 var SmartTypeCheck = class {
@@ -114820,12 +114847,12 @@ var SmartTypeCheck = class {
     const hash2 = createHash42("sha256");
     hash2.update(this.cacheNamespace);
     const tsconfigPath = join27(this.projectRoot, tsconfig);
-    if (existsSync29(tsconfigPath)) {
+    if (existsSync30(tsconfigPath)) {
       const content = readFileSync30(tsconfigPath, "utf-8");
       hash2.update(content);
     }
     const packageJsonPath = join27(this.projectRoot, "package.json");
-    if (existsSync29(packageJsonPath)) {
+    if (existsSync30(packageJsonPath)) {
       const content = readFileSync30(packageJsonPath, "utf-8");
       hash2.update(content);
     }
@@ -117774,7 +117801,7 @@ var DataVisualizer = class {
       const sourceValue = nodeValues.get(link.source) || 0;
       const scale = sourcePos.height / sourceValue;
       const linkHeight = link.value * scale;
-      const path10 = this.generateSankeyLinkPath(
+      const path11 = this.generateSankeyLinkPath(
         sourcePos.x + nodeWidth,
         sourcePos.y + sourcePos.height / 2,
         targetPos.x,
@@ -117782,7 +117809,7 @@ var DataVisualizer = class {
         linkHeight
       );
       const color = this.getDefaultColor(nodeIndex.get(link.source) || 0, 0.3);
-      svg += `<path class="sankey-link" d="${path10}" stroke="${color}" stroke-width="${linkHeight}">`;
+      svg += `<path class="sankey-link" d="${path11}" stroke="${color}" stroke-width="${linkHeight}">`;
       svg += `<title>${link.source} \u2192 ${link.target}: ${link.value}</title>`;
       svg += `</path>`;
     }
@@ -123664,20 +123691,20 @@ function createOptimizerRuntime() {
     // Matches vendor `case 'smart_read'`: destructures `path` out of args,
     // forwards the rest as options.
     smart_read: async (args2) => {
-      const { path: path10, ...options } = args2;
-      return ok(await smartRead.read(path10, options));
+      const { path: path11, ...options } = args2;
+      return ok(await smartRead.read(path11, options));
     },
     // Matches vendor `case 'smart_write'`.
     smart_write: async (args2) => {
-      const { path: path10, content, ...options } = args2;
-      return ok(await smartWrite.write(path10, content, options));
+      const { path: path11, content, ...options } = args2;
+      return ok(await smartWrite.write(path11, content, options));
     },
     // Matches vendor `case 'smart_edit'`.
     smart_edit: async (args2) => {
-      const { path: path10, operations, ...options } = args2;
+      const { path: path11, operations, ...options } = args2;
       return ok(
         await smartEdit.edit(
-          path10,
+          path11,
           operations,
           options
         )
@@ -123708,8 +123735,8 @@ function createOptimizerRuntime() {
     // `path` field first (NOT `filePath` — vendor's own comment documents a
     // real bug caused by getting this wrong), forwards the rest as options.
     smart_config_read: async (args2) => {
-      const { path: path10, ...options } = args2;
-      return ok(await smartConfigRead.read(path10, options));
+      const { path: path11, ...options } = args2;
+      return ok(await smartConfigRead.read(path11, options));
     },
     // Matches vendor `case 'smart_tsconfig'`: whole-args-object.
     smart_tsconfig: async (args2) => ok(await smartTsConfig.run(args2)),

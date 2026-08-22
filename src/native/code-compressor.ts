@@ -74,6 +74,9 @@
 // `Parser.SyntaxNode`/`Parser.Tree`/`Parser.Language` as namespace types.
 
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import Parser from "web-tree-sitter";
 
 type TSLanguage = Parser.Language;
@@ -186,11 +189,53 @@ const ALL_LANGUAGES: readonly CodeLanguage[] = [
   "cpp",
 ];
 
+/**
+ * Where the tree-sitter grammar `.wasm` files live.
+ *
+ * A marketplace install copies ONLY the `plugin/` subtree and ships no
+ * `node_modules`, so resolving these through Node's module resolution --
+ * which is all this function used to do -- threw `MODULE_NOT_FOUND` on every
+ * installed machine. `Parser.Language.load` then failed, `compressWithAst`
+ * returned null, and `compressCode` fell back to a passthrough. Silently,
+ * because passthrough IS the documented fail-open behaviour. The net effect
+ * was that `smart_read`'s CodeCompressor branch and the PreToolUse
+ * deny-and-substitute path compressed exactly nothing for real users while
+ * every in-repo test passed, since the repo HAS `node_modules`.
+ *
+ * So the grammars are now committed under `plugin/grammars/` and resolved
+ * from the plugin root first -- same reasoning as `plugin/dist/` and
+ * `native/headroom-wasm/pkg/` being committed: an install never runs a build
+ * and never installs dependencies.
+ *
+ * The `node_modules` lookup is kept as a FALLBACK so tests and `src/`-based
+ * development keep working before/without a build, and so a future grammar
+ * that isn't shipped still resolves in the repo.
+ */
 function grammarWasmDir(): string {
-  // `tree-sitter-wasms` ships no `exports` map, so any subpath under the
-  // installed package resolves normally; resolving `package.json` first
-  // (rather than guessing a `node_modules` layout) is robust to hoisting,
-  // workspaces, and bundling.
+  // Shipped location first. `import.meta.url` is this module's own path:
+  // `plugin/dist/**` or `plugin/hooks/*.mjs` once bundled, `src/native/`
+  // in the repo. Walk up looking for a `grammars/` directory that actually
+  // contains a grammar, rather than assuming a fixed depth -- the bundler
+  // emits these entries at two different nesting levels.
+  try {
+    let dir = path.dirname(fileURLToPath(import.meta.url));
+    for (let i = 0; i < 6; i++) {
+      const candidate = path.join(dir, "grammars");
+      if (existsSync(path.join(candidate, "tree-sitter-typescript.wasm"))) {
+        return candidate;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    // Fall through to node resolution below.
+  }
+
+  // Development/test fallback: `tree-sitter-wasms` ships no `exports` map,
+  // so any subpath under the installed package resolves normally; resolving
+  // `package.json` first (rather than guessing a `node_modules` layout) is
+  // robust to hoisting, workspaces, and bundling.
   const pkgJsonPath = nodeRequire.resolve("tree-sitter-wasms/package.json");
   return pkgJsonPath.slice(0, -"package.json".length) + "out";
 }
@@ -198,7 +243,23 @@ function grammarWasmDir(): string {
 let initPromise: Promise<void> | null = null;
 async function ensureInit(): Promise<void> {
   if (!initPromise) {
-    initPromise = Parser.init();
+    // `Parser.init()` loads web-tree-sitter's OWN `tree-sitter.wasm` runtime,
+    // which it locates relative to its package directory. In a marketplace
+    // install there is no `node_modules`, so that lookup fails and every
+    // parse fails with it -- the same shipping gap as the grammars
+    // themselves (see `grammarWasmDir`). `locateFile` redirects it to the
+    // copy committed alongside them under `plugin/grammars/`.
+    //
+    // Only redirects when that copy is actually present, so the repo/test
+    // path keeps using web-tree-sitter's own resolution unchanged.
+    const shippedRuntime = path.join(grammarWasmDir(), "tree-sitter.wasm");
+    initPromise = existsSync(shippedRuntime)
+      ? Parser.init({
+          locateFile(scriptName: string) {
+            return scriptName === "tree-sitter.wasm" ? shippedRuntime : scriptName;
+          },
+        })
+      : Parser.init();
   }
   return initPromise;
 }
