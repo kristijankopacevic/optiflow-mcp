@@ -14,13 +14,13 @@
 // project temp dir per test, same technique the handoff/chop fixture tests
 // already use.
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readHookInput } from "../../core/hook-io.js";
+import { readHookInput, toCappedJson } from "../../core/hook-io.js";
 import { decidePreToolUse, runPreToolUse } from "./pretooluse.js";
 import { decidePreCompact, runPreCompact } from "./precompact.js";
 
@@ -35,6 +35,40 @@ function loadFixtureWithCwd(name: string, cwd: string): Record<string, unknown> 
 
 function stdinFrom(text: string): NodeJS.ReadableStream {
   return Readable.from([text]) as unknown as NodeJS.ReadableStream;
+}
+
+/**
+ * A real, recognizable Python source file well past both `largeFileBytes()`
+ * (25,600 bytes, the deny threshold) and CodeCompressor's own
+ * `minTokensForCompression` (100), with function bodies long enough to
+ * actually get elided — same construction `smart-read.test.ts` uses to
+ * exercise the real (non-mocked) CodeCompressor.
+ */
+function buildLargePythonFixture(functionCount: number): string {
+  const parts = ["import os", "import sys", "", "class Widget:", '    """A widget."""', ""];
+  for (let i = 0; i < functionCount; i++) {
+    parts.push(`    def compute_${i}(self, value):`);
+    parts.push(`        """Computes something for ${i}."""`);
+    parts.push(`        total = 0`);
+    parts.push(`        for j in range(value):`);
+    parts.push(`            total += j * ${i}`);
+    parts.push(`            if total > 1000:`);
+    parts.push(`                total -= 500`);
+    parts.push(`        print(f"computed {total} for iteration ${i}")`);
+    parts.push(`        return total`);
+    parts.push("");
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Plain prose, also past `largeFileBytes()`, but with no code-like
+ * structure at all — CodeCompressor's `detectLanguage` genuinely returns
+ * "unknown" for this, so it must never produce a substitute.
+ */
+function buildLargeProseFixture(lineCount: number): string {
+  const line = "This is a plain log/notes line with ordinary prose content, nothing code-like at all. ";
+  return Array.from({ length: lineCount }, (_, i) => `${i}: ${line}`).join("\n");
 }
 
 let projectDir: string;
@@ -98,6 +132,60 @@ describe("decidePreToolUse", () => {
     expect(output.hookSpecificOutput?.permissionDecision).toBe("allow");
     expect(String(output.hookSpecificOutput?.additionalContext)).toMatch(/smart_grep/);
   });
+
+  // Phase 2 ("deny-and-substitute"): a denied Read on a large file
+  // CodeCompressor actually recognizes now carries the compressed content
+  // itself in `additionalContext`, alongside the deny — not just a pointer
+  // to smart_read.
+  it("positive: a large RECOGNIZED-language Read is denied WITH a compressed substitute in additionalContext", async () => {
+    const payload = loadFixtureWithCwd("pretooluse-optimizer-positive-large-recognized-read.json", projectDir);
+    const filePath = path.join(projectDir, "widget.py");
+    writeFileSync(filePath, buildLargePythonFixture(150), "utf8");
+    (payload.tool_input as Record<string, unknown>).file_path = filePath;
+
+    const output = await runPreToolUse(() => readHookInput(stdinFrom(JSON.stringify(payload))));
+
+    expect(output.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(String(output.hookSpecificOutput?.permissionDecisionReason)).toMatch(/smart_read/);
+    const context = String(output.hookSpecificOutput?.additionalContext ?? "");
+    expect(context).toMatch(/structure-preserving compression/);
+    expect(context).toMatch(/smart_read/);
+    // Real structural compression survived, not silence: imports and the
+    // first function's signature are present verbatim, and it is genuinely
+    // shorter than the source file.
+    expect(context).toContain("import os");
+    expect(context).toContain("def compute_0");
+    expect(context.length).toBeLessThan(readFileSync(filePath, "utf8").length);
+
+    // Production emits via `writeHookOutput` -> `toCappedJson(output, 10_000)`
+    // (src/core/hook-io.ts), not the raw object above. This fixture's
+    // compressed content is comfortably over that 10,000-char output cap, so
+    // what the model actually receives is a TRUNCATED additionalContext —
+    // proving that's still valid JSON with the preface/marker intact, not
+    // an unmeasured assumption.
+    const capped = JSON.parse(toCappedJson(output));
+    expect(capped.hookSpecificOutput.permissionDecision).toBe("deny");
+    const cappedContext = String(capped.hookSpecificOutput.additionalContext);
+    expect(cappedContext).toMatch(/structure-preserving compression/);
+    expect(cappedContext).toMatch(/chars omitted\]/);
+    expect(cappedContext.length).toBeLessThanOrEqual(10_000);
+  }, 20_000);
+
+  // Negative half of the same fixture-driven proof: a large file
+  // CodeCompressor does NOT recognize as source code must fall through to
+  // exactly today's plain redirect — no additionalContext at all.
+  it("negative: a large UNRECOGNIZED-language Read still gets the plain redirect, with no additionalContext", async () => {
+    const payload = loadFixtureWithCwd("pretooluse-optimizer-positive-large-unrecognized-read.json", projectDir);
+    const filePath = path.join(projectDir, "notes.txt");
+    writeFileSync(filePath, buildLargeProseFixture(400), "utf8");
+    (payload.tool_input as Record<string, unknown>).file_path = filePath;
+
+    const output = await runPreToolUse(() => readHookInput(stdinFrom(JSON.stringify(payload))));
+
+    expect(output.hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect(String(output.hookSpecificOutput?.permissionDecisionReason)).toMatch(/smart_read/);
+    expect(output.hookSpecificOutput?.additionalContext).toBeUndefined();
+  }, 20_000);
 });
 
 describe("decidePreCompact", () => {

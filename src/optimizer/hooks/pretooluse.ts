@@ -26,9 +26,11 @@
 //
 // BASH MATCHER OVERLAP WITH CHOP — resolved, not just wired. `src/chop/
 // pretooluse.ts` also registers on `PreToolUse` with a matcher that
-// includes `Bash`. The two cannot collide: this hook only ever emits
-// `permissionDecision: "deny"` or `additionalContext` (see
-// `lib/policy.ts`'s `Verdict`), and chop's hook only ever emits
+// includes `Bash`. The two cannot collide: this hook only ever emits some
+// combination of `permissionDecision` (+`permissionDecisionReason`) and
+// `additionalContext` — never `updatedInput` (see `lib/policy.ts`'s
+// `Verdict`, including `denyWithSubstitute`, which emits deny + both
+// fields together) — and chop's hook only ever emits
 // `updatedInput` or a bare `{}` (`src/chop/pretooluse.ts`'s own header;
 // confirmed against vendor's `policy.mjs`, which documents "the common
 // path stays a bare `{}`" for its own no-opinion case) — disjoint fields,
@@ -64,6 +66,7 @@ import {
 import {
   mode,
   MODE_OFF,
+  MODE_ENFORCE,
   loadState,
   saveState,
   alreadyDenied,
@@ -100,9 +103,30 @@ import { episodeMeta, featuresForArm } from "./lib/experiment.js";
 import { optimizerToolsForHook, rememberOptimizerTools } from "./lib/capabilities.js";
 import { evaluateUcrGuards } from "./lib/ucr-guard.js";
 import { hookDeadlineMs } from "./lib/observability.js";
+// NOT a static top-level import, deliberately. `code-compressor.ts` has its
+// own static `import Parser from "web-tree-sitter"` (see that module's own
+// header); a static import of it HERE would poison this hook's entire ESM
+// module-graph resolution before the try/catch below ever runs, exactly the
+// failure mode `esbuild.config.mjs`'s `nativeExternals` comment and
+// `src/optimizer/core/token-counter.ts`'s header both document for risky
+// optional deps — and this hook file's own `hookEntries` comment in
+// `esbuild.config.mjs` specifically calls out staying lean. Deferred to a
+// dynamic `import()` inside the try/catch (below) instead, so an absent/
+// broken dependency degrades to the plain redirect, not a dead hook.
 
 /** Largest file the hook will read to index. Above this the touch is still observed, but not hashed. */
 const HARVEST_MAX_BYTES = Number(process.env.TOKEN_OPTIMIZER_HARVEST_MAX_BYTES) || 4_000_000;
+
+/**
+ * Prepended to every `denyWithSubstitute` payload so the compressed text
+ * never silently reads as the whole file — the model needs to know bodies
+ * were elided and that `smart_read` (same path) returns the real contents.
+ */
+const SUBSTITUTE_PREFACE =
+  "[optiflow: structure-preserving compression of this file -- imports/exports, " +
+  "signatures, and types are kept verbatim, but most function/method bodies are " +
+  "elided (see the inline \"lines omitted\" markers). Call the token-optimizer MCP " +
+  "tool smart_read with the same path if you need the full, uncompressed contents.]";
 
 export interface PreToolUseRawPayload {
   [key: string]: unknown;
@@ -127,7 +151,8 @@ function verdictToHookOutput(verdict: Verdict): HookOutput {
 export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promise<HookOutput> {
   if (!raw) return {};
   try {
-    if (mode() === MODE_OFF) return {};
+    const currentMode = mode();
+    if (currentMode === MODE_OFF) return {};
 
     const payload: NormalizedPayload = normalizePayload(raw);
     if (!payload.tool_name) return {};
@@ -311,6 +336,7 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
     saveState(payload.session_id, state, agentScope);
 
     let reason = verdict.reason;
+    let substitute: string | undefined;
     if (!repeat && payload.tool_name === "Read" && payload.tool_input.file_path) {
       try {
         const filePath = payload.tool_input.file_path;
@@ -336,6 +362,33 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
             }
           );
           if (substitution) reason = substitution;
+
+          // The higher-value substitution this phase adds: hand the model
+          // the compressed content itself, inside the denial, instead of
+          // just a pointer to smart_read (module header, "deny-and-
+          // substitute"). Only offered when it clears the SAME real-
+          // reduction gates smart-read.ts's own CodeCompressor branch uses
+          // (smart-read.ts:282-299) -- a language CodeCompressor actually
+          // recognizes, a result it genuinely modified, and a measured
+          // reduction in both bytes and tokens, never an assumed one.
+          // Bounded by HARVEST_MAX_BYTES, the same ceiling the allowed path
+          // above already applies to in-hook reads, so this never runs AST
+          // parsing over an arbitrarily large file. Gated on `MODE_ENFORCE`:
+          // in `advise` mode (or a repeat, excluded above) `enforceVerdict`
+          // always discards any substitute and returns `allowWithContext`,
+          // so computing one would just be wasted AST work.
+          if (currentMode === MODE_ENFORCE && Buffer.byteLength(source, "utf8") <= HARVEST_MAX_BYTES) {
+            const { compressCode } = await import("../../native/code-compressor.js");
+            const codeResult = await compressCode(source);
+            if (
+              codeResult.language !== "unknown" &&
+              codeResult.wasModified &&
+              codeResult.compressed.length < source.length &&
+              codeResult.compressedTokens < codeResult.originalTokens
+            ) {
+              substitute = `${SUBSTITUTE_PREFACE}\n\n${codeResult.compressed}`;
+            }
+          }
         }
       } catch {
         // Any failure here falls back to the plain redirect, which always works.
@@ -344,7 +397,10 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
 
     // On a repeat this degrades to a note and lets the call through, which
     // is what bounds the blast radius when the MCP server is unavailable.
-    return verdictToHookOutput(enforceVerdict(reason, repeat));
+    // `substitute` is undefined unless the block above actually produced a
+    // real, measured reduction, so `enforceVerdict` falls back to a plain
+    // `deny` exactly as before whenever it didn't.
+    return verdictToHookOutput(enforceVerdict(reason, repeat, currentMode, substitute));
   } catch {
     // Wrapped whole: any defect in this hook must cost the user nothing.
     return {};

@@ -29,9 +29,11 @@ import { decidePreToolUse as decideOptimizer } from "../optimizer/hooks/pretoolu
 
 const CHOP_EXCLUSIVE_FIELDS = ["updatedInput"] as const;
 // `deny()` emits permissionDecision+permissionDecisionReason;
-// `allowWithContext()` emits permissionDecision+additionalContext (see
-// src/core/hook-io.ts) — the optimizer hook only ever calls one of those
-// two helpers (or emits a bare {}), never touches `updatedInput`.
+// `allowWithContext()` emits permissionDecision+additionalContext;
+// `denyWithSubstitute()` emits all three together (see src/core/hook-io.ts)
+// — the optimizer hook only ever calls one of those three helpers (or emits
+// a bare {}), never touches `updatedInput`. The three fields listed below
+// stay the exhaustive set regardless of which helper fired.
 const OPTIMIZER_EXCLUSIVE_FIELDS = ["permissionDecision", "permissionDecisionReason", "additionalContext"] as const;
 
 let projectDir: string;

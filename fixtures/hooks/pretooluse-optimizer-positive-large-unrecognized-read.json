@@ -1,0 +1,10 @@
+{
+  "session_id": "sess-optimizer-large-unrecognized-read-1",
+  "transcript_path": "/home/user/.claude/projects/optiflow-mcp/sess-optimizer-large-unrecognized-read-1.jsonl",
+  "cwd": "/PLACEHOLDER/PROJECT",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/PLACEHOLDER/PROJECT/notes.txt"
+  }
+}
