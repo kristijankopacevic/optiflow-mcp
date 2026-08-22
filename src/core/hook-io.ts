@@ -250,6 +250,32 @@ export function allowWithContext(
 }
 
 /**
+ * Deny the tool call, but hand the model the compressed content it would
+ * otherwise need a second round trip (e.g. an MCP `smart_read` call) to
+ * get. `reason` is shown as the denial explanation, exactly like `deny()`;
+ * `context` rides in `additionalContext` alongside the denial — the same
+ * field `allowWithContext()` uses, and the exact `permissionDecision` +
+ * `permissionDecisionReason` + `additionalContext` combination this
+ * module's header cites as verified and used in production by the
+ * highest-starred competitor. One round trip, no dependence on the model
+ * choosing to call the replacement tool.
+ */
+export function denyWithSubstitute(
+  hookEventName: HookEventName,
+  reason: string,
+  context: string
+): HookOutput {
+  return {
+    hookSpecificOutput: {
+      hookEventName,
+      permissionDecision: "deny",
+      permissionDecisionReason: reason,
+      additionalContext: context,
+    },
+  };
+}
+
+/**
  * Rewrite a tool call's input before it runs (`PreToolUse` only).
  */
 export function updateInput(

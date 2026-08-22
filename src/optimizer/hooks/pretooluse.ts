@@ -58,6 +58,7 @@ import {
   allow as hookAllow,
   deny as hookDeny,
   allowWithContext as hookAllowWithContext,
+  denyWithSubstitute as hookDenyWithSubstitute,
   type HookOutput,
 } from "../../core/hook-io.js";
 import {
@@ -111,6 +112,9 @@ export interface PreToolUseRawPayload {
 function verdictToHookOutput(verdict: Verdict): HookOutput {
   if (verdict.kind === "allow") return {};
   if (verdict.kind === "allowWithContext") return hookAllowWithContext("PreToolUse", verdict.context);
+  if (verdict.kind === "denyWithSubstitute") {
+    return hookDenyWithSubstitute("PreToolUse", verdict.reason, verdict.substitute);
+  }
   return hookDeny("PreToolUse", verdict.reason);
 }
 

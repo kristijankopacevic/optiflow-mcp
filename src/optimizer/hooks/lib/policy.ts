@@ -400,7 +400,14 @@ export function alreadyDenied(state: SessionState, key: string): boolean {
 export type Verdict =
   | { kind: "allow" }
   | { kind: "allowWithContext"; context: string }
-  | { kind: "deny"; reason: string };
+  | { kind: "deny"; reason: string }
+  // Deny, but hand the model the compressed content it would otherwise
+  // need a second `smart_read` round trip to get (Phase 2 of the plan:
+  // "deny-and-substitute"). `substitute` rides in `additionalContext`
+  // alongside the denial — see `../../../core/hook-io.ts`'s
+  // `denyWithSubstitute()`, the only place that turns this into a
+  // `HookOutput`.
+  | { kind: "denyWithSubstitute"; reason: string; substitute: string };
 
 /**
  * The off switch, carried by the thing doing the blocking. Appended once —
@@ -417,15 +424,25 @@ export function withEscape(reason: string): string {
  * of exiting the process (see module header). Every call site should route
  * through here so `advise` mode is guaranteed non-blocking everywhere.
  * `deniedBefore` collapses to an advisory for the same reason.
+ *
+ * `substitute`, if given, is the compressed content computed for a
+ * `denyWithSubstitute` verdict. It degrades EXACTLY like a plain `deny`
+ * does: `off` still allows outright, and `advise`/a repeat still collapses
+ * to a non-blocking `allowWithContext` carrying `reason` — the tool call is
+ * going through either way, so the model will get the real file and has no
+ * use for a compressed stand-in. Only the true enforce-and-block case emits
+ * the substitute.
  */
 export function enforceVerdict(
   reason: string,
   deniedBefore: boolean,
-  currentMode: Mode = mode()
+  currentMode: Mode = mode(),
+  substitute?: string
 ): Verdict {
   if (currentMode === MODE_OFF) return { kind: "allow" };
   if (currentMode === MODE_ADVISE || deniedBefore) {
     return { kind: "allowWithContext", context: reason };
   }
+  if (substitute) return { kind: "denyWithSubstitute", reason: withEscape(reason), substitute };
   return { kind: "deny", reason: withEscape(reason) };
 }

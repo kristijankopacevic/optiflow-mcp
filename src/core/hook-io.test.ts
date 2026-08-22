@@ -4,6 +4,7 @@ import {
   allow,
   allowWithContext,
   deny,
+  denyWithSubstitute,
   readHookInput,
   toCappedJson,
   updateInput,
@@ -119,5 +120,16 @@ describe("hook output builders", () => {
   it("updateMCPOutput() never wraps the array in an object", () => {
     const out = updateMCPOutput("PostToolUse", [{ type: "text", text: "x" }]);
     expect(Array.isArray(out.hookSpecificOutput?.updatedMCPToolOutput)).toBe(true);
+  });
+
+  it("denyWithSubstitute() carries the reason AND additionalContext alongside permissionDecision:deny", () => {
+    expect(denyWithSubstitute("PreToolUse", "too large, here is a compressed skeleton", "// compressed skeleton")).toEqual({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "too large, here is a compressed skeleton",
+        additionalContext: "// compressed skeleton",
+      },
+    });
   });
 });
