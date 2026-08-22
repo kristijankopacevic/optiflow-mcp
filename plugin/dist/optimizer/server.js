@@ -63787,7 +63787,17 @@ var LANG_CONFIGS = {
     functionNodes: ["function_declaration", "method_definition"],
     classNodes: ["class_declaration"],
     typeNodes: [],
-    bodyNodeTypes: ["statement_block"],
+    // `class_body` (a class's own body container) is a distinct node type
+    // from `statement_block` (a function/method's) in this grammar, unlike
+    // Python/Go/Rust/Java/C/C++ where the Rust reference's shared
+    // `body_node_types` config already covers both shapes with one node
+    // type. Without it, `compressClassAst`'s body-node lookup never
+    // matches for JS/TS, so no class (bare or exported) ever gets its
+    // methods truncated -- listed here (not as a separate "classBodyNode"
+    // field) because `compressFunctionAst`'s own body lookup only ever
+    // walks a function/method node's direct children, which never include
+    // a `class_body`, so sharing the list is safe.
+    bodyNodeTypes: ["statement_block", "class_body"],
     decoratorNode: null,
     commentPrefix: "//",
     usesColonAfterSignature: false,
@@ -63798,7 +63808,7 @@ var LANG_CONFIGS = {
     functionNodes: ["function_declaration", "method_definition"],
     classNodes: ["class_declaration"],
     typeNodes: ["interface_declaration", "type_alias_declaration"],
-    bodyNodeTypes: ["statement_block"],
+    bodyNodeTypes: ["statement_block", "class_body"],
     decoratorNode: null,
     commentPrefix: "//",
     usesColonAfterSignature: false,
@@ -63886,6 +63896,21 @@ function getDefinitionName(node) {
     }
   }
   return void 0;
+}
+function findExportedFunctionValue(declNode) {
+  const declarators = declNode.children.filter(
+    (c2) => c2 !== null && c2.type === "variable_declarator"
+  );
+  if (declarators.length !== 1) return void 0;
+  const declarator = declarators[0];
+  let name2;
+  let valueNode;
+  for (const child of declarator.children) {
+    if (!child) continue;
+    if (child.type === "identifier" && name2 === void 0) name2 = child.text;
+    if (child.type === "arrow_function" || child.type === "function_expression") valueNode = child;
+  }
+  return valueNode ? { name: name2, valueNode } : void 0;
 }
 var CONTEXT_DELIMS = /[\s,;:.()[\]{}"'，、；：。．！？（）【】「」『』《》〈〉·…—　]+/gm;
 var CJK_CHARS = /[　-鿿가-힯＀-￯]/;
@@ -64314,13 +64339,35 @@ function visit(ctx, node, structure, captured) {
     let hasFuncOrClass = false;
     for (const child of node.children) {
       if (!child) continue;
-      if (ctx.lang.functionNodes.includes(child.type) || ctx.lang.classNodes.includes(child.type)) {
+      if (ctx.lang.functionNodes.includes(child.type)) {
         hasFuncOrClass = true;
-        const compressed = compressFunctionAst(ctx, child);
+        const compressed = compressFunctionAst(ctx, child, { clipToOwnSpan: true });
         const exportPrefix = ctx.code.slice(node.startIndex, child.startIndex);
         const exportSuffix = ctx.code.slice(child.endIndex, node.endIndex);
         structure.functionSignatures.push(`${exportPrefix}${compressed}${exportSuffix}`);
         break;
+      }
+      if (ctx.lang.classNodes.includes(child.type)) {
+        hasFuncOrClass = true;
+        const compressed = compressClassAst(ctx, child, true);
+        const exportPrefix = ctx.code.slice(node.startIndex, child.startIndex);
+        const exportSuffix = ctx.code.slice(child.endIndex, node.endIndex);
+        structure.classDefinitions.push(`${exportPrefix}${compressed}${exportSuffix}`);
+        break;
+      }
+      if (child.type === "lexical_declaration" || child.type === "variable_declaration") {
+        const found = findExportedFunctionValue(child);
+        if (found) {
+          hasFuncOrClass = true;
+          const compressed = compressFunctionAst(ctx, found.valueNode, {
+            nameOverride: found.name,
+            clipToOwnSpan: true
+          });
+          const exportPrefix = ctx.code.slice(node.startIndex, found.valueNode.startIndex);
+          const exportSuffix = ctx.code.slice(found.valueNode.endIndex, node.endIndex);
+          structure.functionSignatures.push(`${exportPrefix}${compressed}${exportSuffix}`);
+          break;
+        }
       }
     }
     if (!hasFuncOrClass) structure.imports.push(text);
@@ -64405,12 +64452,39 @@ function firstLineDocstring(firstDsLine, bodyLines, dsStartRel) {
   }
   return firstDsLine;
 }
-function compressFunctionAst(ctx, node) {
+function clipRowsToNodeSpan(rawLines, node, clip) {
+  if (!clip) return [...rawLines];
+  const nodeLines = [...rawLines];
+  if (nodeLines.length === 0) return nodeLines;
+  const lastIdx = nodeLines.length - 1;
+  if (lastIdx === 0) {
+    const line = rawLines[0];
+    const prefix = line.slice(0, node.startPosition.column);
+    const suffix = line.slice(node.endPosition.column);
+    const start2 = prefix.trim() !== "" ? node.startPosition.column : 0;
+    const end = suffix.trim() !== "" ? node.endPosition.column : line.length;
+    nodeLines[0] = line.slice(start2, end);
+  } else {
+    const firstLine = rawLines[0];
+    const firstLinePrefix = firstLine.slice(0, node.startPosition.column);
+    if (firstLinePrefix.trim() !== "") {
+      nodeLines[0] = firstLine.slice(node.startPosition.column);
+    }
+    const lastLine = rawLines[lastIdx];
+    const lastLineSuffix = lastLine.slice(node.endPosition.column);
+    if (lastLineSuffix.trim() !== "") {
+      nodeLines[lastIdx] = lastLine.slice(0, node.endPosition.column);
+    }
+  }
+  return nodeLines;
+}
+function compressFunctionAst(ctx, node, opts) {
   const startRow = node.startPosition.row;
   const endRow = node.endPosition.row;
-  const nodeLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const rawLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const nodeLines = clipRowsToNodeSpan(rawLines, node, opts?.clipToOwnSpan ?? false);
   const nodeText = nodeLines.join("\n");
-  const funcName = getDefinitionName(node);
+  const funcName = opts?.nameOverride ?? getDefinitionName(node);
   const bodyLimit = getBodyLimit(funcName, ctx.bodyLimits, ctx.config.maxBodyLines);
   if (nodeLines.length <= bodyLimit + 2) return nodeText;
   let bodyNode;
@@ -64528,10 +64602,11 @@ function compressFunctionAst(ctx, node) {
   }
   return resultParts.join("\n");
 }
-function compressClassAst(ctx, node) {
+function compressClassAst(ctx, node, clipToOwnSpan = false) {
   const startRow = node.startPosition.row;
   const endRow = node.endPosition.row;
-  const nodeLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const rawLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const nodeLines = clipRowsToNodeSpan(rawLines, node, clipToOwnSpan);
   const nodeText = nodeLines.join("\n");
   let bodyNode;
   for (const child of node.children) {
@@ -64548,6 +64623,7 @@ function compressClassAst(ctx, node) {
   const bodyParts = [];
   for (const child of bodyNode.children) {
     if (!child) continue;
+    if (!child.isNamed) continue;
     const ck = child.type;
     const childText = ctx.codeLines.slice(child.startPosition.row, child.endPosition.row + 1).join("\n");
     if (ctx.lang.functionNodes.includes(ck)) {

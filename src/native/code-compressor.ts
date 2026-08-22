@@ -286,7 +286,17 @@ const LANG_CONFIGS: Record<Exclude<CodeLanguage, "unknown">, LangConfig> = {
     functionNodes: ["function_declaration", "method_definition"],
     classNodes: ["class_declaration"],
     typeNodes: [],
-    bodyNodeTypes: ["statement_block"],
+    // `class_body` (a class's own body container) is a distinct node type
+    // from `statement_block` (a function/method's) in this grammar, unlike
+    // Python/Go/Rust/Java/C/C++ where the Rust reference's shared
+    // `body_node_types` config already covers both shapes with one node
+    // type. Without it, `compressClassAst`'s body-node lookup never
+    // matches for JS/TS, so no class (bare or exported) ever gets its
+    // methods truncated -- listed here (not as a separate "classBodyNode"
+    // field) because `compressFunctionAst`'s own body lookup only ever
+    // walks a function/method node's direct children, which never include
+    // a `class_body`, so sharing the list is safe.
+    bodyNodeTypes: ["statement_block", "class_body"],
     decoratorNode: null,
     commentPrefix: "//",
     usesColonAfterSignature: false,
@@ -297,7 +307,7 @@ const LANG_CONFIGS: Record<Exclude<CodeLanguage, "unknown">, LangConfig> = {
     functionNodes: ["function_declaration", "method_definition"],
     classNodes: ["class_declaration"],
     typeNodes: ["interface_declaration", "type_alias_declaration"],
-    bodyNodeTypes: ["statement_block"],
+    bodyNodeTypes: ["statement_block", "class_body"],
     decoratorNode: null,
     commentPrefix: "//",
     usesColonAfterSignature: false,
@@ -427,6 +437,36 @@ function getDefinitionName(node: SyntaxNode): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * `export const NAME = (...) => {...}` / `export const NAME = function
+ * (...) {...}`: the arrow/function value isn't itself a `functionNodes`
+ * entry -- the `lexical_declaration`/`variable_declaration` wrapping it is
+ * neither a function nor a class node -- but it's extremely common in real
+ * ESM code, so it's special-cased here. Deliberate divergence from the
+ * Rust/Python references, which don't handle this shape either (see the
+ * module's own doc comment on divergences). Only a single, non-destructured
+ * declarator is matched: `export const a = 1, b = () => {}` (multiple
+ * declarators) falls through untouched, same as any other pattern this
+ * port doesn't special-case.
+ */
+function findExportedFunctionValue(
+  declNode: SyntaxNode
+): { name: string | undefined; valueNode: SyntaxNode } | undefined {
+  const declarators = declNode.children.filter(
+    (c): c is SyntaxNode => c !== null && c.type === "variable_declarator"
+  );
+  if (declarators.length !== 1) return undefined;
+  const declarator = declarators[0];
+  let name: string | undefined;
+  let valueNode: SyntaxNode | undefined;
+  for (const child of declarator.children) {
+    if (!child) continue;
+    if (child.type === "identifier" && name === undefined) name = child.text;
+    if (child.type === "arrow_function" || child.type === "function_expression") valueNode = child;
+  }
+  return valueNode ? { name, valueNode } : undefined;
 }
 
 // Same delimiter/CJK character classes as the Rust `_CONTEXT_DELIMS`/`_CJK_CHARS`.
@@ -1008,15 +1048,43 @@ function visit(ctx: Ctx, node: SyntaxNode, structure: CodeStructure, captured: S
     let hasFuncOrClass = false;
     for (const child of node.children) {
       if (!child) continue;
-      if (ctx.lang.functionNodes.includes(child.type) || ctx.lang.classNodes.includes(child.type)) {
+      if (ctx.lang.functionNodes.includes(child.type)) {
         hasFuncOrClass = true;
-        // Mirrors the Rust reference exactly: always the *function*
-        // compressor here, even for an exported class.
-        const compressed = compressFunctionAst(ctx, child);
+        const compressed = compressFunctionAst(ctx, child, { clipToOwnSpan: true });
         const exportPrefix = ctx.code.slice(node.startIndex, child.startIndex);
         const exportSuffix = ctx.code.slice(child.endIndex, node.endIndex);
         structure.functionSignatures.push(`${exportPrefix}${compressed}${exportSuffix}`);
         break;
+      }
+      if (ctx.lang.classNodes.includes(child.type)) {
+        hasFuncOrClass = true;
+        // Deliberate divergence from the Rust/Python references, which
+        // always run the *function* compressor here (even for an exported
+        // class) and so never actually truncate an exported class's method
+        // bodies -- see `bodyNodeTypes`' own comment. Routed through
+        // `compressClassAst` instead so an exported class compresses the
+        // same way its bare counterpart does (verified to have zero
+        // fixture-parity coverage: no recorded JS/TS fixture exercises a
+        // compressible class body either way).
+        const compressed = compressClassAst(ctx, child, true);
+        const exportPrefix = ctx.code.slice(node.startIndex, child.startIndex);
+        const exportSuffix = ctx.code.slice(child.endIndex, node.endIndex);
+        structure.classDefinitions.push(`${exportPrefix}${compressed}${exportSuffix}`);
+        break;
+      }
+      if (child.type === "lexical_declaration" || child.type === "variable_declaration") {
+        const found = findExportedFunctionValue(child);
+        if (found) {
+          hasFuncOrClass = true;
+          const compressed = compressFunctionAst(ctx, found.valueNode, {
+            nameOverride: found.name,
+            clipToOwnSpan: true,
+          });
+          const exportPrefix = ctx.code.slice(node.startIndex, found.valueNode.startIndex);
+          const exportSuffix = ctx.code.slice(found.valueNode.endIndex, node.endIndex);
+          structure.functionSignatures.push(`${exportPrefix}${compressed}${exportSuffix}`);
+          break;
+        }
       }
     }
     if (!hasFuncOrClass) structure.imports.push(text);
@@ -1112,14 +1180,76 @@ function firstLineDocstring(firstDsLine: string, bodyLines: readonly string[], d
   return firstDsLine;
 }
 
+/**
+ * Row-based reconstruction (`compressFunctionAst`/`compressClassAst` below)
+ * assumes `node` owns its first and last source rows outright. That holds
+ * for every bare top-level/class-member call site these were originally
+ * written for -- including ones where a sibling (not this node) owns a
+ * same-row trailing terminator the node's own `endIndex` excludes, e.g. a
+ * C++ `class_specifier`'s trailing `;` actually belongs to the wrapping
+ * `field_declaration`/plain `declaration`, not the class itself, and
+ * nothing re-adds it if this function strips it — so clipping must stay
+ * opt-in (`clip = true`), never a default.
+ *
+ * It's needed for exactly one caller shape: a `function_declaration`/
+ * `arrow_function`/`class_declaration` reached through the
+ * `export_statement` branch in `visit()`. There, sibling text on the same
+ * row (`export `/`export default ` before the node, or a trailing `;`
+ * after an arrow function's closing brace, owned by the enclosing
+ * `lexical_declaration`) would otherwise leak into the sliced lines, get
+ * reconstructed as-is, and then get *duplicated* when that branch
+ * separately re-adds its own byte-offset prefix/suffix — producing invalid
+ * output like `export export function` that fails `verifySyntax` and
+ * silently passes through the original untouched. That same branch always
+ * re-adds the exact prefix/suffix text this strips (`ctx.code.slice(node.
+ * startIndex, child.startIndex)` / `ctx.code.slice(child.endIndex, node.
+ * endIndex)`), so nothing is lost there. Guarded by "is the clipped-off
+ * text non-whitespace" so plain leading indentation (e.g. a class method)
+ * is never touched even when opted in.
+ */
+function clipRowsToNodeSpan(rawLines: readonly string[], node: SyntaxNode, clip: boolean): string[] {
+  if (!clip) return [...rawLines];
+  const nodeLines = [...rawLines];
+  if (nodeLines.length === 0) return nodeLines;
+  const lastIdx = nodeLines.length - 1;
+  if (lastIdx === 0) {
+    // Single-row node: clip both boundaries against the *same* original
+    // (unmodified) line -- computing them independently avoids the second
+    // clip's column offset being thrown off by the first.
+    const line = rawLines[0];
+    const prefix = line.slice(0, node.startPosition.column);
+    const suffix = line.slice(node.endPosition.column);
+    const start = prefix.trim() !== "" ? node.startPosition.column : 0;
+    const end = suffix.trim() !== "" ? node.endPosition.column : line.length;
+    nodeLines[0] = line.slice(start, end);
+  } else {
+    const firstLine = rawLines[0];
+    const firstLinePrefix = firstLine.slice(0, node.startPosition.column);
+    if (firstLinePrefix.trim() !== "") {
+      nodeLines[0] = firstLine.slice(node.startPosition.column);
+    }
+    const lastLine = rawLines[lastIdx];
+    const lastLineSuffix = lastLine.slice(node.endPosition.column);
+    if (lastLineSuffix.trim() !== "") {
+      nodeLines[lastIdx] = lastLine.slice(0, node.endPosition.column);
+    }
+  }
+  return nodeLines;
+}
+
 /** Compress a function/method body. Mirrors `_compress_function_ast`. */
-function compressFunctionAst(ctx: Ctx, node: SyntaxNode): string {
+function compressFunctionAst(
+  ctx: Ctx,
+  node: SyntaxNode,
+  opts?: { nameOverride?: string; clipToOwnSpan?: boolean }
+): string {
   const startRow = node.startPosition.row;
   const endRow = node.endPosition.row;
-  const nodeLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const rawLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const nodeLines = clipRowsToNodeSpan(rawLines, node, opts?.clipToOwnSpan ?? false);
   const nodeText = nodeLines.join("\n");
 
-  const funcName = getDefinitionName(node);
+  const funcName = opts?.nameOverride ?? getDefinitionName(node);
   const bodyLimit = getBodyLimit(funcName, ctx.bodyLimits, ctx.config.maxBodyLines);
 
   if (nodeLines.length <= bodyLimit + 2) return nodeText;
@@ -1266,10 +1396,11 @@ function compressFunctionAst(ctx: Ctx, node: SyntaxNode): string {
 }
 
 /** Compress a class by compressing each method individually. Mirrors `_compress_class_ast`. */
-function compressClassAst(ctx: Ctx, node: SyntaxNode): string {
+function compressClassAst(ctx: Ctx, node: SyntaxNode, clipToOwnSpan = false): string {
   const startRow = node.startPosition.row;
   const endRow = node.endPosition.row;
-  const nodeLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const rawLines = ctx.codeLines.slice(startRow, endRow + 1);
+  const nodeLines = clipRowsToNodeSpan(rawLines, node, clipToOwnSpan);
   const nodeText = nodeLines.join("\n");
 
   let bodyNode: SyntaxNode | undefined;
@@ -1289,6 +1420,15 @@ function compressClassAst(ctx: Ctx, node: SyntaxNode): string {
   const bodyParts: string[] = [];
   for (const child of bodyNode.children) {
     if (!child) continue;
+    // Unnamed punctuation (the body's own `{`/`}` delimiters) is never a
+    // real member -- for Python's `block` body (no braces) this is already
+    // a no-op, but for a brace-delimited body (e.g. JS/TS `class_body`,
+    // newly recognized via `bodyNodeTypes` above) skipping it is required:
+    // row-based `childText` for an unnamed `{` token grabs its *entire
+    // source row*, which is the same row as `headerLines`' own signature
+    // line, duplicating it (and likewise for a lone `}` row, duplicating
+    // the closing brace added below).
+    if (!child.isNamed) continue;
     const ck = child.type;
     const childText = ctx.codeLines
       .slice(child.startPosition.row, child.endPosition.row + 1)
