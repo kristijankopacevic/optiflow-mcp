@@ -95,7 +95,20 @@ Nothing special is required, but two things are worth knowing:
 ```bash
 optiflow doctor              # environment + which accelerators are active
 optiflow install --statusline # opt in to the context-meter statusline
+optiflow savings --watch     # live view of what compression actually saved
 ```
+
+To get the `optiflow` command in a normal terminal (independent of the
+plugin install, reading the same ledger):
+
+```bash
+npm install -g https://github.com/kristijankopacevic/optiflow-mcp/archive/refs/heads/master.tar.gz
+```
+
+Use that tarball URL rather than `npm install -g github:...` — the `github:`
+form hits an npm bug that symlinks the package to a temporary git clone which
+is then deleted, so the CLI reports success and then cannot find its own
+entry point.
 
 Installing the plugin alone never touches your `settings.json`; the statusline
 is explicit opt-in, backs up your settings first, and `optiflow uninstall`

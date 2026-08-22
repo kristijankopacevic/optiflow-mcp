@@ -110,6 +110,24 @@ vendored enforcement layer.
 | `TOKEN_OPTIMIZER_REPEAT_READ_WINDOW_MINUTES` | `30` | How long a recorded read keeps licensing that |
 | `OPTIFLOW_DEBUG_SUBSTITUTE` | unset | Log why inline code compression declined — see below |
 
+### Running the `optiflow` CLI from a normal terminal
+
+```bash
+npm install -g https://github.com/kristijankopacevic/optiflow-mcp/archive/refs/heads/master.tar.gz
+optiflow savings --watch
+```
+
+Use the **tarball URL**, not `npm install -g github:kristijankopacevic/optiflow-mcp`.
+The `github:` form is broken by an npm bug on at least npm 11 + Windows: it
+symlinks the installed package to a temporary git clone under the npm cache
+(`_cacache/tmp/git-clone-XXXX`) rather than extracting it. The clone is then
+cleaned up, so `npm` reports "added 1 package" and the very next command
+fails with `Cannot find module .../plugin/bin/optiflow`. Verified directly;
+the tarball URL takes npm's ordinary remote-tarball path and works.
+
+This is independent of the plugin install — the two coexist, and both read
+the same ledger.
+
 ## Seeing what it saved
 
 ```bash
