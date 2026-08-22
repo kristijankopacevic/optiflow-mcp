@@ -3559,6 +3559,11 @@ function compressFunctionAst(ctx, node, opts) {
     bodyLines = nodeLines.slice(1, bodyEndRel);
     afterLines = nodeLines.slice(bodyEndRel);
     braceInSignature = true;
+  } else if (!ctx.lang.usesColonAfterSignature && nodeLines[sigEnd] !== void 0 && nodeLines[sigEnd].slice(0, bodyNode.startPosition.column).trim() !== "") {
+    signatureLines = [...nodeLines.slice(0, sigEnd), nodeLines[sigEnd].replace(/\s+$/, "")];
+    bodyLines = nodeLines.slice(sigEnd + 1, bodyEndRel);
+    afterLines = nodeLines.slice(bodyEndRel);
+    braceInSignature = true;
   } else {
     signatureLines = nodeLines.slice(0, sigEnd);
     bodyLines = nodeLines.slice(sigEnd, bodyEndRel);

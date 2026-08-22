@@ -1279,6 +1279,31 @@ function compressFunctionAst(
     bodyLines = nodeLines.slice(1, bodyEndRel);
     afterLines = nodeLines.slice(bodyEndRel);
     braceInSignature = true;
+  } else if (
+    !ctx.lang.usesColonAfterSignature &&
+    nodeLines[sigEnd] !== undefined &&
+    nodeLines[sigEnd].slice(0, bodyNode.startPosition.column).trim() !== ""
+  ) {
+    // The row at index sigEnd (the "boundary row") is where the body
+    // node begins. When it carries BOTH the tail of a wrapped signature
+    // (e.g. a return-type annotation) AND the opening brace, e.g.
+    // "): string {", slicing by whole row (old behavior, the final
+    // else branch below) silently drops the entire row -- it is
+    // neither in signatureLines nor recognized by the openingBraceLine
+    // check below (which requires the row to START with "{"). Fix:
+    // keep the whole row (mirrors the sigEnd===0 case just above,
+    // generalized to a later row) instead of trying to relocate the
+    // brace onto its own line -- deliberately NOT splitting the row
+    // and re-emitting the brace as a separate output line, because
+    // that changes the brace's own line for ASI-sensitive grammars:
+    // Go requires "{" to stay on the same source line as the
+    // signature it closes (a newline in between is a genuine syntax
+    // error there, not just a style difference), so the brace must
+    // never move -- only be prevented from being dropped.
+    signatureLines = [...nodeLines.slice(0, sigEnd), nodeLines[sigEnd].replace(/\s+$/, "")];
+    bodyLines = nodeLines.slice(sigEnd + 1, bodyEndRel);
+    afterLines = nodeLines.slice(bodyEndRel);
+    braceInSignature = true;
   } else {
     signatureLines = nodeLines.slice(0, sigEnd);
     bodyLines = nodeLines.slice(sigEnd, bodyEndRel);
