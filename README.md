@@ -41,35 +41,62 @@ install does not (the compiled `.wasm` is committed, same reasoning as
 
 ## Getting started
 
-Published at [github.com/kristijankopacevic/optiflow-mcp](https://github.com/kristijankopacevic/optiflow-mcp).
-Verified end-to-end via a local-path marketplace (no `gh` auth needed for
-that):
+Works identically in the Claude Code CLI and in the VS Code / JetBrains
+extensions — they run the same engine, so there is no separate install.
 
-1. In a Claude Code session, add this repo as a marketplace and install the
-   plugin:
-   ```
-   /plugin marketplace add C:\path\to\optiflow-mcp
-   /plugin install optiflow@optiflow
-   ```
-2. Check your environment:
-   ```powershell
-   optiflow doctor
-   ```
-   Reports Node/npm versions, config resolution, and `gh` presence/auth.
-3. Activate the statusline (optional, opt-in — installing the plugin alone
-   does not touch your settings.json):
-   ```powershell
-   optiflow install --statusline
-   ```
-   Backs up your `~/.claude/settings.json` before writing, writes
-   atomically, and refuses to overwrite a different existing statusline
-   without `--force`. `optiflow uninstall` reverses it. See
-   [`docs/statusline-manual-setup.md`](docs/statusline-manual-setup.md) for
-   details (including doing it by hand) and
-   [`docs/modules.md`](docs/modules.md) for the rest of the modules.
+```
+/plugin marketplace add kristijankopacevic/optiflow-mcp
+/plugin install optiflow@optiflow
+```
 
-See [`docs/`](docs/) for architecture, configuration, and per-module
-reference depth beyond this quick start.
+Then restart the session (MCP servers and hooks are wired at startup) and
+check `/mcp` — `plugin:optiflow:optiflow-optimizer` should read **Connected**.
+
+### Requirements
+
+**Node 18 or newer**, and nothing else. The plugin ships pre-built: the
+JavaScript bundles under `plugin/dist/` and the compiled `.wasm` are committed,
+so an install never runs a build, and no `node_modules` is required at runtime.
+
+Two optional native accelerators are used **if** they happen to be resolvable
+and degrade silently if not:
+
+| Accelerator | Gives you | Without it |
+|---|---|---|
+| `better-sqlite3` | cache that survives restarts | in-memory cache, per process |
+| `tiktoken` | exact token counts | heuristic estimate (chars/4) |
+
+Run `optiflow doctor` to see which are active. Both need Node ≥22 to build, so
+on Ubuntu LTS (Node 18) expect them to be absent — the plugin is fully
+functional either way; compression still runs and is still measured.
+
+To enable them anyway:
+
+```bash
+cd ~/.claude/plugins/cache/optiflow-mcp/optiflow/*/ && npm install better-sqlite3 tiktoken
+```
+
+### Linux notes
+
+Nothing special is required, but two things are worth knowing:
+
+- Claude Code's automatic plugin dependency install runs `npm ci --ignore-scripts`,
+  which cannot build native addons. That is why the accelerators above are
+  optional rather than dependencies.
+- CI runs the full isolated-install check on Ubuntu against Node 18, 20 and 22,
+  so the shipped tree is verified to start on the Node your distro provides.
+
+### Optional extras
+
+```bash
+optiflow doctor              # environment + which accelerators are active
+optiflow install --statusline # opt in to the context-meter statusline
+```
+
+Installing the plugin alone never touches your `settings.json`; the statusline
+is explicit opt-in, backs up your settings first, and `optiflow uninstall`
+reverses it. See [`docs/statusline-manual-setup.md`](docs/statusline-manual-setup.md)
+and [`docs/modules.md`](docs/modules.md).
 
 ## License
 

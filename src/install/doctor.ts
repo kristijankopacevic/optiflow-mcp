@@ -11,11 +11,13 @@
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import { detectGhAuth, detectNodeEnv, type GhAuthInfo, type NodeEnvInfo } from "./detect.js";
+import { probeRuntime, type RuntimeProbe } from "./runtime-probe.js";
 
 export interface DoctorReport {
   node: NodeEnvInfo;
   configLoad: LoadedConfig;
   gh: GhAuthInfo;
+  runtime: RuntimeProbe;
 }
 
 export interface RunDoctorOptions {
@@ -29,6 +31,7 @@ export function runDoctor(options: RunDoctorOptions = {}): DoctorReport {
     node: detectNodeEnv(),
     configLoad,
     gh: detectGhAuth(),
+    runtime: probeRuntime(),
   };
 }
 
@@ -79,6 +82,44 @@ export function renderDoctorReport(report: DoctorReport): string {
   lines.push(
     statusLine("chop.enabled (resolved)", String(report.configLoad.config.chop.enabled))
   );
+  lines.push(
+    statusLine(
+      "mcpCompression.enabled",
+      String(report.configLoad.config.mcpCompression.enabled)
+    )
+  );
+  lines.push("");
+
+  // Optional accelerators. Reported explicitly because every one of them
+  // degrades SILENTLY by design — without this section `doctor` prints a
+  // clean report on a host where the persistent cache and the exact
+  // tokenizer are both unavailable.
+  lines.push("Optional accelerators");
+  for (const acc of report.runtime.accelerators) {
+    lines.push(statusLine(acc.name, acc.available ? "available" : "not loaded"));
+    if (!acc.available) {
+      lines.push(statusLine("", `-> ${acc.degradedTo}`));
+      if (acc.detail) lines.push(statusLine("", `   ${acc.detail}`));
+    }
+  }
+  if (!report.runtime.allAvailable) {
+    lines.push("");
+    lines.push(
+      "  All of the above are optional. optiflow is fully functional without"
+    );
+    lines.push(
+      "  them; compression still runs and savings are still measured, but"
+    );
+    lines.push(
+      "  token counts become estimates and the cache is per-process."
+    );
+    lines.push(
+      "  To enable them, install them into the plugin directory manually:"
+    );
+    lines.push(
+      "    npm install better-sqlite3 tiktoken   (requires Node >=22)"
+    );
+  }
   lines.push("");
 
   lines.push("GitHub CLI");

@@ -94,6 +94,10 @@ var init_defaults = __esm({
         allowDownload: false,
         variant: "int8"
       },
+      mcpCompression: {
+        enabled: true,
+        minOutputBytes: 400
+      },
       smartCrusher: {
         enabled: true,
         minSavingsPercent: 20
@@ -15184,7 +15188,7 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, SmartCrusherSchema, OptiflowConfigSchema;
+var ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, McpCompressionSchema, SmartCrusherSchema, OptiflowConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
@@ -15229,6 +15233,10 @@ var init_schema = __esm({
       allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
       variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
     });
+    McpCompressionSchema = external_exports.object({
+      enabled: external_exports.boolean().default(DEFAULT_CONFIG.mcpCompression.enabled),
+      minOutputBytes: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.mcpCompression.minOutputBytes)
+    });
     SmartCrusherSchema = external_exports.object({
       enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
       minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
@@ -15241,6 +15249,7 @@ var init_schema = __esm({
       report: ReportSchema.default(DEFAULT_CONFIG.report),
       telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
       kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+      mcpCompression: McpCompressionSchema.default(DEFAULT_CONFIG.mcpCompression),
       smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
     });
   }
@@ -15335,7 +15344,10 @@ var init_load = __esm({
       // zod (mergeLayers only ever copies keys listed here), so neither was
       // actually overridable despite the schema/defaults supporting it.
       "kompress",
-      "smartCrusher"
+      "smartCrusher",
+      // v3: MCP result compression. Same trap as kompress/smartCrusher above —
+      // omit it here and the section is silently unoverridable.
+      "mcpCompression"
     ];
   }
 });

@@ -66,6 +66,17 @@ export const KompressSchema = z.object({
   variant: z.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant),
 });
 
+// v3 addition: MCP tool-RESULT compression, split out of `chop.enabled`.
+// See defaults.ts for why this defaults `true` while chop stays `false`.
+export const McpCompressionSchema = z.object({
+  enabled: z.boolean().default(DEFAULT_CONFIG.mcpCompression.enabled),
+  minOutputBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(DEFAULT_CONFIG.mcpCompression.minOutputBytes),
+});
+
 // v2 Phase 5c addition ("wire the native compression modules in"). See
 // `src/config/defaults.ts`'s doc comment on `smartCrusher` for why this
 // defaults `enabled: true` (unlike `kompress`, which is opt-in due to its
@@ -83,6 +94,7 @@ export const OptiflowConfigSchema = z.object({
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
   kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  mcpCompression: McpCompressionSchema.default(DEFAULT_CONFIG.mcpCompression),
   smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher),
 });
 

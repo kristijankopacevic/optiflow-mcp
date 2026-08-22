@@ -104,6 +104,21 @@ export interface DefaultConfigShape {
    * different behavior/resource profile than TOON — so `enabled` defaults
    * to `true`, matching `toon.enabled`'s default rather than `kompress.enabled`'s.
    */
+  /**
+   * v3 addition. Compression of MCP tool RESULTS via the `PostToolUse`
+   * `mcp__.*` hook. Split out of `chop.enabled`, which used to gate it.
+   *
+   * These are different trust boundaries and deserve different defaults:
+   * `chop` rewrites a Bash *command* via `updatedInput`, which changes what
+   * the permission system matches against (hence its locked `false`). This
+   * only substitutes an MCP tool *result* that has already been produced and
+   * approved — it cannot influence what runs, so it defaults to `true`.
+   */
+  mcpCompression: {
+    enabled: boolean;
+    /** Below this many bytes of concatenated text, don't bother compressing. */
+    minOutputBytes: number;
+  };
   smartCrusher: {
     enabled: boolean;
     /**
@@ -167,6 +182,10 @@ export const DEFAULT_CONFIG: DefaultConfigShape = {
     enabled: false,
     allowDownload: false,
     variant: "int8",
+  },
+  mcpCompression: {
+    enabled: true,
+    minOutputBytes: 400,
   },
   smartCrusher: {
     enabled: true,

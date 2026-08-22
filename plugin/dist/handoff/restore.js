@@ -144,6 +144,10 @@ var DEFAULT_CONFIG = {
     allowDownload: false,
     variant: "int8"
   },
+  mcpCompression: {
+    enabled: true,
+    minOutputBytes: 400
+  },
   smartCrusher: {
     enabled: true,
     minSavingsPercent: 20
@@ -14704,6 +14708,10 @@ var KompressSchema = external_exports.object({
   allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
   variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
 });
+var McpCompressionSchema = external_exports.object({
+  enabled: external_exports.boolean().default(DEFAULT_CONFIG.mcpCompression.enabled),
+  minOutputBytes: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.mcpCompression.minOutputBytes)
+});
 var SmartCrusherSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
   minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
@@ -14716,6 +14724,7 @@ var OptiflowConfigSchema = external_exports.object({
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
   kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  mcpCompression: McpCompressionSchema.default(DEFAULT_CONFIG.mcpCompression),
   smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
 });
 

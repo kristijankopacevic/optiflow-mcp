@@ -1,21 +1,31 @@
 // Claude Code hook stdin/stdout plumbing.
 //
-// Field names/casing below are primary-sourced from the vendored
-// token-optimizer-mcp submodule's own real hook code (not guessed, and not
-// fetched from docs — this environment has no web-fetch tool available), so
-// they reflect what a working Claude Code hook actually emits today:
-//   - `hookSpecificOutput.hookEventName`               vendor/token-optimizer-mcp/plugin/hooks/session-start.mjs:157
-//   - `hookSpecificOutput.permissionDecision` (+Reason) vendor/token-optimizer-mcp/plugin/hooks/lib/policy.mjs:679-682
-//   - `hookSpecificOutput.additionalContext`            vendor/token-optimizer-mcp/plugin/hooks/lib/policy.mjs:660
-//   - `hookSpecificOutput.updatedMCPToolOutput`         vendor/token-optimizer-mcp/hooks/handlers/token-optimizer-orchestrator.ps1:2343-2351
-// `updatedInput` is NOT emitted anywhere in the vendored submodule (the plan
-// calls this out explicitly: token-optimizer's PreToolUse router never emits
-// it, which is exactly why optiflow's chop module claims that ground). Its
-// placement here — inside `hookSpecificOutput`, alongside `permissionDecision`
-// — follows the same nesting pattern as the three confirmed fields above and
-// documented Claude Code hook behavior, but is UNVERIFIED against a live
-// working example in this codebase. Flagging this so nobody downstream reads
-// it as primary-sourced fact.
+// Every field name and shape below is VERIFIED against a live Claude Code
+// 2.1.235 session (real `claude -p` run, hook stdin captured, hook output
+// observed in the delivered tool result) — not inferred from docs and not
+// carried over from the vendored upstream, which encoded one of them wrongly.
+//
+//   - `hookSpecificOutput.hookEventName`                confirmed
+//   - `hookSpecificOutput.permissionDecision` (+Reason)  confirmed
+//   - `hookSpecificOutput.additionalContext`             confirmed
+//   - `hookSpecificOutput.updatedInput`                  confirmed present in the
+//       shipped CLI binary and honored on PreToolUse. (This was previously
+//       flagged UNVERIFIED here because the vendored upstream never emitted
+//       it; that caveat is now retired.)
+//   - `hookSpecificOutput.updatedMCPToolOutput`          confirmed — but the
+//       payload is a BARE ARRAY of content blocks, NOT `{ content: [...] }`.
+//       The vendored PowerShell orchestrator
+//       (token-optimizer-orchestrator.ps1:2343-2351) used the object form,
+//       which we copied; Claude Code accepts it, logs "replaced tool output",
+//       and then crashes the tool result with `e.reduce is not a function`.
+//       The CLI's own handler is
+//         `if (p.updatedMCPToolOutput !== void 0 && isMcpTool(t))
+//            yield { updatedToolOutput: p.updatedMCPToolOutput }`
+//       and the value is reduced over as an array downstream. Emitting the
+//       bare array substitutes the payload correctly.
+//
+// Note the asymmetry with hook INPUT: `tool_response` arrives as a bare array
+// too (see src/chop/posttooluse-mcp.ts's `normalizeToolResponse`).
 
 /** Claude Code hook event names optiflow currently cares about. */
 export type HookEventName =
@@ -32,9 +42,8 @@ export interface HookSpecificOutput {
   hookEventName: HookEventName;
   permissionDecision?: "allow" | "deny" | "ask";
   permissionDecisionReason?: string;
-  /** UNVERIFIED placement — see module header comment. */
   updatedInput?: Record<string, unknown>;
-  updatedMCPToolOutput?: { content: unknown[] };
+  updatedMCPToolOutput?: unknown[];
   additionalContext?: string;
 }
 
@@ -242,7 +251,6 @@ export function allowWithContext(
 
 /**
  * Rewrite a tool call's input before it runs (`PreToolUse` only).
- * UNVERIFIED against a real working example — see module header comment.
  */
 export function updateInput(
   hookEventName: HookEventName,
@@ -257,21 +265,24 @@ export function updateInput(
 }
 
 /**
- * Substitute an MCP tool's result (`PostToolUse` on an `mcp__*` matcher
- * only — this is the only output-substitution contract Claude Code supports
- * for built-in vs. MCP tools; see
- * vendor/token-optimizer-mcp/hooks/handlers/token-optimizer-orchestrator.ps1).
- * `output.content` must match the MCP tool's own output schema
- * (a `CallToolResult`-shaped `{ content: [...] }`).
+ * Substitute an MCP tool's result (`PostToolUse` on an `mcp__*` matcher only).
+ *
+ * `content` is a BARE ARRAY of content blocks — NOT a `CallToolResult`-shaped
+ * `{ content: [...] }` wrapper, which is what the vendored PowerShell
+ * orchestrator emitted and what this function used to emit. Claude Code
+ * accepts the object form and logs "replaced tool output", then reduces over
+ * the value as an array and crashes the tool result with
+ * `e.reduce is not a function`. Verified live against Claude Code 2.1.235:
+ * the bare array substitutes the payload correctly. See the module header.
  */
 export function updateMCPOutput(
   hookEventName: HookEventName,
-  output: { content: unknown[] }
+  content: unknown[]
 ): HookOutput {
   return {
     hookSpecificOutput: {
       hookEventName,
-      updatedMCPToolOutput: output,
+      updatedMCPToolOutput: content,
     },
   };
 }

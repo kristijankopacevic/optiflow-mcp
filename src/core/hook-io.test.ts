@@ -102,12 +102,22 @@ describe("hook output builders", () => {
     });
   });
 
-  it("updateMCPOutput() carries updatedMCPToolOutput", () => {
-    expect(updateMCPOutput("PostToolUse", { content: [{ type: "text", text: "ok" }] })).toEqual({
+  // Regression: this used to assert the `{ content: [...] }` wrapper, which is
+  // what the vendored upstream emitted. Claude Code accepts that shape, logs
+  // "replaced tool output", then crashes the tool result with
+  // `e.reduce is not a function`. Verified live against 2.1.235: the payload
+  // must be a BARE ARRAY of content blocks.
+  it("updateMCPOutput() carries updatedMCPToolOutput as a bare array", () => {
+    expect(updateMCPOutput("PostToolUse", [{ type: "text", text: "ok" }])).toEqual({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        updatedMCPToolOutput: { content: [{ type: "text", text: "ok" }] },
+        updatedMCPToolOutput: [{ type: "text", text: "ok" }],
       },
     });
+  });
+
+  it("updateMCPOutput() never wraps the array in an object", () => {
+    const out = updateMCPOutput("PostToolUse", [{ type: "text", text: "x" }]);
+    expect(Array.isArray(out.hookSpecificOutput?.updatedMCPToolOutput)).toBe(true);
   });
 });

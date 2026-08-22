@@ -30,6 +30,9 @@ const TOP_LEVEL_SECTIONS = [
   // actually overridable despite the schema/defaults supporting it.
   "kompress",
   "smartCrusher",
+  // v3: MCP result compression. Same trap as kompress/smartCrusher above —
+  // omit it here and the section is silently unoverridable.
+  "mcpCompression",
 ] as const;
 
 type RawConfig = Record<string, unknown>;

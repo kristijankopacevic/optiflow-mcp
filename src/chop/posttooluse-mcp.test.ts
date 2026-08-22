@@ -20,12 +20,32 @@ afterEach(() => {
 function enableChop(minOutputBytes?: number): void {
   writeFileSync(
     path.join(projectDir, "optiflow.config.json"),
-    JSON.stringify({ chop: { enabled: true, ...(minOutputBytes !== undefined ? { minOutputBytes } : {}) } }),
+    JSON.stringify({
+      mcpCompression: { enabled: true, ...(minOutputBytes !== undefined ? { minOutputBytes } : {}) },
+    }),
     "utf8"
   );
 }
 
+/** Disables the path explicitly (the default is now `enabled: true`). */
+function disableMcpCompression(): void {
+  writeFileSync(
+    path.join(projectDir, "optiflow.config.json"),
+    JSON.stringify({ mcpCompression: { enabled: false } }),
+    "utf8"
+  );
+}
+
+/**
+ * The REAL shape Claude Code sends: `tool_response` is a bare array.
+ * Verified by capturing live hook stdin from Claude Code 2.1.235.
+ */
 function mcpInput(toolName: string, text: string): PostToolUseMcpHookInput {
+  return { tool_name: toolName, tool_response: [{ type: "text", text }] };
+}
+
+/** The legacy object shape, still accepted defensively by `normalizeToolResponse`. */
+function mcpInputLegacyShape(toolName: string, text: string): PostToolUseMcpHookInput {
   return { tool_name: toolName, tool_response: { content: [{ type: "text", text }] } };
 }
 
@@ -35,13 +55,43 @@ describe("decidePostToolUseMcp", () => {
     expect(decision.compress).toBe(false);
   });
 
-  it("does nothing when chop is disabled (default)", () => {
+  it("does nothing when mcpCompression is explicitly disabled", () => {
+    disableMcpCompression();
     const decision = decidePostToolUseMcp(mcpInput("mcp__example__tool", "x".repeat(10_000)), {
       cwd: projectDir,
       home: homeDir,
     });
     expect(decision.compress).toBe(false);
-    expect(decision.reason).toContain("chop.enabled is false");
+    expect(decision.reason).toContain("mcpCompression.enabled is false");
+  });
+
+  // v3: this path is ON by default now (split from `chop.enabled`, which stays
+  // false for its own trust-boundary reason). Before the split it was gated
+  // behind chop and therefore dead on every default install.
+  it("compresses by DEFAULT — no config file at all", () => {
+    const decision = decidePostToolUseMcp(mcpInput("mcp__example__tool", "x".repeat(10_000)), {
+      cwd: projectDir,
+      home: homeDir,
+    });
+    expect(decision.compress).toBe(true);
+  });
+
+  it("accepts the real bare-array tool_response shape", () => {
+    enableChop(50);
+    const decision = decidePostToolUseMcp(mcpInput("mcp__example__tool", "y".repeat(5_000)), {
+      cwd: projectDir,
+      home: homeDir,
+    });
+    expect(decision.compress).toBe(true);
+  });
+
+  it("still accepts the legacy { content: [...] } shape", () => {
+    enableChop(50);
+    const decision = decidePostToolUseMcp(mcpInputLegacyShape("mcp__example__tool", "y".repeat(5_000)), {
+      cwd: projectDir,
+      home: homeDir,
+    });
+    expect(decision.compress).toBe(true);
   });
 
   it("does not compress small output even when chop is enabled", () => {
@@ -80,7 +130,7 @@ describe("buildHookOutput", () => {
     const decision = decidePostToolUseMcp(input, { cwd: projectDir, home: homeDir });
     const output = buildHookOutput(input, decision);
     expect(output.hookSpecificOutput?.updatedMCPToolOutput).toBeDefined();
-    const content = output.hookSpecificOutput!.updatedMCPToolOutput!.content as Array<{ type: string; text: string }>;
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput as Array<{ type: string; text: string }>;
     expect(content[0].type).toBe("text");
     expect(content[0].text.length).toBeLessThan(largeArray.length);
   });
@@ -89,16 +139,14 @@ describe("buildHookOutput", () => {
     enableChop(0);
     const input: PostToolUseMcpHookInput = {
       tool_name: "mcp__example__tool",
-      tool_response: {
-        content: [
-          { type: "text", text: "x".repeat(500) },
-          { type: "image", data: "base64stuff" },
-        ],
-      },
+      tool_response: [
+        { type: "text", text: "x".repeat(500) },
+        { type: "image", data: "base64stuff" },
+      ],
     };
     const decision = decidePostToolUseMcp(input, { cwd: projectDir, home: homeDir });
     const output = buildHookOutput(input, decision);
-    const content = output.hookSpecificOutput!.updatedMCPToolOutput!.content as Array<Record<string, unknown>>;
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput as Array<Record<string, unknown>>;
     expect(content.some((block) => block.type === "image")).toBe(true);
   });
 

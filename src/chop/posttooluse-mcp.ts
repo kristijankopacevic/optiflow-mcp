@@ -1,5 +1,5 @@
 // The `PostToolUse` hook entry for matcher `mcp__.*` — reads an MCP tool's
-// raw output from stdin, and if it's large enough (`chop.minOutputBytes`)
+// raw output from stdin, and if it is large enough (`mcpCompression.minOutputBytes`)
 // and looks compressible (delegated entirely to `generic.ts`'s heuristics —
 // this hook never reimplements shape detection), emits
 // `updatedMCPToolOutput`. Otherwise emits a bare `{}` (see pretooluse.ts's
@@ -20,15 +20,39 @@ export interface McpContentBlock {
   [key: string]: unknown;
 }
 
+/**
+ * `tool_response` as Claude Code actually sends it, verified by capturing real
+ * hook stdin from a live 2.1.235 session: a BARE ARRAY of content blocks.
+ *
+ * The `{ content: [...] }` object form is also accepted here purely
+ * defensively — it is the shape the vendored upstream assumed and the shape
+ * this file used to require exclusively, which is why the whole compression
+ * path silently no-op'd in production while every fixture-driven test passed.
+ * Accepting both costs nothing and means a future contract change in either
+ * direction degrades to "no compression" rather than a crash.
+ */
+export type PostToolUseMcpResponse =
+  | McpContentBlock[]
+  | { content?: McpContentBlock[]; [key: string]: unknown };
+
 export interface PostToolUseMcpHookInput {
   tool_name?: string;
-  tool_response?: {
-    content?: McpContentBlock[];
-    [key: string]: unknown;
-  };
+  tool_response?: PostToolUseMcpResponse;
 }
 
 const MCP_TOOL_MATCHER = /^mcp__/;
+
+/** Extracts the content-block array from either accepted `tool_response` shape. */
+export function normalizeToolResponse(
+  toolResponse: PostToolUseMcpResponse | undefined
+): McpContentBlock[] | null {
+  if (Array.isArray(toolResponse)) {
+    return toolResponse.length > 0 ? toolResponse : null;
+  }
+  const content = toolResponse?.content;
+  if (Array.isArray(content) && content.length > 0) return content;
+  return null;
+}
 
 /** Concatenates every text block's `.text`, which is what token/byte-size decisions are based on. */
 function extractText(content: McpContentBlock[]): string {
@@ -51,20 +75,23 @@ export function decidePostToolUseMcp(
     return { compress: false, reason: "not an mcp__* tool call" };
   }
 
-  const content = input.tool_response?.content;
-  if (!Array.isArray(content) || content.length === 0) {
-    return { compress: false, reason: "no tool_response.content to inspect" };
+  const content = normalizeToolResponse(input.tool_response);
+  if (!content) {
+    return { compress: false, reason: "no tool_response content blocks to inspect" };
   }
 
   const { config } = loadConfig(loadOptions);
-  if (!config.chop.enabled) {
-    return { compress: false, reason: "chop.enabled is false" };
+  if (!config.mcpCompression.enabled) {
+    return { compress: false, reason: "mcpCompression.enabled is false" };
   }
 
   const text = extractText(content);
   const byteLength = Buffer.byteLength(text, "utf8");
-  if (byteLength < config.chop.minOutputBytes) {
-    return { compress: false, reason: `output is ${byteLength} bytes, below chop.minOutputBytes (${config.chop.minOutputBytes})` };
+  if (byteLength < config.mcpCompression.minOutputBytes) {
+    return {
+      compress: false,
+      reason: `output is ${byteLength} bytes, below mcpCompression.minOutputBytes (${config.mcpCompression.minOutputBytes})`,
+    };
   }
 
   return { compress: true, reason: "eligible for compression" };
@@ -76,7 +103,8 @@ export function buildHookOutput(
 ): HookOutput {
   if (!decision.compress) return {};
 
-  const content = input.tool_response?.content as McpContentBlock[];
+  const content = normalizeToolResponse(input.tool_response);
+  if (!content) return {};
   const text = extractText(content);
   const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
 
@@ -87,7 +115,7 @@ export function buildHookOutput(
   const nonTextBlocks = content.filter((block) => block.type !== "text");
   const newContent: McpContentBlock[] = [{ type: "text", text: filtered.text }, ...nonTextBlocks];
 
-  return updateMCPOutput("PostToolUse", { content: newContent });
+  return updateMCPOutput("PostToolUse", newContent);
 }
 
 export async function runPostToolUseMcp(

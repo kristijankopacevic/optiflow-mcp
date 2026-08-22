@@ -32,25 +32,54 @@ afterEach(() => {
 });
 
 describe("posttooluse-mcp golden fixture", () => {
-  it("chop.enabled: false (default) -> no updatedMCPToolOutput", async () => {
+  // v3 INVERSION (deliberate): this used to assert that a default install
+  // produced NO compression, because the path was gated behind
+  // `chop.enabled: false`. That gate was the reason TOON and SmartCrusher
+  // were dead on every default install despite both being `enabled: true`.
+  // Compressing an MCP tool RESULT does not touch the permission-matching
+  // surface that justifies chop's default-off, so it is now on by default.
+  it("default config (no file) -> DOES compress the real-shape fixture", async () => {
+    const raw = loadFixture("posttooluse-mcp-large-json.json");
+    const output = await runPostToolUseMcp(() => readHookInput(stdinFrom(raw)), { cwd: projectDir, home: homeDir });
+    const content = output.hookSpecificOutput?.updatedMCPToolOutput as Array<{ text: string }>;
+    expect(Array.isArray(content)).toBe(true);
+    expect(content[0].text.length).toBeLessThan(raw.length);
+  });
+
+  it("mcpCompression.enabled: false -> no updatedMCPToolOutput", async () => {
+    writeFileSync(
+      path.join(projectDir, "optiflow.config.json"),
+      JSON.stringify({ mcpCompression: { enabled: false } }),
+      "utf8"
+    );
     const raw = loadFixture("posttooluse-mcp-large-json.json");
     const output = await runPostToolUseMcp(() => readHookInput(stdinFrom(raw)), { cwd: projectDir, home: homeDir });
     expect(output).toEqual({});
   });
 
-  it("chop.enabled: true + low minOutputBytes -> updatedMCPToolOutput compresses the large uniform array", async () => {
+  // The legacy `{ content: [...] }` shape must still work — see
+  // `normalizeToolResponse`. This is the shape the OLD fixture encoded, and
+  // the reason the production bug went unnoticed for so long.
+  it("legacy object-shaped tool_response still compresses", async () => {
+    const raw = loadFixture("posttooluse-mcp-legacy-object-shape.json");
+    const output = await runPostToolUseMcp(() => readHookInput(stdinFrom(raw)), { cwd: projectDir, home: homeDir });
+    const content = output.hookSpecificOutput?.updatedMCPToolOutput as Array<{ text: string }>;
+    expect(Array.isArray(content)).toBe(true);
+  });
+
+  it("mcpCompression.enabled: true + low minOutputBytes -> updatedMCPToolOutput compresses the large uniform array", async () => {
     writeFileSync(
       path.join(projectDir, "optiflow.config.json"),
-      JSON.stringify({ chop: { enabled: true, minOutputBytes: 50 } }),
+      JSON.stringify({ mcpCompression: { enabled: true, minOutputBytes: 50 } }),
       "utf8"
     );
     const raw = loadFixture("posttooluse-mcp-large-json.json");
     const output = await runPostToolUseMcp(() => readHookInput(stdinFrom(raw)), { cwd: projectDir, home: homeDir });
-    const content = output.hookSpecificOutput?.updatedMCPToolOutput?.content as Array<{ type: string; text: string }>;
+    const content = output.hookSpecificOutput?.updatedMCPToolOutput as Array<{ type: string; text: string }>;
     expect(content).toBeDefined();
 
     const originalItems = JSON.parse(
-      (JSON.parse(raw) as { tool_response: { content: Array<{ text: string }> } }).tool_response.content[0].text
+      (JSON.parse(raw) as { tool_response: Array<{ text: string }> }).tool_response[0].text
     );
     expect(content[0].text.length).toBeLessThan(raw.length);
 

@@ -98,11 +98,11 @@ function toCappedJson(value, capChars = DEFAULT_OUTPUT_CAP_CHARS) {
 function writeHookOutput(output, capChars = DEFAULT_OUTPUT_CAP_CHARS, stdout = process.stdout) {
   stdout.write(toCappedJson(output, capChars));
 }
-function updateMCPOutput(hookEventName, output) {
+function updateMCPOutput(hookEventName, content) {
   return {
     hookSpecificOutput: {
       hookEventName,
-      updatedMCPToolOutput: output
+      updatedMCPToolOutput: content
     }
   };
 }
@@ -157,6 +157,10 @@ var DEFAULT_CONFIG = {
     enabled: false,
     allowDownload: false,
     variant: "int8"
+  },
+  mcpCompression: {
+    enabled: true,
+    minOutputBytes: 400
   },
   smartCrusher: {
     enabled: true,
@@ -14718,6 +14722,10 @@ var KompressSchema = external_exports.object({
   allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
   variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
 });
+var McpCompressionSchema = external_exports.object({
+  enabled: external_exports.boolean().default(DEFAULT_CONFIG.mcpCompression.enabled),
+  minOutputBytes: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.mcpCompression.minOutputBytes)
+});
 var SmartCrusherSchema = external_exports.object({
   enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
   minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
@@ -14730,6 +14738,7 @@ var OptiflowConfigSchema = external_exports.object({
   report: ReportSchema.default(DEFAULT_CONFIG.report),
   telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
   kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+  mcpCompression: McpCompressionSchema.default(DEFAULT_CONFIG.mcpCompression),
   smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
 });
 
@@ -14772,7 +14781,10 @@ var TOP_LEVEL_SECTIONS = [
   // zod (mergeLayers only ever copies keys listed here), so neither was
   // actually overridable despite the schema/defaults supporting it.
   "kompress",
-  "smartCrusher"
+  "smartCrusher",
+  // v3: MCP result compression. Same trap as kompress/smartCrusher above —
+  // omit it here and the section is silently unoverridable.
+  "mcpCompression"
 ];
 function readJsonObject(filePath) {
   try {
@@ -15818,6 +15830,14 @@ function genericFilter(input, options = {}) {
 
 // src/chop/posttooluse-mcp.ts
 var MCP_TOOL_MATCHER = /^mcp__/;
+function normalizeToolResponse(toolResponse) {
+  if (Array.isArray(toolResponse)) {
+    return toolResponse.length > 0 ? toolResponse : null;
+  }
+  const content = toolResponse?.content;
+  if (Array.isArray(content) && content.length > 0) return content;
+  return null;
+}
 function extractText(content) {
   return content.filter((block) => block.type === "text" && typeof block.text === "string").map((block) => block.text).join("\n");
 }
@@ -15825,29 +15845,33 @@ function decidePostToolUseMcp(input, loadOptions = {}) {
   if (typeof input.tool_name !== "string" || !MCP_TOOL_MATCHER.test(input.tool_name)) {
     return { compress: false, reason: "not an mcp__* tool call" };
   }
-  const content = input.tool_response?.content;
-  if (!Array.isArray(content) || content.length === 0) {
-    return { compress: false, reason: "no tool_response.content to inspect" };
+  const content = normalizeToolResponse(input.tool_response);
+  if (!content) {
+    return { compress: false, reason: "no tool_response content blocks to inspect" };
   }
   const { config: config2 } = loadConfig(loadOptions);
-  if (!config2.chop.enabled) {
-    return { compress: false, reason: "chop.enabled is false" };
+  if (!config2.mcpCompression.enabled) {
+    return { compress: false, reason: "mcpCompression.enabled is false" };
   }
   const text = extractText(content);
   const byteLength = Buffer.byteLength(text, "utf8");
-  if (byteLength < config2.chop.minOutputBytes) {
-    return { compress: false, reason: `output is ${byteLength} bytes, below chop.minOutputBytes (${config2.chop.minOutputBytes})` };
+  if (byteLength < config2.mcpCompression.minOutputBytes) {
+    return {
+      compress: false,
+      reason: `output is ${byteLength} bytes, below mcpCompression.minOutputBytes (${config2.mcpCompression.minOutputBytes})`
+    };
   }
   return { compress: true, reason: "eligible for compression" };
 }
 function buildHookOutput(input, decision) {
   if (!decision.compress) return {};
-  const content = input.tool_response?.content;
+  const content = normalizeToolResponse(input.tool_response);
+  if (!content) return {};
   const text = extractText(content);
   const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
   const nonTextBlocks = content.filter((block) => block.type !== "text");
   const newContent = [{ type: "text", text: filtered.text }, ...nonTextBlocks];
-  return updateMCPOutput("PostToolUse", { content: newContent });
+  return updateMCPOutput("PostToolUse", newContent);
 }
 async function runPostToolUseMcp(readInput, loadOptions = {}) {
   const input = await readInput();
@@ -15867,6 +15891,7 @@ if (isDirectRun) {
 export {
   buildHookOutput,
   decidePostToolUseMcp,
+  normalizeToolResponse,
   runPostToolUseMcp
 };
 //# sourceMappingURL=posttooluse-mcp.mjs.map

@@ -41,3 +41,43 @@ jobs:
       # src/plugin-install.itest.ts's header for why this is a separate,
       # slower check from `npm test` rather than folded into it).
       - run: npm run test:plugin-install
+
+  # A marketplace install ships no node_modules and Claude Code's automatic
+  # dependency install runs with --ignore-scripts, so the plugin must run on
+  # whatever Node the host already has. Ubuntu LTS still ships Node 18, and a
+  # real user hit exactly that: the plugin crashed there while CI (Node 22)
+  # stayed green. This job pins the floor declared in package.json engines.
+  install-on-oldest-supported-node:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # Deliberately NOT `npm ci` — this job must prove the SHIPPED plugin/
+      # tree runs standalone, with no dependency tree at all.
+      - name: Run the CLI from an isolated copy of plugin/
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          cp -r plugin "$TMP/plugin"
+          test -x "$TMP/plugin/bin/optiflow" || { echo "bin/optiflow is not executable"; exit 1; }
+          cd "$TMP"
+          node "$TMP/plugin/bin/optiflow" --version
+          node "$TMP/plugin/bin/optiflow" doctor
+      - name: Start the MCP server from the isolated copy
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          cp -r plugin "$TMP/plugin"
+          cd "$TMP"
+          # Must not exit non-zero on import; a clean stdio wait is success.
+          timeout 10s node "$TMP/plugin/dist/optimizer/server.js" < /dev/null > out.log 2>&1 || code=$?
+          if grep -qiE "ERR_MODULE_NOT_FOUND|Cannot use import statement|SyntaxError" out.log; then
+            echo "FAILED: server crashed at import on Node ${{ matrix.node }}"; cat out.log; exit 1
+          fi
+          echo "server started cleanly on Node ${{ matrix.node }}"

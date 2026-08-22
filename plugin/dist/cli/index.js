@@ -65,6 +65,10 @@ var init_defaults = __esm({
         allowDownload: false,
         variant: "int8"
       },
+      mcpCompression: {
+        enabled: true,
+        minOutputBytes: 400
+      },
       smartCrusher: {
         enabled: true,
         minSavingsPercent: 20
@@ -15155,7 +15159,7 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, SmartCrusherSchema, OptiflowConfigSchema;
+var ChopSchema, ToonSchema, StatuslineSchema, HandoffSchema, ReportSchema, TelemetrySchema, KompressSchema, McpCompressionSchema, SmartCrusherSchema, OptiflowConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
@@ -15200,6 +15204,10 @@ var init_schema = __esm({
       allowDownload: external_exports.boolean().default(DEFAULT_CONFIG.kompress.allowDownload),
       variant: external_exports.enum(["int8", "fp32"]).default(DEFAULT_CONFIG.kompress.variant)
     });
+    McpCompressionSchema = external_exports.object({
+      enabled: external_exports.boolean().default(DEFAULT_CONFIG.mcpCompression.enabled),
+      minOutputBytes: external_exports.number().int().nonnegative().default(DEFAULT_CONFIG.mcpCompression.minOutputBytes)
+    });
     SmartCrusherSchema = external_exports.object({
       enabled: external_exports.boolean().default(DEFAULT_CONFIG.smartCrusher.enabled),
       minSavingsPercent: external_exports.number().min(0).max(100).default(DEFAULT_CONFIG.smartCrusher.minSavingsPercent)
@@ -15212,6 +15220,7 @@ var init_schema = __esm({
       report: ReportSchema.default(DEFAULT_CONFIG.report),
       telemetry: TelemetrySchema.default(DEFAULT_CONFIG.telemetry),
       kompress: KompressSchema.default(DEFAULT_CONFIG.kompress),
+      mcpCompression: McpCompressionSchema.default(DEFAULT_CONFIG.mcpCompression),
       smartCrusher: SmartCrusherSchema.default(DEFAULT_CONFIG.smartCrusher)
     });
   }
@@ -15339,7 +15348,10 @@ var init_load = __esm({
       // zod (mergeLayers only ever copies keys listed here), so neither was
       // actually overridable despite the schema/defaults supporting it.
       "kompress",
-      "smartCrusher"
+      "smartCrusher",
+      // v3: MCP result compression. Same trap as kompress/smartCrusher above —
+      // omit it here and the section is silently unoverridable.
+      "mcpCompression"
     ];
   }
 });
@@ -18760,13 +18772,50 @@ function detectGhAuth() {
   return { present: true, authenticated: authProbe.ok };
 }
 
+// src/install/runtime-probe.ts
+import { createRequire } from "node:module";
+function tryRequire(id) {
+  try {
+    createRequire(import.meta.url)(id);
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, detail: message.split("\n")[0]?.slice(0, 120) };
+  }
+}
+function probeRuntime() {
+  const nodeMajor = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
+  const sqlite = tryRequire("better-sqlite3");
+  const tiktoken = tryRequire("tiktoken");
+  const accelerators = [
+    {
+      name: "better-sqlite3 (persistent cache)",
+      available: sqlite.ok,
+      degradedTo: "in-memory cache \u2014 entries do not survive a restart",
+      detail: sqlite.ok ? void 0 : nodeMajor < 22 ? `not loadable (better-sqlite3 requires Node >=22; this is Node ${nodeMajor})` : sqlite.detail
+    },
+    {
+      name: "tiktoken (exact token counts)",
+      available: tiktoken.ok,
+      degradedTo: "heuristic estimate (chars/4) \u2014 savings figures become estimates",
+      detail: tiktoken.ok ? void 0 : tiktoken.detail
+    }
+  ];
+  return {
+    nodeMajor,
+    allAvailable: accelerators.every((a) => a.available),
+    accelerators
+  };
+}
+
 // src/install/doctor.ts
 function runDoctor(options = {}) {
   const configLoad = loadConfig({ cwd: options.cwd, home: options.home });
   return {
     node: detectNodeEnv(),
     configLoad,
-    gh: detectGhAuth()
+    gh: detectGhAuth(),
+    runtime: probeRuntime()
   };
 }
 function statusLine(label, value) {
@@ -18809,6 +18858,39 @@ function renderDoctorReport(report) {
   lines.push(
     statusLine("chop.enabled (resolved)", String(report.configLoad.config.chop.enabled))
   );
+  lines.push(
+    statusLine(
+      "mcpCompression.enabled",
+      String(report.configLoad.config.mcpCompression.enabled)
+    )
+  );
+  lines.push("");
+  lines.push("Optional accelerators");
+  for (const acc of report.runtime.accelerators) {
+    lines.push(statusLine(acc.name, acc.available ? "available" : "not loaded"));
+    if (!acc.available) {
+      lines.push(statusLine("", `-> ${acc.degradedTo}`));
+      if (acc.detail) lines.push(statusLine("", `   ${acc.detail}`));
+    }
+  }
+  if (!report.runtime.allAvailable) {
+    lines.push("");
+    lines.push(
+      "  All of the above are optional. optiflow is fully functional without"
+    );
+    lines.push(
+      "  them; compression still runs and savings are still measured, but"
+    );
+    lines.push(
+      "  token counts become estimates and the cache is per-process."
+    );
+    lines.push(
+      "  To enable them, install them into the plugin directory manually:"
+    );
+    lines.push(
+      "    npm install better-sqlite3 tiktoken   (requires Node >=22)"
+    );
+  }
   lines.push("");
   lines.push("GitHub CLI");
   lines.push(statusLine("gh present", report.gh.present ? "yes" : "no"));
@@ -21285,10 +21367,10 @@ init_load();
 // src/native/smart-crusher.ts
 import { createHash } from "node:crypto";
 import { existsSync as existsSync11 } from "node:fs";
-import { createRequire } from "node:module";
+import { createRequire as createRequire2 } from "node:module";
 import path13 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var nodeRequire = createRequire(import.meta.url);
+var nodeRequire = createRequire2(import.meta.url);
 var WASM_MODULE_REL_SEGMENTS = ["native", "headroom-wasm", "pkg", "headroom_wasm.js"];
 var MAX_WALK_UP = 15;
 function findWasmModulePath() {
