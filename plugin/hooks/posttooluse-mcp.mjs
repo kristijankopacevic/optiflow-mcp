@@ -940,10 +940,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path5) {
-  if (!path5)
+function getElementAtPath(obj, path6) {
+  if (!path6)
     return obj;
-  return path5.reduce((acc, key) => acc?.[key], obj);
+  return path6.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -1352,11 +1352,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path5, issues) {
+function prefixIssues(path6, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path5);
+    iss.path.unshift(path6);
     return iss;
   });
 }
@@ -1503,16 +1503,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path5 = []) => {
+  const processError = (error52, path6 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path6, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path6, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path6, ...issue2.path]);
       } else {
-        const fullpath = [...path5, ...issue2.path];
+        const fullpath = [...path6, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -1539,17 +1539,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error52, path5 = []) => {
+  const processError = (error52, path6 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path5, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path6, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path6, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path5, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path6, ...issue2.path]);
       } else {
-        const fullpath = [...path5, ...issue2.path];
+        const fullpath = [...path6, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -1581,8 +1581,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path5 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path5) {
+  const path6 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path6) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -14274,13 +14274,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path5 = ref.slice(1).split("/").filter(Boolean);
-  if (path5.length === 0) {
+  const path6 = ref.slice(1).split("/").filter(Boolean);
+  if (path6.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path5[0] === defsKey) {
-    const key = path5[1];
+  if (path6[0] === defsKey) {
+    const key = path6[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -14855,6 +14855,42 @@ ${issues}
   };
 }
 
+// src/core/ledger.ts
+import { appendFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync2 } from "node:fs";
+import path3 from "node:path";
+function ledgerPath(home) {
+  return path3.join(home, "ledger.jsonl");
+}
+function appendLedger(record2, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    mkdirSync(home, { recursive: true });
+    const full = {
+      timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
+      module: record2.module,
+      command_or_context: record2.command_or_context,
+      tokensBefore: record2.tokensBefore,
+      tokensAfter: record2.tokensAfter,
+      bytesBefore: record2.bytesBefore,
+      bytesAfter: record2.bytesAfter
+    };
+    appendFileSync(ledgerPath(home), JSON.stringify(full) + "\n", "utf8");
+  } catch {
+  }
+}
+
+// src/core/tokens.ts
+var encoder = null;
+function countTokens(text) {
+  if (encoder) {
+    try {
+      return encoder.encode(text).length;
+    } catch {
+    }
+  }
+  return Math.ceil(text.length / 4);
+}
+
 // src/toon/detect.ts
 function isPlainObject2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15330,30 +15366,30 @@ function applyReplacer(root, replacer) {
   if (replacedRoot === void 0) return transformChildren(root, replacer, []);
   return transformReplaced(root, replacedRoot, replacer, []);
 }
-function transformReplaced(original, replaced, replacer, path5) {
-  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path5);
-  return transformChildren(normalizeValue(replaced), replacer, path5);
+function transformReplaced(original, replaced, replacer, path6) {
+  if (isRawString(replaced) && !isEncodablePrimitive(original)) return transformChildren(original, replacer, path6);
+  return transformChildren(normalizeValue(replaced), replacer, path6);
 }
-function transformChildren(value, replacer, path5) {
-  if (isJsonObject(value)) return transformObject(value, replacer, path5);
-  if (isJsonArray(value)) return transformArray(value, replacer, path5);
+function transformChildren(value, replacer, path6) {
+  if (isJsonObject(value)) return transformObject(value, replacer, path6);
+  if (isJsonArray(value)) return transformArray(value, replacer, path6);
   return value;
 }
-function transformObject(obj, replacer, path5) {
+function transformObject(obj, replacer, path6) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    const childPath = [...path5, key];
+    const childPath = [...path6, key];
     const replacedValue = replacer(key, value, childPath);
     if (replacedValue === void 0) continue;
     setOwnProperty(result, key, transformReplaced(value, replacedValue, replacer, childPath));
   }
   return result;
 }
-function transformArray(arr, replacer, path5) {
+function transformArray(arr, replacer, path6) {
   const result = [];
   for (let i = 0; i < arr.length; i++) {
     const value = arr[i];
-    const childPath = [...path5, i];
+    const childPath = [...path6, i];
     const replacedValue = replacer(String(i), value, childPath);
     if (replacedValue === void 0) continue;
     result.push(transformReplaced(value, replacedValue, replacer, childPath));
@@ -15498,18 +15534,6 @@ function errorMessage(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
-// src/core/tokens.ts
-var encoder = null;
-function countTokens(text) {
-  if (encoder) {
-    try {
-      return encoder.encode(text).length;
-    } catch {
-    }
-  }
-  return Math.ceil(text.length / 4);
-}
-
 // src/toon/guard.ts
 function evaluateGuard(original, candidateToon, rowCount, opts) {
   const tokensBefore = countTokens(original);
@@ -15593,19 +15617,19 @@ function maybeConvertToToon(input, config2) {
 
 // src/native/smart-crusher.ts
 import { createHash } from "node:crypto";
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import { createRequire } from "node:module";
-import path3 from "node:path";
+import path4 from "node:path";
 import { fileURLToPath } from "node:url";
 var nodeRequire = createRequire(import.meta.url);
 var WASM_MODULE_REL_SEGMENTS = ["native", "headroom-wasm", "pkg", "headroom_wasm.js"];
 var MAX_WALK_UP = 15;
 function findWasmModulePath() {
-  let dir = path3.dirname(fileURLToPath(import.meta.url));
+  let dir = path4.dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < MAX_WALK_UP; i++) {
-    const candidate = path3.join(dir, ...WASM_MODULE_REL_SEGMENTS);
-    if (existsSync3(candidate)) return candidate;
-    const parent = path3.dirname(dir);
+    const candidate = path4.join(dir, ...WASM_MODULE_REL_SEGMENTS);
+    if (existsSync4(candidate)) return candidate;
+    const parent = path4.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
   }
@@ -15658,21 +15682,21 @@ function ccrMarkerHashFor(canonicalContent) {
 }
 
 // src/native/ccr-store.ts
-import { appendFileSync, existsSync as existsSync4, mkdirSync, readFileSync as readFileSync2 } from "node:fs";
-import path4 from "node:path";
+import { appendFileSync as appendFileSync2, existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync3 } from "node:fs";
+import path5 from "node:path";
 function ccrStorePath(home) {
-  return path4.join(home, "ccr-store.jsonl");
+  return path5.join(home, "ccr-store.jsonl");
 }
 function putCcr(hash2, content, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
-    mkdirSync(home, { recursive: true });
+    mkdirSync2(home, { recursive: true });
     const record2 = {
       hash: hash2,
       content,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     };
-    appendFileSync(ccrStorePath(home), JSON.stringify(record2) + "\n", "utf8");
+    appendFileSync2(ccrStorePath(home), JSON.stringify(record2) + "\n", "utf8");
   } catch {
   }
 }
@@ -15873,24 +15897,36 @@ function decidePostToolUseMcp(input, loadOptions = {}) {
   }
   return { compress: true, reason: "eligible for compression" };
 }
-function buildHookOutput(input, decision) {
+var MCP_COMPRESSION_LEDGER_MODULE = "mcp-compression";
+function buildHookOutput(input, decision, options = {}) {
   if (!decision.compress) return {};
   const content = normalizeToolResponse(input.tool_response);
   if (!content) return {};
   const text = extractText(content);
   const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
   const nonTextBlocks = content.filter((block) => block.type !== "text");
+  const replacementText = annotateCcrMarkers(filtered.text);
   const newContent = [
-    { type: "text", text: annotateCcrMarkers(filtered.text) },
+    { type: "text", text: replacementText },
     ...nonTextBlocks
   ];
+  if (options.writeLedger) {
+    options.writeLedger({
+      module: MCP_COMPRESSION_LEDGER_MODULE,
+      command_or_context: input.tool_name ?? "mcp__unknown",
+      tokensBefore: countTokens(text),
+      tokensAfter: countTokens(replacementText),
+      bytesBefore: Buffer.byteLength(text, "utf8"),
+      bytesAfter: Buffer.byteLength(replacementText, "utf8")
+    });
+  }
   return updateMCPOutput("PostToolUse", newContent);
 }
 async function runPostToolUseMcp(readInput, loadOptions = {}) {
   const input = await readInput();
   if (!input) return {};
   const decision = decidePostToolUseMcp(input, loadOptions);
-  return buildHookOutput(input, decision);
+  return buildHookOutput(input, decision, { writeLedger: appendLedger });
 }
 async function main() {
   const output = await runPostToolUseMcp(() => readHookInput());
@@ -15902,6 +15938,7 @@ if (isDirectRun) {
   main();
 }
 export {
+  MCP_COMPRESSION_LEDGER_MODULE,
   buildHookOutput,
   decidePostToolUseMcp,
   normalizeToolResponse,

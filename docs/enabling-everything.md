@@ -110,6 +110,37 @@ vendored enforcement layer.
 | `TOKEN_OPTIMIZER_REPEAT_READ_WINDOW_MINUTES` | `30` | How long a recorded read keeps licensing that |
 | `OPTIFLOW_DEBUG_SUBSTITUTE` | unset | Log why inline code compression declined — see below |
 
+## Seeing what it saved
+
+```bash
+optiflow savings                 # totals per module
+optiflow savings --watch         # live, refreshes every 5s
+optiflow savings --range 24h
+optiflow savings --json
+```
+
+This is the before/after ledger — what optiflow *saved*. Distinct from
+`optiflow report`, which parses Claude Code's transcripts and shows what a
+session *spent*; that command has no before/after and does not know optiflow
+exists.
+
+Three things the output deliberately does not smooth over:
+
+- **Suppressed reads are reported on their own line and excluded from the
+  headline total.** "This output shrank by N tokens" and "this read never
+  happened" are different claims, and the second is only a real saving if the
+  model did not immediately work around the refusal. Adding them together
+  would overstate both.
+- **Token counts are labelled estimated or exact.** Without `tiktoken` they
+  are chars/4, which skews on code and JSON. Bytes are always measured, so
+  where the two disagree, trust bytes.
+- **`code-substitute` rows measure the substitute as built, not as
+  delivered.** The hook output cap can truncate a very large outline
+  downstream, so those rows credit slightly more than reached the model.
+
+An empty ledger is not an error — it just means nothing has been compressed
+yet.
+
 ## If something seems not to be working
 
 Nearly every path here is **fail-open by design**: a broken dependency

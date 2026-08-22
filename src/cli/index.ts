@@ -13,6 +13,7 @@ import { registerStatuslineCommand } from "./commands/statusline.js";
 import { registerChopCommand } from "./commands/chop.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerCcrRetrieveCommand } from "./commands/ccr-retrieve.js";
+import { registerSavingsCommand } from "./commands/savings.js";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -41,6 +42,7 @@ export function buildProgram(): Command {
   registerChopCommand(program);
   registerInitCommand(program);
   registerCcrRetrieveCommand(program);
+  registerSavingsCommand(program);
 
   return program;
 }

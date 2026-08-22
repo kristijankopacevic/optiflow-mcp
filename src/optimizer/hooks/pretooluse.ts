@@ -63,6 +63,8 @@ import {
   denyWithSubstitute as hookDenyWithSubstitute,
   type HookOutput,
 } from "../../core/hook-io.js";
+import { appendLedger } from "../../core/ledger.js";
+import { estimateTokens } from "../../core/tokens.js";
 import {
   mode,
   MODE_OFF,
@@ -113,6 +115,12 @@ import { hookDeadlineMs } from "./lib/observability.js";
 // `esbuild.config.mjs` specifically calls out staying lean. Deferred to a
 // dynamic `import()` inside the try/catch (below) instead, so an absent/
 // broken dependency degrades to the plain redirect, not a dead hook.
+
+/** Ledger module name for the deny-and-substitute path (see `optiflow savings`). */
+export const CODE_SUBSTITUTE_LEDGER_MODULE = "code-substitute";
+
+/** Ledger module name for an unchanged re-read that was refused outright. */
+export const READ_SUPPRESSED_LEDGER_MODULE = "read-suppressed";
 
 /** Largest file the hook will read to index. Above this the touch is still observed, but not hashed. */
 const HARVEST_MAX_BYTES = Number(process.env.TOKEN_OPTIMIZER_HARVEST_MAX_BYTES) || 4_000_000;
@@ -387,6 +395,23 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
               codeResult.compressedTokens < codeResult.originalTokens
             ) {
               substitute = `${SUBSTITUTE_PREFACE}\n\n${codeResult.compressed}`;
+
+              // Record the saving. Note this measures the substitute as
+              // BUILT, not as delivered: `writeHookOutput`'s envelope cap
+              // can still truncate it downstream, so a very large outline
+              // is credited with slightly more than reached the model.
+              // `compressCode` already produced real token counts here, so
+              // unlike the byte-derived paths these two numbers are the
+              // compressor's own — see `optiflow savings` for how the
+              // report labels that.
+              appendLedger({
+                module: CODE_SUBSTITUTE_LEDGER_MODULE,
+                command_or_context: filePath,
+                tokensBefore: codeResult.originalTokens,
+                tokensAfter: codeResult.compressedTokens,
+                bytesBefore: Buffer.byteLength(source, "utf8"),
+                bytesAfter: Buffer.byteLength(substitute, "utf8"),
+              });
             }
           }
         }
@@ -403,6 +428,24 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
     // `substitute` is undefined unless the block above actually produced a
     // real, measured reduction, so `enforceVerdict` falls back to a plain
     // `deny` exactly as before whenever it didn't.
+    // An avoided read is a saving too, but a different KIND of saving from
+    // compression, so it gets its own ledger module and is never folded into
+    // the compression total (see src/cli/commands/savings.ts). Only recorded
+    // when the refusal actually stands: on a repeat, `enforceVerdict`
+    // downgrades to advisory and the read goes through, so nothing was saved.
+    const suppressedBytes =
+      "suppressedReadBytes" in verdict ? verdict.suppressedReadBytes : undefined;
+    if (!repeat && currentMode === MODE_ENFORCE && suppressedBytes) {
+      appendLedger({
+        module: READ_SUPPRESSED_LEDGER_MODULE,
+        command_or_context: payload.tool_input.file_path ?? "unknown",
+        tokensBefore: estimateTokens(suppressedBytes),
+        tokensAfter: 0,
+        bytesBefore: suppressedBytes,
+        bytesAfter: 0,
+      });
+    }
+
     return verdictToHookOutput(enforceVerdict(reason, repeat, currentMode, substitute));
   } catch {
     // Wrapped whole: any defect in this hook must cost the user nothing.

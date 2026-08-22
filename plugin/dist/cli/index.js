@@ -14012,17 +14012,17 @@ var init_schemas2 = __esm({
       inst._zod.processJSONSchema = (ctx, json2, params) => arrayProcessor(inst, ctx, json2, params);
       inst.element = def.element;
       _installLazyMethods(inst, "ZodArray", {
-        min(n, params) {
-          return this.check(_minLength(n, params));
+        min(n2, params) {
+          return this.check(_minLength(n2, params));
         },
         nonempty(params) {
           return this.check(_minLength(1, params));
         },
-        max(n, params) {
-          return this.check(_maxLength(n, params));
+        max(n2, params) {
+          return this.check(_maxLength(n2, params));
         },
-        length(n, params) {
-          return this.check(_length(n, params));
+        length(n2, params) {
+          return this.check(_length(n2, params));
         },
         unwrap() {
           return this.element;
@@ -15359,6 +15359,49 @@ var init_load = __esm({
       // omit it here and the section is silently unoverridable.
       "mcpCompression"
     ];
+  }
+});
+
+// src/core/tokens.ts
+var tokens_exports = {};
+__export(tokens_exports, {
+  countTokens: () => countTokens,
+  estimateTokens: () => estimateTokens,
+  initTokenizer: () => initTokenizer
+});
+async function initTokenizer() {
+  if (initAttempted) return encoder !== null;
+  initAttempted = true;
+  try {
+    const specifier = "tiktoken";
+    const mod = await import(specifier);
+    const getEncoding = mod.get_encoding ?? mod.default?.get_encoding;
+    if (typeof getEncoding === "function") {
+      encoder = getEncoding("cl100k_base");
+    }
+  } catch {
+    encoder = null;
+  }
+  return encoder !== null;
+}
+function countTokens(text) {
+  if (encoder) {
+    try {
+      return encoder.encode(text).length;
+    } catch {
+    }
+  }
+  return Math.ceil(text.length / 4);
+}
+function estimateTokens(byteLength) {
+  return Math.ceil(byteLength / 4);
+}
+var encoder, initAttempted;
+var init_tokens = __esm({
+  "src/core/tokens.ts"() {
+    "use strict";
+    encoder = null;
+    initAttempted = false;
   }
 });
 
@@ -19458,8 +19501,8 @@ function parseCsv(text) {
   let inQuotes = false;
   let sawAnyContent = false;
   let i = 0;
-  const n = text.length;
-  while (i < n) {
+  const n2 = text.length;
+  while (i < n2) {
     const ch = text[i];
     if (inQuotes) {
       if (ch === '"') {
@@ -19563,19 +19606,8 @@ function errorMessage(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
-// src/core/tokens.ts
-var encoder = null;
-function countTokens(text) {
-  if (encoder) {
-    try {
-      return encoder.encode(text).length;
-    } catch {
-    }
-  }
-  return Math.ceil(text.length / 4);
-}
-
 // src/toon/guard.ts
+init_tokens();
 function evaluateGuard(original, candidateToon, rowCount, opts) {
   const tokensBefore = countTokens(original);
   const tokensAfter = countTokens(candidateToon);
@@ -20046,8 +20078,8 @@ function analyze(records, options = {}) {
 }
 
 // src/transcript/render.ts
-function formatNumber(n) {
-  return Math.round(n).toLocaleString("en-US");
+function formatNumber(n2) {
+  return Math.round(n2).toLocaleString("en-US");
 }
 function formatMaybeTimestamp(ts) {
   return ts ?? "(unknown)";
@@ -21110,9 +21142,9 @@ function activitySegment(activity, now, staleMs) {
   if (age > staleMs) return "";
   return `\u2699 ${tool}`;
 }
-function formatTokenCount(n) {
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
-  return String(Math.round(n));
+function formatTokenCount(n2) {
+  if (n2 >= 1e3) return `${(n2 / 1e3).toFixed(1)}k`;
+  return String(Math.round(n2));
 }
 function savingsSegment(savings) {
   if (!savings || !Number.isFinite(savings.tokensSaved) || savings.tokensSaved <= 0) {
@@ -21361,6 +21393,37 @@ function appendLedger(record2, options = {}) {
   } catch {
   }
 }
+function readLedger(since, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    const file2 = ledgerPath(home);
+    if (!existsSync10(file2)) return [];
+    const sinceTime = since ? new Date(since).getTime() : -Infinity;
+    const raw = readFileSync8(file2, "utf8");
+    const out = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!parsed || typeof parsed !== "object" || typeof parsed.timestamp !== "string") {
+          continue;
+        }
+        const parsedTime = new Date(parsed.timestamp).getTime();
+        if (Number.isNaN(parsedTime) || parsedTime < sinceTime) continue;
+        out.push(parsed);
+      } catch {
+        continue;
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// src/chop/wrapper-core.ts
+init_tokens();
 
 // src/chop/allowlist.ts
 var BUILTIN_TEST_RUNNERS = ["jest", "vitest", "pytest"];
@@ -22183,6 +22246,162 @@ function registerCcrRetrieveCommand(program2) {
   });
 }
 
+// src/cli/commands/savings.ts
+var COMPRESSION_MODULES = /* @__PURE__ */ new Set(["chop", "mcp-compression", "code-substitute"]);
+var AVOIDED_MODULE = "read-suppressed";
+function emptySummary(module) {
+  return { module, calls: 0, tokensBefore: 0, tokensAfter: 0, bytesBefore: 0, bytesAfter: 0 };
+}
+function accumulate(into, record2) {
+  into.calls += 1;
+  into.tokensBefore += Number(record2.tokensBefore) || 0;
+  into.tokensAfter += Number(record2.tokensAfter) || 0;
+  into.bytesBefore += Number(record2.bytesBefore) || 0;
+  into.bytesAfter += Number(record2.bytesAfter) || 0;
+}
+function summarizeSavings(records) {
+  const byModule = /* @__PURE__ */ new Map();
+  const compression = emptySummary("compression total");
+  let avoided = null;
+  for (const record2 of records) {
+    const module = String(record2.module || "unknown");
+    let summary = byModule.get(module);
+    if (!summary) {
+      summary = emptySummary(module);
+      byModule.set(module, summary);
+    }
+    accumulate(summary, record2);
+    if (module === AVOIDED_MODULE) {
+      avoided = avoided ?? emptySummary(AVOIDED_MODULE);
+      accumulate(avoided, record2);
+    } else if (COMPRESSION_MODULES.has(module)) {
+      accumulate(compression, record2);
+    }
+  }
+  return {
+    modules: [...byModule.values()].sort((a, b) => b.tokensBefore - a.tokensBefore),
+    compression,
+    avoided,
+    totalCalls: records.length
+  };
+}
+function pct(before, after) {
+  if (before <= 0) return "\u2014";
+  return `${(100 - after / before * 100).toFixed(1)}%`;
+}
+var n = (value) => value.toLocaleString("en-US");
+function renderSavings(summary, options) {
+  const lines = [];
+  lines.push(`optiflow savings (${options.rangeLabel})`);
+  if (summary.totalCalls === 0) {
+    lines.push("");
+    lines.push("  No savings recorded yet.");
+    lines.push("");
+    lines.push("  This is what an idle ledger looks like, not an error. It fills up as");
+    lines.push("  optiflow compresses real tool output. If it stays empty while you work,");
+    lines.push("  check `optiflow doctor` and see docs/enabling-everything.md.");
+    return lines.join("\n");
+  }
+  const rows = summary.modules.map((m) => ({
+    module: m.module,
+    calls: n(m.calls),
+    before: n(m.tokensBefore),
+    after: n(m.tokensAfter),
+    saved: n(Math.max(0, m.tokensBefore - m.tokensAfter)),
+    cut: pct(m.tokensBefore, m.tokensAfter)
+  }));
+  const width = (key, header) => Math.max(header.length, ...rows.map((r) => r[key].length));
+  const w = {
+    module: width("module", "module"),
+    calls: width("calls", "calls"),
+    before: width("before", "tokens before"),
+    after: width("after", "tokens after"),
+    saved: width("saved", "saved"),
+    cut: width("cut", "cut")
+  };
+  lines.push("");
+  lines.push(
+    `  ${"module".padEnd(w.module)}  ${"calls".padStart(w.calls)}  ${"tokens before".padStart(w.before)}  ${"tokens after".padStart(w.after)}  ${"saved".padStart(w.saved)}  ${"cut".padStart(w.cut)}`
+  );
+  lines.push(
+    `  ${"-".repeat(w.module)}  ${"-".repeat(w.calls)}  ${"-".repeat(w.before)}  ${"-".repeat(w.after)}  ${"-".repeat(w.saved)}  ${"-".repeat(w.cut)}`
+  );
+  for (const r of rows) {
+    lines.push(
+      `  ${r.module.padEnd(w.module)}  ${r.calls.padStart(w.calls)}  ${r.before.padStart(w.before)}  ${r.after.padStart(w.after)}  ${r.saved.padStart(w.saved)}  ${r.cut.padStart(w.cut)}`
+    );
+  }
+  const c = summary.compression;
+  const savedTokens = Math.max(0, c.tokensBefore - c.tokensAfter);
+  const savedBytes = Math.max(0, c.bytesBefore - c.bytesAfter);
+  lines.push("");
+  lines.push(`  Compression: ${n(c.calls)} calls, ${n(savedTokens)} tokens saved (${pct(c.tokensBefore, c.tokensAfter)} smaller)`);
+  lines.push(`               ${n(savedBytes)} bytes saved (${pct(c.bytesBefore, c.bytesAfter)}) \u2014 measured, not derived`);
+  if (summary.avoided) {
+    const a = summary.avoided;
+    lines.push("");
+    lines.push(`  Reads suppressed: ${n(a.calls)}, ~${n(a.tokensBefore)} tokens not sent`);
+    lines.push("               Counted separately: this is content that was never read,");
+    lines.push("               which only helps if the model did not work around the refusal.");
+  }
+  lines.push("");
+  lines.push(
+    options.exactTokens ? "  Token counts are exact (tiktoken loaded)." : "  Token counts are ESTIMATES (chars/4) \u2014 tiktoken is not installed, so treat"
+  );
+  if (!options.exactTokens) {
+    lines.push("  the byte figures above as the reliable ones. `npm i -g tiktoken` for exact counts.");
+  }
+  return lines.join("\n");
+}
+function rangeToSince(range) {
+  if (!range || range === "all") return { label: "all time" };
+  const match = /^(\d+)([hd])$/.exec(range);
+  if (!match) return { label: "all time" };
+  const amount = Number(match[1]);
+  const ms = match[2] === "h" ? amount * 36e5 : amount * 864e5;
+  return { since: new Date(Date.now() - ms), label: `last ${range}` };
+}
+function runSavingsCli(options = {}) {
+  const { since, label } = rangeToSince(options.range);
+  const records = readLedger(since, { home: options.home });
+  const summary = summarizeSavings(records);
+  if (options.json) return JSON.stringify(summary, null, 2);
+  return renderSavings(summary, {
+    exactTokens: options.exactTokens === true,
+    rangeLabel: label
+  });
+}
+function registerSavingsCommand(program2) {
+  program2.command("savings").description(
+    "What optiflow actually saved (before/after per compression), as opposed to `optiflow report`, which shows what a session spent."
+  ).option("--range <range>", 'limit to a window: "24h", "7d", or "all"', "all").option("--json", "emit the raw summary as JSON").option("--watch [seconds]", "re-render every N seconds (default 5) until interrupted").action(async (options) => {
+    const { initTokenizer: initTokenizer2 } = await Promise.resolve().then(() => (init_tokens(), tokens_exports));
+    const exactTokens = await initTokenizer2();
+    const render2 = () => runSavingsCli({ range: options.range, json: options.json, exactTokens });
+    if (!options.watch) {
+      process.stdout.write(render2() + "\n");
+      return;
+    }
+    const seconds = Math.max(1, Number(options.watch === true ? 5 : options.watch) || 5);
+    const tick = () => {
+      process.stdout.write("\x1B[2J\x1B[H");
+      process.stdout.write(render2() + "\n");
+      process.stdout.write(`
+  refreshing every ${seconds}s \u2014 Ctrl-C to stop
+`);
+    };
+    tick();
+    const timer = setInterval(tick, seconds * 1e3);
+    const stop = () => {
+      clearInterval(timer);
+      process.stdout.write("\n");
+      process.exit(0);
+    };
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
+  });
+}
+
 // src/cli/index.ts
 function buildProgram() {
   const program2 = new Command();
@@ -22199,6 +22418,7 @@ function buildProgram() {
   registerChopCommand(program2);
   registerInitCommand(program2);
   registerCcrRetrieveCommand(program2);
+  registerSavingsCommand(program2);
   return program2;
 }
 buildProgram().parseAsync(process.argv).catch((err) => {

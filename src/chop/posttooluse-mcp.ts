@@ -12,6 +12,8 @@
 import { pathToFileURL } from "node:url";
 import { readHookInput, updateMCPOutput, writeHookOutput, type HookOutput } from "../core/hook-io.js";
 import { loadConfig } from "../config/load.js";
+import { appendLedger } from "../core/ledger.js";
+import { countTokens } from "../core/tokens.js";
 import { annotateCcrMarkers, genericFilter } from "./filters/generic.js";
 
 export interface McpContentBlock {
@@ -97,9 +99,27 @@ export function decidePostToolUseMcp(
   return { compress: true, reason: "eligible for compression" };
 }
 
+/**
+ * Ledger module name for this path. Reported separately from the other
+ * savings sources because they are different kinds of claim — see
+ * `src/cli/commands/savings.ts`.
+ */
+export const MCP_COMPRESSION_LEDGER_MODULE = "mcp-compression";
+
+export interface BuildHookOutputOptions {
+  /**
+   * Injected so `buildHookOutput` stays a pure function under test —
+   * mirrors `src/chop/wrapper-core.ts`'s `options.writeLedger` exactly.
+   * Omitted here and supplied by `runPostToolUseMcp`, which is the real
+   * process entry path.
+   */
+  writeLedger?: typeof appendLedger;
+}
+
 export function buildHookOutput(
   input: PostToolUseMcpHookInput,
-  decision: PostToolUseMcpDecision
+  decision: PostToolUseMcpDecision,
+  options: BuildHookOutputOptions = {}
 ): HookOutput {
   if (!decision.compress) return {};
 
@@ -118,10 +138,26 @@ export function buildHookOutput(
   // is the only point at which naming `ccr_retrieve` is useful. See its doc
   // comment for why it cannot live inside `genericFilter`.
   const nonTextBlocks = content.filter((block) => block.type !== "text");
+  const replacementText = annotateCcrMarkers(filtered.text);
   const newContent: McpContentBlock[] = [
-    { type: "text", text: annotateCcrMarkers(filtered.text) },
+    { type: "text", text: replacementText },
     ...nonTextBlocks,
   ];
+
+  // Record what this actually saved. Until now every compression path
+  // except the chop wrapper saved silently, so `optiflow report` could show
+  // what a session SPENT but nothing could show what optiflow SAVED — the
+  // single most reasonable question a user asks about this plugin.
+  if (options.writeLedger) {
+    options.writeLedger({
+      module: MCP_COMPRESSION_LEDGER_MODULE,
+      command_or_context: input.tool_name ?? "mcp__unknown",
+      tokensBefore: countTokens(text),
+      tokensAfter: countTokens(replacementText),
+      bytesBefore: Buffer.byteLength(text, "utf8"),
+      bytesAfter: Buffer.byteLength(replacementText, "utf8"),
+    });
+  }
 
   return updateMCPOutput("PostToolUse", newContent);
 }
@@ -133,7 +169,8 @@ export async function runPostToolUseMcp(
   const input = await readInput();
   if (!input) return {};
   const decision = decidePostToolUseMcp(input, loadOptions);
-  return buildHookOutput(input, decision);
+  // The real entry path writes the ledger; buildHookOutput stays pure for tests.
+  return buildHookOutput(input, decision, { writeLedger: appendLedger });
 }
 
 // ---------------------------------------------------------------------------

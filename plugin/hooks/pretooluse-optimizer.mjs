@@ -84,11 +84,11 @@ var require_tree_sitter = __commonJS({
               throw toThrow;
             };
             var scriptDirectory = "";
-            function locateFile(path4) {
+            function locateFile(path5) {
               if (Module["locateFile"]) {
-                return Module["locateFile"](path4, scriptDirectory);
+                return Module["locateFile"](path5, scriptDirectory);
               }
-              return scriptDirectory + path4;
+              return scriptDirectory + path5;
             }
             var readAsync, readBinary;
             if (ENVIRONMENT_IS_NODE) {
@@ -2947,18 +2947,18 @@ __export(code_compressor_exports, {
   initCodeCompressor: () => initCodeCompressor
 });
 import { createRequire } from "node:module";
-import { existsSync as existsSync5 } from "node:fs";
-import path3 from "node:path";
+import { existsSync as existsSync6 } from "node:fs";
+import path4 from "node:path";
 import { fileURLToPath } from "node:url";
 function grammarWasmDir() {
   try {
-    let dir = path3.dirname(fileURLToPath(import.meta.url));
+    let dir = path4.dirname(fileURLToPath(import.meta.url));
     for (let i2 = 0; i2 < 6; i2++) {
-      const candidate = path3.join(dir, "grammars");
-      if (existsSync5(path3.join(candidate, "tree-sitter-typescript.wasm"))) {
+      const candidate = path4.join(dir, "grammars");
+      if (existsSync6(path4.join(candidate, "tree-sitter-typescript.wasm"))) {
         return candidate;
       }
-      const parent = path3.dirname(dir);
+      const parent = path4.dirname(dir);
       if (parent === dir) break;
       dir = parent;
     }
@@ -2969,8 +2969,8 @@ function grammarWasmDir() {
 }
 async function ensureInit() {
   if (!initPromise2) {
-    const shippedRuntime = path3.join(grammarWasmDir(), "tree-sitter.wasm");
-    initPromise2 = existsSync5(shippedRuntime) ? import_web_tree_sitter.default.init({
+    const shippedRuntime = path4.join(grammarWasmDir(), "tree-sitter.wasm");
+    initPromise2 = existsSync6(shippedRuntime) ? import_web_tree_sitter.default.init({
       locateFile(scriptName) {
         return scriptName === "tree-sitter.wasm" ? shippedRuntime : scriptName;
       }
@@ -3136,7 +3136,7 @@ function pyRoundInt(x) {
 function pyRound3(x) {
   return Number(x.toFixed(3));
 }
-function estimateTokens(text) {
+function estimateTokens2(text) {
   const count = [...text].length;
   return Math.max(1, Math.floor(count / 4));
 }
@@ -3828,7 +3828,7 @@ async function compressCode(code, opts = {}) {
   const config = { ...DEFAULT_CODE_COMPRESSOR_CONFIG, ...opts.config };
   const context = opts.queryContext ?? "";
   if (code.trim() === "") return passthroughResult(code, 0, "unknown", 0);
-  const originalTokens = estimateTokens(code);
+  const originalTokens = estimateTokens2(code);
   if (originalTokens < config.minTokensForCompression) {
     return passthroughResult(code, originalTokens, "unknown", 0);
   }
@@ -3851,7 +3851,7 @@ async function compressCode(code, opts = {}) {
     return passthroughResult(code, originalTokens, detectedLang, confidence);
   }
   const { compressed, structure, symbolScores } = astResult;
-  const compressedTokens = estimateTokens(compressed);
+  const compressedTokens = estimateTokens2(compressed);
   const syntaxValid = await verifySyntax(compressed, detectedLang);
   if (!syntaxValid) {
     return passthroughResult(code, originalTokens, detectedLang, confidence);
@@ -4078,7 +4078,7 @@ var init_code_compressor = __esm({
 });
 
 // src/optimizer/hooks/pretooluse.ts
-import { readFileSync as readFileSync8 } from "node:fs";
+import { readFileSync as readFileSync9 } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // src/core/hook-io.ts
@@ -4210,11 +4210,53 @@ function denyWithSubstitute(hookEventName, reason, context) {
   };
 }
 
+// src/core/ledger.ts
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import path2 from "node:path";
+
+// src/core/paths.ts
+import { homedir } from "node:os";
+import path from "node:path";
+function getOptiflowHome() {
+  const override = process.env.OPTIFLOW_HOME;
+  if (override && override.trim().length > 0) {
+    return path.resolve(override);
+  }
+  return path.join(homedir(), ".optiflow");
+}
+
+// src/core/ledger.ts
+function ledgerPath(home) {
+  return path2.join(home, "ledger.jsonl");
+}
+function appendLedger(record2, options = {}) {
+  try {
+    const home = options.home ?? getOptiflowHome();
+    mkdirSync(home, { recursive: true });
+    const full = {
+      timestamp: record2.timestamp ?? (/* @__PURE__ */ new Date()).toISOString(),
+      module: record2.module,
+      command_or_context: record2.command_or_context,
+      tokensBefore: record2.tokensBefore,
+      tokensAfter: record2.tokensAfter,
+      bytesBefore: record2.bytesBefore,
+      bytesAfter: record2.bytesAfter
+    };
+    appendFileSync(ledgerPath(home), JSON.stringify(full) + "\n", "utf8");
+  } catch {
+  }
+}
+
+// src/core/tokens.ts
+function estimateTokens(byteLength) {
+  return Math.ceil(byteLength / 4);
+}
+
 // src/optimizer/hooks/lib/policy.ts
 import {
   statSync,
-  mkdirSync,
-  readFileSync,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync2,
   writeFileSync,
   renameSync,
   openSync,
@@ -4230,22 +4272,22 @@ import { isAbsolute } from "node:path";
 var MSYS = /^\/([A-Za-z])\/(.*)$/;
 function normaliseOnce(input, cwd) {
   if (typeof input !== "string" || !input) return input;
-  let path4 = input.trim();
-  if (!path4) return input;
-  if (path4.length >= 2 && (path4.startsWith('"') && path4.endsWith('"') || path4.startsWith("'") && path4.endsWith("'"))) {
-    path4 = path4.slice(1, -1);
+  let path5 = input.trim();
+  if (!path5) return input;
+  if (path5.length >= 2 && (path5.startsWith('"') && path5.endsWith('"') || path5.startsWith("'") && path5.endsWith("'"))) {
+    path5 = path5.slice(1, -1);
   }
-  path4 = path4.replace(/\\/g, "/");
-  if (!isAbsolute(path4) && !/^[A-Za-z]:/.test(path4)) {
+  path5 = path5.replace(/\\/g, "/");
+  if (!isAbsolute(path5) && !/^[A-Za-z]:/.test(path5)) {
     if (cwd) {
       const base = canonicalPath(cwd);
-      path4 = `${base.endsWith("/") ? base.slice(0, -1) : base}/${path4}`;
+      path5 = `${base.endsWith("/") ? base.slice(0, -1) : base}/${path5}`;
     }
   }
-  const unc = path4.startsWith("//");
-  path4 = (unc ? path4.slice(2) : path4).replace(/\/{2,}/g, "/");
+  const unc = path5.startsWith("//");
+  path5 = (unc ? path5.slice(2) : path5).replace(/\/{2,}/g, "/");
   const segments = [];
-  for (const segment of path4.split("/")) {
+  for (const segment of path5.split("/")) {
     if (segment === "." || segment === "") {
       if (segments.length === 0 && segment === "") segments.push("");
       continue;
@@ -4256,14 +4298,14 @@ function normaliseOnce(input, cwd) {
     }
     segments.push(segment);
   }
-  path4 = (unc ? "//" : "") + segments.join("/");
-  if (path4 === "" && segments.length === 1 && segments[0] === "") path4 = "/";
-  path4 = path4.trim();
-  const msys = MSYS.exec(path4);
-  if (msys) path4 = `${msys[1].toUpperCase()}:/${msys[2]}`;
-  path4 = path4.replace(/^([A-Za-z]):/, (_, drive) => `${drive.toUpperCase()}:`);
-  if (path4.length > 3 && path4.endsWith("/")) path4 = path4.slice(0, -1);
-  return path4;
+  path5 = (unc ? "//" : "") + segments.join("/");
+  if (path5 === "" && segments.length === 1 && segments[0] === "") path5 = "/";
+  path5 = path5.trim();
+  const msys = MSYS.exec(path5);
+  if (msys) path5 = `${msys[1].toUpperCase()}:/${msys[2]}`;
+  path5 = path5.replace(/^([A-Za-z]):/, (_, drive) => `${drive.toUpperCase()}:`);
+  if (path5.length > 3 && path5.endsWith("/")) path5 = path5.slice(0, -1);
+  return path5;
 }
 function isFsSafePath(input) {
   if (typeof input !== "string") return false;
@@ -4273,13 +4315,13 @@ function isFsSafePath(input) {
   return true;
 }
 function canonicalPath(input, cwd) {
-  let path4 = normaliseOnce(input, cwd);
+  let path5 = normaliseOnce(input, cwd);
   for (let i2 = 0; i2 < 8; i2++) {
-    const next = normaliseOnce(path4, cwd);
-    if (next === path4) return path4;
-    path4 = next;
+    const next = normaliseOnce(path5, cwd);
+    if (next === path5) return path5;
+    path5 = next;
   }
-  return path4;
+  return path5;
 }
 function resolvableCandidates(input, cwd) {
   const seen = /* @__PURE__ */ new Set();
@@ -4354,9 +4396,9 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   ".ttf",
   ".eot"
 ]);
-function isBinaryPath(path4) {
-  const dot = path4.lastIndexOf(".");
-  return dot !== -1 && BINARY_EXTENSIONS.has(path4.slice(dot).toLowerCase());
+function isBinaryPath(path5) {
+  const dot = path5.lastIndexOf(".");
+  return dot !== -1 && BINARY_EXTENSIONS.has(path5.slice(dot).toLowerCase());
 }
 var MACHINE_OWNED = /(?:^|[/\\])(?:\.git|\.hg|\.svn|node_modules|\.venv|__pycache__|\.next|\.turbo|dist|obj|bin)(?:[/\\]|$)/i;
 function normalizeSegments(p) {
@@ -4375,15 +4417,15 @@ function normalizeSegments(p) {
   }
   return drive + (rooted || drive ? "/" : "") + out2.join("/");
 }
-function isMachineOwned(path4) {
+function isMachineOwned(path5) {
   return MACHINE_OWNED.test(
-    normalizeSegments(String(path4 || "").split("\\").join("/"))
+    normalizeSegments(String(path5 || "").split("\\").join("/"))
   );
 }
-function fileSize(path4) {
-  if (!isFsSafePath(path4)) return -1;
+function fileSize(path5) {
+  if (!isFsSafePath(path5)) return -1;
   try {
-    const st = statSync(path4);
+    const st = statSync(path5);
     return st.isFile() ? st.size : -1;
   } catch {
     return -1;
@@ -4430,7 +4472,7 @@ function normalizeSeen(raw) {
 }
 function loadState(sessionId, agent, env = process.env) {
   try {
-    const parsed = JSON.parse(readFileSync(statePath(sessionId, agent, env), "utf8"));
+    const parsed = JSON.parse(readFileSync2(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
       seen: normalizeSeen(parsed.seen),
@@ -4456,16 +4498,16 @@ function sleepSync(ms) {
   }
 }
 function takeLock(sessionId, agent, env, { attempts = 20, staleMs = 5e3, waitMs = 15 } = {}) {
-  const path4 = `${statePath(sessionId, agent, env)}.lock`;
+  const path5 = `${statePath(sessionId, agent, env)}.lock`;
   for (let i2 = 0; i2 < attempts; i2++) {
     try {
-      const fd = openSync(path4, "wx", 384);
+      const fd = openSync(path5, "wx", 384);
       closeSync(fd);
-      return path4;
+      return path5;
     } catch {
       try {
-        if (Date.now() - statSync(path4).mtimeMs > staleMs) {
-          unlinkSync(path4);
+        if (Date.now() - statSync(path5).mtimeMs > staleMs) {
+          unlinkSync(path5);
           continue;
         }
       } catch {
@@ -4479,7 +4521,7 @@ function takeLock(sessionId, agent, env, { attempts = 20, staleMs = 5e3, waitMs 
 function saveState(sessionId, state, agent, env = process.env) {
   let lock = null;
   try {
-    mkdirSync(stateRoot(env), { recursive: true, mode: 448 });
+    mkdirSync2(stateRoot(env), { recursive: true, mode: 448 });
     lock = takeLock(sessionId, agent, env);
     if (!lock) return false;
     const current = loadState(sessionId, agent, env);
@@ -4557,13 +4599,13 @@ import { join as join4 } from "node:path";
 
 // src/optimizer/tools/shared/hash-utils.ts
 import { createHash as createHash2 } from "crypto";
-import { readFileSync as readFileSync2, statSync as statSync2 } from "fs";
+import { readFileSync as readFileSync3, statSync as statSync2 } from "fs";
 function hashContent(content) {
   return createHash2("sha256").update(content).digest("hex");
 }
 function hashFile(filePath) {
   try {
-    const content = readFileSync2(filePath);
+    const content = readFileSync3(filePath);
     return hashContent(content);
   } catch (error) {
     throw new Error(`Failed to hash file ${filePath}: ${error}`);
@@ -4571,14 +4613,14 @@ function hashFile(filePath) {
 }
 
 // src/optimizer/hooks/lib/remedy.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { join as join2 } from "node:path";
 function rulesPath(dir) {
   return join2(dir, "rules.json");
 }
 function activeRules(dir) {
   try {
-    const parsed = JSON.parse(readFileSync3(rulesPath(dir), "utf8"));
+    const parsed = JSON.parse(readFileSync4(rulesPath(dir), "utf8"));
     return Array.isArray(parsed?.rules) ? parsed.rules.filter((r) => !r.revertedAt) : [];
   } catch {
     return [];
@@ -4587,10 +4629,10 @@ function activeRules(dir) {
 
 // src/optimizer/hooks/lib/wiki.ts
 import {
-  appendFileSync,
-  readFileSync as readFileSync4,
-  existsSync,
-  mkdirSync as mkdirSync2,
+  appendFileSync as appendFileSync2,
+  readFileSync as readFileSync5,
+  existsSync as existsSync2,
+  mkdirSync as mkdirSync3,
   chmodSync,
   openSync as openSync2,
   closeSync as closeSync2,
@@ -4603,25 +4645,12 @@ import { join as join3, dirname } from "node:path";
 import { createHash as createHash3 } from "node:crypto";
 
 // src/optimizer/paths.ts
-import path2 from "node:path";
-
-// src/core/paths.ts
-import { homedir } from "node:os";
-import path from "node:path";
-function getOptiflowHome() {
-  const override = process.env.OPTIFLOW_HOME;
-  if (override && override.trim().length > 0) {
-    return path.resolve(override);
-  }
-  return path.join(homedir(), ".optiflow");
-}
-
-// src/optimizer/paths.ts
+import path3 from "node:path";
 function getOptimizerHome() {
-  return path2.join(getOptiflowHome(), "optimizer");
+  return path3.join(getOptiflowHome(), "optimizer");
 }
 function getOptimizerUnrootedDir() {
-  return path2.join(getOptimizerHome(), "unrooted");
+  return path3.join(getOptimizerHome(), "unrooted");
 }
 
 // src/optimizer/hooks/lib/wiki.ts
@@ -4649,7 +4678,7 @@ function projectRootFor(filePath, fallback) {
   let dir = dirname(canonicalPath(filePath));
   for (let depth = 0; depth < 40 && dir; depth += 1) {
     for (const marker of MARKERS) {
-      if (existsSync(join3(dir, marker))) return dir;
+      if (existsSync2(join3(dir, marker))) return dir;
     }
     const parent = dirname(dir);
     if (parent === dir) break;
@@ -4672,10 +4701,10 @@ function canonicalKey(kind, key) {
   }
   return raw;
 }
-function contentHash(path4, text) {
-  if (text === void 0 && !isFsSafePath(path4)) return null;
+function contentHash(path5, text) {
+  if (text === void 0 && !isFsSafePath(path5)) return null;
   try {
-    return createHash3("sha256").update(text === void 0 ? readFileSync4(path4) : text).digest("hex").slice(0, 16);
+    return createHash3("sha256").update(text === void 0 ? readFileSync5(path5) : text).digest("hex").slice(0, 16);
   } catch {
     return null;
   }
@@ -4709,8 +4738,8 @@ function withLock(dir, write) {
 function ignoreSelf(dir) {
   const marker = join3(dir, ".gitignore");
   try {
-    if (existsSync(marker)) return;
-    appendFileSync(
+    if (existsSync2(marker)) return;
+    appendFileSync2(
       marker,
       "# Written by the optiflow optimizer. Findings are unreviewed agent output;\n# keeping them out of git history is the default. Delete this file to\n# opt in to committing them.\n*\n"
     );
@@ -4722,7 +4751,7 @@ var SNAPSHOT_DEPENDENT = /* @__PURE__ */ new Set(["finding", "map"]);
 var snapshotBudgetBytes = () => Number(process.env.TOKEN_OPTIMIZER_GRAPH_SNAPSHOT_BYTES) || 8e6;
 function compactionBaseline(dir) {
   try {
-    const raw = JSON.parse(readFileSync4(markerPath(dir), "utf8"));
+    const raw = JSON.parse(readFileSync5(markerPath(dir), "utf8"));
     const n = Number(raw.sizeAfter);
     return Number.isFinite(n) && n > 0 ? n : compactFloorBytes();
   } catch {
@@ -4732,7 +4761,7 @@ function compactionBaseline(dir) {
 function readSnapshots(dir) {
   const out2 = [];
   try {
-    for (const line of readFileSync4(snapshotsPath(dir), "utf8").split("\n")) {
+    for (const line of readFileSync5(snapshotsPath(dir), "utf8").split("\n")) {
       if (!line) continue;
       try {
         const rec = JSON.parse(line);
@@ -4745,10 +4774,10 @@ function readSnapshots(dir) {
   return out2;
 }
 function compactIfWasteful(dir) {
-  const path4 = logPath(dir);
+  const path5 = logPath(dir);
   let size = 0;
   try {
-    size = statSync3(path4).size;
+    size = statSync3(path5).size;
   } catch {
     return;
   }
@@ -4766,7 +4795,7 @@ function compactIfWasteful(dir) {
         snaps.set(rec.id, { at: rec.at || 0, snapshot: rec.snapshot });
       }
     }
-    for (const line of readFileSync4(path4, "utf8").split("\n")) {
+    for (const line of readFileSync5(path5, "utf8").split("\n")) {
       if (!line) continue;
       let record2;
       try {
@@ -4825,9 +4854,9 @@ function compactIfWasteful(dir) {
       keep.set(c.id, snaps.get(c.id));
     }
     const out2 = [...edges.values(), ...nodes.values()].join("\n") + "\n";
-    const tmp = path4 + ".compact";
+    const tmp = path5 + ".compact";
     writeFileSync2(tmp, out2, { mode: 384 });
-    renameSync2(tmp, path4);
+    renameSync2(tmp, path5);
     const snapOut = [...keep.entries()].map(([id, v]) => JSON.stringify({ t: "s", v: GRAPH_VERSION, id, snapshot: v.snapshot, at: v.at })).join("\n") + (keep.size ? "\n" : "");
     const snapTmp = snapshotsPath(dir) + ".compact";
     writeFileSync2(snapTmp, snapOut, { mode: 384 });
@@ -4843,7 +4872,7 @@ function compactIfWasteful(dir) {
 function appendAll(dir, records) {
   if (!records.length) return true;
   try {
-    mkdirSync2(dir, { recursive: true, mode: 448 });
+    mkdirSync3(dir, { recursive: true, mode: 448 });
     try {
       chmodSync(dir, 448);
     } catch {
@@ -4851,7 +4880,7 @@ function appendAll(dir, records) {
     ignoreSelf(dir);
     const payload = records.map((record2) => JSON.stringify(record2) + "\n").join("");
     withLock(dir, () => {
-      appendFileSync(logPath(dir), payload);
+      appendFileSync2(logPath(dir), payload);
       compactIfWasteful(dir);
     });
     return true;
@@ -4880,17 +4909,17 @@ function putEdge(dir, from, edge, to) {
 }
 function appendSnapshotRecord(dir, record2) {
   try {
-    appendFileSync(snapshotsPath(dir), JSON.stringify(record2) + "\n");
+    appendFileSync2(snapshotsPath(dir), JSON.stringify(record2) + "\n");
   } catch {
   }
 }
 function load(dir, { snapshots = false } = {}) {
   const nodes = /* @__PURE__ */ new Map();
   const edges = [];
-  const path4 = logPath(dir);
-  if (!existsSync(path4)) return { nodes, edges };
+  const path5 = logPath(dir);
+  if (!existsSync2(path5)) return { nodes, edges };
   const pending = snapshots ? /* @__PURE__ */ new Map() : null;
-  for (const line of readFileSync4(path4, "utf8").split("\n")) {
+  for (const line of readFileSync5(path5, "utf8").split("\n")) {
     if (!line) continue;
     if (line.startsWith('{"t":"s"')) {
       if (!snapshots) continue;
@@ -4934,10 +4963,10 @@ function harvest(dir, { filePath, sessionId, action, hash: precomputed }) {
 
 // src/optimizer/hooks/lib/decide.ts
 var KB = (bytes) => Math.round(bytes / 1024);
-function isDirectory(path4) {
-  if (!isFsSafePath(path4)) return false;
+function isDirectory(path5) {
+  if (!isFsSafePath(path5)) return false;
   try {
-    return statSync4(path4).isDirectory();
+    return statSync4(path5).isDirectory();
   } catch {
     return false;
   }
@@ -5081,7 +5110,7 @@ function touchedFiles(payload) {
   for (const segment of command.split("|")) {
     for (const operand of fileOperands(segment)) add(operand);
   }
-  return [...out2].map(([path4, size]) => ({ path: path4, size }));
+  return [...out2].map(([path5, size]) => ({ path: path5, size }));
 }
 function largeDumpedOperand(command, cwd) {
   const threshold = largeFileBytes();
@@ -5092,9 +5121,9 @@ function largeDumpedOperand(command, cwd) {
     if (i2 >= tokens.length) continue;
     if (!DUMP_HEAD.test(tokens[i2].replace(/^.*[/\\]/, ""))) continue;
     for (const operand of fileOperands(tokens.slice(i2).join(" "))) {
-      for (const path4 of candidatePaths(operand, cwd)) {
-        const size = fileSize(path4);
-        if (size >= threshold && !isBinaryPath(path4) && !isMachineOwned(path4)) {
+      for (const path5 of candidatePaths(operand, cwd)) {
+        const size = fileSize(path5);
+        if (size >= threshold && !isBinaryPath(path5) && !isMachineOwned(path5)) {
           return { path: operand, size };
         }
       }
@@ -5105,9 +5134,9 @@ function largeDumpedOperand(command, cwd) {
 function largeOperand(command, cwd) {
   const threshold = largeFileBytes();
   for (const operand of fileOperands(command)) {
-    for (const path4 of candidatePaths(operand, cwd)) {
-      const size = fileSize(path4);
-      if (size >= threshold && !isBinaryPath(path4) && !isMachineOwned(path4)) {
+    for (const path5 of candidatePaths(operand, cwd)) {
+      const size = fileSize(path5);
+      if (size >= threshold && !isBinaryPath(path5) && !isMachineOwned(path5)) {
         return { path: operand, size };
       }
     }
@@ -5190,8 +5219,8 @@ function normalizePayload(raw) {
     }
   };
 }
-function matchingRule(cwd, path4) {
-  const canonical2 = canonicalPath(path4);
+function matchingRule(cwd, path5) {
+  const canonical2 = canonicalPath(path5);
   for (const rule of activeRules(wikiDir(cwd))) {
     if (rule.type !== "skip" && rule.type !== "skeleton-only") continue;
     if (rule.anchor && rule.anchor === canonical2) return rule;
@@ -5207,36 +5236,37 @@ function decide(payload, state, availableTools) {
   const input = payload.tool_input || {};
   const threshold = largeFileBytes();
   if (tool === "Read") {
-    const path4 = input.file_path;
-    const shown = input.raw_file_path ?? path4;
-    if (!path4 || isBinaryPath(path4) || isMachineOwned(path4)) return null;
+    const path5 = input.file_path;
+    const shown = input.raw_file_path ?? path5;
+    if (!path5 || isBinaryPath(path5) || isMachineOwned(path5)) return null;
     if (input.offset != null || input.limit != null) return null;
-    const size = fileSize(path4);
+    const size = fileSize(path5);
     if (size < 0) return null;
     if (size < refusalFloorBytes()) return null;
-    const rule = matchingRule(payload.cwd, path4);
+    const rule = matchingRule(payload.cwd, path5);
     if (rule && replacementAvailable(availableTools, "smart_read")) {
       return {
-        key: `read:${path4}`,
+        key: `read:${path5}`,
         reason: `${shown} is covered by a fix applied on ${new Date(rule.appliedAt).toISOString().slice(0, 10)}: ${rule.why}. Call smart_read with path="${shown}" for its structure, or revert the rule with id "${rule.id}" if it is wrong.`
       };
     }
-    const seenEntry = state.seen[path4];
+    const seenEntry = state.seen[path5];
     if (seenEntry && replacementAvailable(availableTools, "smart_read")) {
-      if (unchangedSinceSeen(path4, seenEntry)) {
+      if (unchangedSinceSeen(path5, seenEntry)) {
         return {
-          key: `read:${path4}`,
+          key: `read:${path5}`,
+          suppressedReadBytes: size,
           reason: `${shown} has not changed since you read it earlier in this session -- its contents are already in your context above. If you need a specific region again, re-read it with offset/limit, which is never blocked.`
         };
       }
       return {
-        key: `read:${path4}`,
+        key: `read:${path5}`,
         reason: `You already read ${shown} earlier in this session. Call the token-optimizer MCP tool smart_read with path="${shown}" instead -- it returns only a diff of what changed since that read, typically a few tokens rather than the whole file.`
       };
     }
     if (size >= threshold && replacementAvailable(availableTools, "smart_read")) {
       return {
-        key: `read:${path4}`,
+        key: `read:${path5}`,
         reason: `${shown} is ${KB(size)} KB, large enough to cost a meaningful share of the context window. Call the token-optimizer MCP tool smart_read with path="${shown}" instead -- it caches the content and returns diffs on later reads.`
       };
     }
@@ -5261,23 +5291,23 @@ function decide(payload, state, availableTools) {
   }
   if (tool === "Edit" || tool === "MultiEdit") {
     if (!replacementAvailable(availableTools, "smart_edit")) return null;
-    const path4 = input.file_path;
-    if (!path4) return null;
-    const size = fileSize(path4);
+    const path5 = input.file_path;
+    if (!path5) return null;
+    const size = fileSize(path5);
     if (size < threshold) return null;
     return {
-      key: `edit:${path4}`,
-      reason: `${path4} is ${KB(size)} KB. Call the token-optimizer MCP tool smart_edit with path="${path4}" instead -- it applies the change and returns a compact unified diff rather than echoing the file.`
+      key: `edit:${path5}`,
+      reason: `${path5} is ${KB(size)} KB. Call the token-optimizer MCP tool smart_edit with path="${path5}" instead -- it applies the change and returns a compact unified diff rather than echoing the file.`
     };
   }
   if (tool === "Write") {
     if (!replacementAvailable(availableTools, "smart_write")) return null;
-    const path4 = input.file_path;
+    const path5 = input.file_path;
     const content = input.content || "";
-    if (!path4 || content.length < threshold) return null;
+    if (!path5 || content.length < threshold) return null;
     return {
-      key: `write:${path4}`,
-      reason: `You are writing ${KB(content.length)} KB to ${path4}. Call the token-optimizer MCP tool smart_write instead -- it stores the content through the cache so later reads of this file diff against it.`
+      key: `write:${path5}`,
+      reason: `You are writing ${KB(content.length)} KB to ${path5}. Call the token-optimizer MCP tool smart_write instead -- it stores the content through the cache so later reads of this file diff against it.`
     };
   }
   if (tool === "Bash") {
@@ -5302,7 +5332,7 @@ function decide(payload, state, availableTools) {
   }
   return null;
 }
-function unchangedSinceSeen(path4, entry) {
+function unchangedSinceSeen(path5, entry) {
   if (!repeatedReadSuppressionEnabled()) return false;
   if (!entry.hash) return false;
   const windowMs = repeatedReadWindowMs();
@@ -5310,37 +5340,37 @@ function unchangedSinceSeen(path4, entry) {
     if (!entry.at) return false;
     if (Date.now() - entry.at > windowMs) return false;
   }
-  return safeHashFile(path4) === entry.hash;
+  return safeHashFile(path5) === entry.hash;
 }
-function safeHashFile(path4) {
+function safeHashFile(path5) {
   try {
-    return hashFile(path4);
+    return hashFile(path5);
   } catch {
     return "";
   }
 }
 function remember(payload, state) {
-  const path4 = payload.tool_input?.file_path;
-  if (path4 && payload.tool_name === "Read") {
-    state.seen[path4] = { hash: safeHashFile(path4), at: Date.now() };
+  const path5 = payload.tool_input?.file_path;
+  if (path5 && payload.tool_name === "Read") {
+    state.seen[path5] = { hash: safeHashFile(path5), at: Date.now() };
   }
 }
 function readCostBytes(payload) {
   if (payload.tool_name !== "Read") return 0;
-  const path4 = payload.tool_input?.file_path;
-  if (!path4 || isBinaryPath(path4)) return 0;
-  const size = fileSize(path4);
+  const path5 = payload.tool_input?.file_path;
+  if (!path5 || isBinaryPath(path5)) return 0;
+  const size = fileSize(path5);
   return size > 0 ? size : 0;
 }
 
 // src/optimizer/hooks/lib/metrics.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, chmodSync as chmodSync2, statSync as statSync5, existsSync as existsSync2, readFileSync as readFileSync5 } from "node:fs";
+import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync4, chmodSync as chmodSync2, statSync as statSync5, existsSync as existsSync3, readFileSync as readFileSync6 } from "node:fs";
 import { join as join5 } from "node:path";
 import { randomBytes } from "node:crypto";
 var metricsPath = (dir) => join5(dir, "metrics.jsonl");
-function fingerprint(path4) {
+function fingerprint(path5) {
   try {
-    const st = statSync5(path4);
+    const st = statSync5(path5);
     return `${st.size}:${Math.round(st.mtimeMs)}`;
   } catch {
     return null;
@@ -5353,7 +5383,7 @@ function nextId() {
 }
 function record(dir, event) {
   try {
-    mkdirSync3(dir, { recursive: true, mode: 448 });
+    mkdirSync4(dir, { recursive: true, mode: 448 });
     try {
       chmodSync2(dir, 448);
     } catch {
@@ -5365,7 +5395,7 @@ function record(dir, event) {
       ...event,
       at: event.at ?? Date.now()
     };
-    appendFileSync2(metricsPath(dir), `${JSON.stringify(complete)}
+    appendFileSync3(metricsPath(dir), `${JSON.stringify(complete)}
 `);
     return complete;
   } catch {
@@ -5384,7 +5414,7 @@ function maybeSurface(_dir, options = {}) {
 }
 
 // src/optimizer/hooks/lib/recording.ts
-import { readFileSync as readFileSync6, existsSync as existsSync3 } from "node:fs";
+import { readFileSync as readFileSync7, existsSync as existsSync4 } from "node:fs";
 import { join as join6 } from "node:path";
 var NUDGE_AFTER_EDITS = Number(process.env.TOKEN_OPTIMIZER_NUDGE_AFTER) || 8;
 var SUBSTANTIVE = /* @__PURE__ */ new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
@@ -5392,11 +5422,11 @@ function isSubstantive(toolName) {
   return SUBSTANTIVE.has(String(toolName || ""));
 }
 function findingCount(dir) {
-  const path4 = join6(dir, "graph.jsonl");
-  if (!existsSync3(path4)) return 0;
+  const path5 = join6(dir, "graph.jsonl");
+  if (!existsSync4(path5)) return 0;
   let text;
   try {
-    text = readFileSync6(path4, "utf8");
+    text = readFileSync7(path5, "utf8");
   } catch {
     return 0;
   }
@@ -5448,8 +5478,8 @@ function indexFile(_dir, _path, _source) {
 }
 
 // src/optimizer/hooks/lib/transcript.ts
-function isArchived(path4) {
-  return /[\\/]\.token-optimizer[\\/]wiki[\\/]transcripts[\\/]/.test(String(path4));
+function isArchived(path5) {
+  return /[\\/]\.token-optimizer[\\/]wiki[\\/]transcripts[\\/]/.test(String(path5));
 }
 
 // src/optimizer/hooks/lib/experiment.ts
@@ -5555,7 +5585,7 @@ function rememberOptimizerTools(state, _evidence, _observedAt = Date.now()) {
 }
 
 // src/optimizer/hooks/lib/ucr-guard.ts
-import { appendFileSync as appendFileSync3, existsSync as existsSync4, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
+import { appendFileSync as appendFileSync4, existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync6 } from "node:fs";
 import { createHash as createHash4 } from "node:crypto";
 import { join as join7, resolve } from "node:path";
 var MAX_INDEX_BYTES = 1e6;
@@ -5573,10 +5603,10 @@ function indexRoot() {
   return process.env.TOKEN_OPTIMIZER_UCR_DIR ? resolve(process.env.TOKEN_OPTIMIZER_UCR_DIR) : resolve(process.cwd(), ".token-optimizer", "ucr");
 }
 function loadActiveUcrGuards() {
-  const path4 = join7(indexRoot(), "active-guards.json");
-  if (!existsSync4(path4) || statSync6(path4).size > MAX_INDEX_BYTES) return [];
+  const path5 = join7(indexRoot(), "active-guards.json");
+  if (!existsSync5(path5) || statSync6(path5).size > MAX_INDEX_BYTES) return [];
   try {
-    const parsed = JSON.parse(readFileSync7(path4, "utf8"));
+    const parsed = JSON.parse(readFileSync8(path5, "utf8"));
     const { indexHash, ...body2 } = parsed;
     if (parsed.schemaVersion !== "ucr.active-guards/1") return [];
     if (digest(body2) !== indexHash) return [];
@@ -5612,7 +5642,7 @@ function scoped(guard, context) {
 }
 function audit(record2) {
   try {
-    appendFileSync3(join7(indexRoot(), "guard-audit.jsonl"), `${JSON.stringify(record2)}
+    appendFileSync4(join7(indexRoot(), "guard-audit.jsonl"), `${JSON.stringify(record2)}
 `, {
       encoding: "utf8",
       mode: 384
@@ -5628,7 +5658,7 @@ function evaluateUcrGuards(payload, paths = []) {
   };
   const candidates = [
     payload?.tool_input || {},
-    ...paths.map((path4) => ({ ...payload?.tool_input || {}, path: path4 }))
+    ...paths.map((path5) => ({ ...payload?.tool_input || {}, path: path5 }))
   ];
   for (const guard of loadActiveUcrGuards()) {
     if (!scoped(guard, context)) continue;
@@ -5668,6 +5698,8 @@ function hookDeadlineMs(env = process.env) {
 }
 
 // src/optimizer/hooks/pretooluse.ts
+var CODE_SUBSTITUTE_LEDGER_MODULE = "code-substitute";
+var READ_SUPPRESSED_LEDGER_MODULE = "read-suppressed";
 var HARVEST_MAX_BYTES = Number(process.env.TOKEN_OPTIMIZER_HARVEST_MAX_BYTES) || 4e6;
 var SUBSTITUTE_PREFACE = '[optiflow: structure-preserving compression of this file -- imports/exports, signatures, and types are kept verbatim, but most function/method bodies are elided (see the inline "lines omitted" markers). Call the token-optimizer MCP tool smart_read with the same path if you need the full, uncompressed contents.]';
 function verdictToHookOutput(verdict) {
@@ -5693,7 +5725,7 @@ async function decidePreToolUse(raw) {
     rememberOptimizerTools(state, toolEvidence);
     const ucrVerdict = evaluateUcrGuards(payload, touchedFiles(payload).map((item) => item.path));
     const verdict = ucrVerdict || (features.routing ? decide(payload, state, toolEvidence.names) : null);
-    const dirFor = (path4) => wikiDir(projectRootFor(path4, payload.cwd) ?? payload.cwd);
+    const dirFor = (path5) => wikiDir(projectRootFor(path5, payload.cwd) ?? payload.cwd);
     if (!verdict) {
       remember(payload, state);
       saveState(payload.session_id, state, agentScope);
@@ -5707,13 +5739,13 @@ async function decidePreToolUse(raw) {
           fp: fingerprint(payload.tool_input.file_path)
         });
       } else if (isContentDump(payload.tool_input.command)) {
-        for (const { path: path4, size } of touched) {
+        for (const { path: path5, size } of touched) {
           if (size > 0) {
-            recordRead(dirFor(path4), {
-              anchor: path4,
+            recordRead(dirFor(path5), {
+              anchor: path5,
               sessionId: payload.session_id,
               bytes: size,
-              fp: fingerprint(path4)
+              fp: fingerprint(path5)
             });
           }
         }
@@ -5726,9 +5758,9 @@ async function decidePreToolUse(raw) {
           const before = alreadyInjected.size;
           const parts2 = [];
           let actsChanged = false;
-          for (const { path: path4 } of touched) {
-            const dir = dirFor(path4);
-            const note = forTouch(dir, load(dir), path4, {
+          for (const { path: path5 } of touched) {
+            const dir = dirFor(path5);
+            const note = forTouch(dir, load(dir), path5, {
               sessionId: payload.session_id,
               alreadyInjected,
               episode
@@ -5803,20 +5835,20 @@ ${surfaced.text}` : surfaced.text;
       } catch {
       }
       if (features.capture) {
-        for (const { path: path4, size } of touched) {
+        for (const { path: path5, size } of touched) {
           try {
-            if (isArchived(path4)) continue;
+            if (isArchived(path5)) continue;
             if (size > HARVEST_MAX_BYTES) continue;
-            const dir = dirFor(path4);
-            if (!isFsSafePath(path4)) continue;
-            const source = readFileSync8(path4, "utf8");
+            const dir = dirFor(path5);
+            if (!isFsSafePath(path5)) continue;
+            const source = readFileSync9(path5, "utf8");
             harvest(dir, {
-              filePath: path4,
+              filePath: path5,
               sessionId: payload.session_id,
               action: payload.tool_name ?? void 0,
-              hash: contentHash(path4, source)
+              hash: contentHash(path5, source)
             });
-            indexFile(dir, path4, source);
+            indexFile(dir, path5, source);
           } catch {
           }
         }
@@ -5838,7 +5870,7 @@ ${surfaced.text}` : surfaced.text;
         if (carried) {
           reason = carried;
         } else {
-          const source = readFileSync8(filePath, "utf8");
+          const source = readFileSync9(filePath, "utf8");
           indexFile(dir, filePath, source);
           const substitution = substitutionFor(
             dir,
@@ -5861,6 +5893,14 @@ ${surfaced.text}` : surfaced.text;
               substitute = `${SUBSTITUTE_PREFACE}
 
 ${codeResult.compressed}`;
+              appendLedger({
+                module: CODE_SUBSTITUTE_LEDGER_MODULE,
+                command_or_context: filePath,
+                tokensBefore: codeResult.originalTokens,
+                tokensAfter: codeResult.compressedTokens,
+                bytesBefore: Buffer.byteLength(source, "utf8"),
+                bytesAfter: Buffer.byteLength(substitute, "utf8")
+              });
             }
           }
         }
@@ -5869,6 +5909,17 @@ ${codeResult.compressed}`;
           console.error("[substitute-debug]", err2 instanceof Error ? err2.stack : String(err2));
         }
       }
+    }
+    const suppressedBytes = "suppressedReadBytes" in verdict ? verdict.suppressedReadBytes : void 0;
+    if (!repeat && currentMode === MODE_ENFORCE && suppressedBytes) {
+      appendLedger({
+        module: READ_SUPPRESSED_LEDGER_MODULE,
+        command_or_context: payload.tool_input.file_path ?? "unknown",
+        tokensBefore: estimateTokens(suppressedBytes),
+        tokensAfter: 0,
+        bytesBefore: suppressedBytes,
+        bytesAfter: 0
+      });
     }
     return verdictToHookOutput(enforceVerdict(reason, repeat, currentMode, substitute));
   } catch {
@@ -5895,6 +5946,8 @@ if (isDirectRun) {
   main();
 }
 export {
+  CODE_SUBSTITUTE_LEDGER_MODULE,
+  READ_SUPPRESSED_LEDGER_MODULE,
   decidePreToolUse,
   allow as hookAllow,
   runPreToolUse

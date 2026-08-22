@@ -53,6 +53,17 @@ export interface Verdict {
   reason: string;
   /** Set by ucr-guard.ts for a persistent (non-loop-broken) veto. */
   persistent?: boolean;
+  /**
+   * Set only by the unchanged-repeated-read rule: the file size that was
+   * NOT sent because the read was refused outright. Lets `pretooluse.ts`
+   * record an avoided read in the ledger without having to re-derive which
+   * branch produced the verdict by matching on its prose.
+   *
+   * Reported separately from compression savings (`optiflow savings`): "this
+   * output shrank" and "this read did not happen" are different claims, and
+   * totalling them together would overstate both.
+   */
+  suppressedReadBytes?: number;
 }
 
 /** Whether a path names an existing directory. Never throws. */
@@ -421,6 +432,7 @@ export function decide(
       if (unchangedSinceSeen(path, seenEntry)) {
         return {
           key: `read:${path}`,
+          suppressedReadBytes: size,
           reason:
             `${shown} has not changed since you read it earlier in this ` +
             `session -- its contents are already in your context above. If ` +
