@@ -183,6 +183,7 @@ function mode(env = process.env) {
   if (raw === MODE_ADVISE) return MODE_ADVISE;
   return MODE_ENFORCE;
 }
+var PENDING_REDIRECT_TTL_MS = 5 * 6e4;
 var stateRoot = (env = process.env) => env.TOKEN_OPTIMIZER_STATE_DIR || join(tmpdir(), "token-optimizer-hooks");
 function statePath(sessionId, agent, env = process.env) {
   const safe = String(sessionId || "default").replace(/[^A-Za-z0-9_-]/g, "");
@@ -192,6 +193,8 @@ function statePath(sessionId, agent, env = process.env) {
 function emptyState() {
   return {
     seen: {},
+    pendingRedirects: {},
+    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -222,12 +225,25 @@ function normalizeSeen(raw) {
   }
   return out;
 }
+function normalizePendingRedirects(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [tool, value] of Object.entries(raw)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const entry = value;
+    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
+    out[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+  }
+  return out;
+}
 function loadState(sessionId, agent, env = process.env) {
   try {
     const parsed = JSON.parse(readFileSync(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
       seen: normalizeSeen(parsed.seen),
+      pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
+      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects) ? Number(parsed.unmeasuredRedirects) : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},

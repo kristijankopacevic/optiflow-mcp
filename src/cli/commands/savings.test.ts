@@ -125,3 +125,46 @@ describe("runSavingsCli", () => {
     expect(parsed.totalCalls).toBe(0);
   });
 });
+
+describe("redirects — the third claim type", () => {
+  it("keeps redirects out of the compression total", () => {
+    const summary = summarizeSavings([
+      record({ module: "mcp-compression" }),
+      record({ module: "redirect", tokensBefore: 8000, tokensAfter: 600 }),
+    ]);
+    expect(summary.compression.calls).toBe(1);
+    expect(summary.compression.tokensBefore).toBe(1000);
+    expect(summary.redirected?.calls).toBe(1);
+    expect(summary.redirected?.tokensBefore).toBe(8000);
+  });
+
+  it("says a redirect is not free, so the figure is a difference", () => {
+    const out = renderSavings(
+      summarizeSavings([record({ module: "redirect", tokensBefore: 8000, tokensAfter: 600 })]),
+      { exactTokens: true, rangeLabel: "all time" }
+    );
+    expect(out).toContain("Redirects taken");
+    expect(out).toContain("not free");
+  });
+
+  it("reports a NEGATIVE redirect saving rather than hiding it", () => {
+    // A replacement that returns more than the original would have is a real
+    // outcome and the report has to be able to say so; clamping it to zero
+    // would make the tool look incapable of ever losing.
+    const out = renderSavings(
+      summarizeSavings([record({ module: "redirect", tokensBefore: 100, tokensAfter: 900 })]),
+      { exactTokens: true, rangeLabel: "all time" }
+    );
+    expect(out).toContain("NEGATIVE");
+  });
+
+  it("totals redirect rows across calls", () => {
+    const summary = summarizeSavings([
+      record({ module: "redirect", tokensBefore: 5000, tokensAfter: 400 }),
+      record({ module: "redirect", tokensBefore: 3000, tokensAfter: 200 }),
+    ]);
+    expect(summary.redirected?.calls).toBe(2);
+    expect(summary.redirected?.tokensBefore).toBe(8000);
+    expect(summary.redirected?.tokensAfter).toBe(600);
+  });
+});

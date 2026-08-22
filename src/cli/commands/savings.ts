@@ -17,11 +17,14 @@
 //      installed and otherwise falls back to chars/4 — an approximation
 //      that skews badly on code and JSON. The output says which applies
 //      instead of printing one confident number.
-//   2. `read-suppressed` is a DIFFERENT KIND OF CLAIM. The others measure
-//      "this output was N tokens, it is now M". Suppression measures "this
-//      read did not happen", which is only a real saving if the model did
-//      not immediately work around it. It is reported on its own line and
-//      excluded from the headline total.
+//   2. THERE ARE THREE DIFFERENT KINDS OF CLAIM here, and they are never
+//      summed. Compression measures "this output was N tokens, it is now M".
+//      `read-suppressed` measures "this read did not happen", which is only
+//      a real saving if the model did not immediately work around it.
+//      `redirect` measures "this went through a cheaper route" — and a
+//      redirect is NOT free, since the replacement tool still returns
+//      something, so its saving is the difference and can even be negative.
+//      Each gets its own line; only compression is in the headline total.
 //   3. Bytes are measured; tokens are derived. Where they disagree, bytes
 //      are the more trustworthy number.
 
@@ -33,6 +36,15 @@ const COMPRESSION_MODULES = new Set(["chop", "mcp-compression", "code-substitute
 
 /** Rows that measure an avoided read rather than a compressed payload. */
 const AVOIDED_MODULE = "read-suppressed";
+
+/**
+ * Rows where the router refused a built-in call, named a replacement, and
+ * the model actually called it. A third distinct claim: not "this output
+ * shrank" and not "this never happened", but "this went through a cheaper
+ * route". Kept out of the compression total for the same reason as
+ * `read-suppressed` -- summing different claims overstates all of them.
+ */
+const REDIRECT_MODULE = "redirect";
 
 export interface ModuleSummary {
   module: string;
@@ -49,6 +61,8 @@ export interface SavingsSummary {
   compression: ModuleSummary;
   /** Avoided-read rows, reported separately and never folded into the total. */
   avoided: ModuleSummary | null;
+  /** Complied-with redirects, likewise reported on their own terms. */
+  redirected: ModuleSummary | null;
   totalCalls: number;
 }
 
@@ -69,6 +83,7 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
   const byModule = new Map<string, ModuleSummary>();
   const compression = emptySummary("compression total");
   let avoided: ModuleSummary | null = null;
+  let redirected: ModuleSummary | null = null;
 
   for (const record of records) {
     const module = String(record.module || "unknown");
@@ -82,6 +97,9 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
     if (module === AVOIDED_MODULE) {
       avoided = avoided ?? emptySummary(AVOIDED_MODULE);
       accumulate(avoided, record);
+    } else if (module === REDIRECT_MODULE) {
+      redirected = redirected ?? emptySummary(REDIRECT_MODULE);
+      accumulate(redirected, record);
     } else if (COMPRESSION_MODULES.has(module)) {
       accumulate(compression, record);
     }
@@ -91,6 +109,7 @@ export function summarizeSavings(records: LedgerRecord[]): SavingsSummary {
     modules: [...byModule.values()].sort((a, b) => b.tokensBefore - a.tokensBefore),
     compression,
     avoided,
+    redirected,
     totalCalls: records.length,
   };
 }
@@ -167,6 +186,20 @@ export function renderSavings(summary: SavingsSummary, options: RenderSavingsOpt
   lines.push("");
   lines.push(`  Compression: ${n(c.calls)} calls, ${n(savedTokens)} tokens saved (${pct(c.tokensBefore, c.tokensAfter)} smaller)`);
   lines.push(`               ${n(savedBytes)} bytes saved (${pct(c.bytesBefore, c.bytesAfter)}) — measured, not derived`);
+
+  if (summary.redirected) {
+    const r = summary.redirected;
+    const saved = r.tokensBefore - r.tokensAfter;
+    lines.push("");
+    lines.push(
+      `  Redirects taken: ${n(r.calls)}, ~${n(saved)} tokens saved (${pct(r.tokensBefore, r.tokensAfter)})`
+    );
+    lines.push("               A redirect is not free — the replacement tool still returns");
+    lines.push("               something — so this is the difference, not the whole file.");
+    if (saved < 0) {
+      lines.push("               NEGATIVE: the replacements returned MORE than the originals.");
+    }
+  }
 
   if (summary.avoided) {
     const a = summary.avoided;

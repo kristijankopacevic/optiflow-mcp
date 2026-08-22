@@ -342,6 +342,31 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
     // the way IN.
     const seenThisSession = Boolean(state.seen?.[payload.tool_input?.file_path ?? ""]);
     remember(payload, state);
+
+    // Park the "before" half of a redirect's saving. The other half — what
+    // the replacement tool actually returned — does not exist yet, and only
+    // the PostToolUse hook can supply it (see policy.ts's
+    // `resolvePendingRedirect`). Without this, the dominant behaviour of
+    // this plugin on a real workload — redirecting a big Read or Bash dump
+    // to smart_read — was saving real tokens and recording nothing, so
+    // `optiflow savings` under-reported exactly the sessions it worked
+    // hardest on.
+    //
+    // A redirect whose "before" size is unknowable (Grep/Glob: nobody can
+    // say what the built-in would have returned without running it) is
+    // COUNTED but not measured, so the report can state how much it is not
+    // measuring rather than silently presenting the measurable part as the
+    // whole.
+    const redirectTool = "redirectTool" in verdict ? verdict.redirectTool : undefined;
+    if (redirectTool) {
+      const avoided = "avoidedBytes" in verdict ? verdict.avoidedBytes : undefined;
+      if (typeof avoided === "number" && avoided > 0) {
+        state.pendingRedirects[redirectTool] = { avoidedBytes: avoided, at: Date.now() };
+      } else {
+        state.unmeasuredRedirects = (state.unmeasuredRedirects || 0) + 1;
+      }
+    }
+
     saveState(payload.session_id, state, agentScope);
 
     let reason = verdict.reason;

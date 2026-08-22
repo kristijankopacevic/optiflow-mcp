@@ -192,8 +192,41 @@ export interface SeenEntry {
   at: number;
 }
 
+/**
+ * A redirect the router issued, waiting to see whether the model complied.
+ *
+ * A redirect's saving cannot be known when it is issued: it is
+ * `what the built-in would have returned` minus `what the replacement
+ * actually returned`, and the second half only exists after the model calls
+ * the replacement. So the router parks the first half here and the
+ * `PostToolUse` `mcp__.*` hook closes the pair — see
+ * `resolvePendingRedirect`.
+ *
+ * `avoidedBytes` is the size the built-in call would have pulled in, and is
+ * recorded ONLY where the router genuinely knows it (a file whose size it
+ * stat'd). A `Grep`/`Glob` redirect has no knowable "before" — nobody can
+ * say what the built-in would have returned without running it — so those
+ * are counted as unmeasured rather than guessed at.
+ */
+export interface PendingRedirect {
+  avoidedBytes: number;
+  /** Epoch ms, so a stale redirect cannot be paired with an unrelated later call. */
+  at: number;
+}
+
+/** Beyond this, a pending redirect is too old to be what the model is responding to. */
+export const PENDING_REDIRECT_TTL_MS = 5 * 60_000;
+
 export interface SessionState {
   seen: Record<string, SeenEntry>;
+  /** Keyed by replacement tool name (`smart_read`, ...). Last redirect wins. */
+  pendingRedirects: Record<string, PendingRedirect>;
+  /**
+   * Redirects issued whose saving is genuinely unknowable. Counted so
+   * `optiflow savings` can SAY how much it is not measuring, instead of
+   * quietly reporting only the measurable part as if it were the whole.
+   */
+  unmeasuredRedirects: number;
   denied: Record<string, boolean>;
   injected: string[];
   actCounts: Record<string, number>;
@@ -227,6 +260,8 @@ function statePath(sessionId: unknown, agent?: string | null, env: NodeJS.Proces
 function emptyState(): SessionState {
   return {
     seen: {},
+    pendingRedirects: {},
+    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -271,6 +306,19 @@ export function normalizeSeen(raw: unknown): Record<string, SeenEntry> {
   return out;
 }
 
+/** Coerces the `pendingRedirects` map from disk, dropping anything unusable. */
+export function normalizePendingRedirects(raw: unknown): Record<string, PendingRedirect> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, PendingRedirect> = {};
+  for (const [tool, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const entry = value as { avoidedBytes?: unknown; at?: unknown };
+    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
+    out[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+  }
+  return out;
+}
+
 /**
  * Loads session state, validating its SHAPE and not merely that it parsed —
  * a file containing `null`, `{}`, or an older layout must not throw on the
@@ -287,6 +335,10 @@ export function loadState(
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
       seen: normalizeSeen(parsed.seen),
+      pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
+      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects)
+        ? Number(parsed.unmeasuredRedirects)
+        : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts:
@@ -374,6 +426,14 @@ export function saveState(
     const current = loadState(sessionId, agent, env);
     const merged: SessionState = {
       seen: { ...current.seen, ...state.seen },
+      // Last redirect per tool wins; a resolved one is deleted by the
+      // resolver before saving, so merging `current` first would resurrect
+      // it. `state` is therefore authoritative for this field.
+      pendingRedirects: { ...state.pendingRedirects },
+      unmeasuredRedirects: Math.max(
+        Number(current.unmeasuredRedirects) || 0,
+        Number(state.unmeasuredRedirects) || 0
+      ),
       denied: { ...current.denied, ...state.denied },
       injected: [...new Set([...(current.injected || []), ...(state.injected || [])])],
       actCounts: (() => {
@@ -421,6 +481,41 @@ export function saveState(
         // Already gone.
       }
     }
+  }
+}
+
+/**
+ * Closes the pair a redirect opened: the model was told to call `tool`, and
+ * it just did.
+ *
+ * Returns the parked "before" size, or `null` when there is nothing to pair
+ * with — no redirect was issued for this tool, or the one that was is older
+ * than `PENDING_REDIRECT_TTL_MS` and so is not plausibly what this call is
+ * responding to. Consumes the entry either way, so one redirect can never be
+ * credited twice.
+ *
+ * Never throws: this is accounting, and losing a row must not affect the
+ * hook's actual output.
+ */
+export function resolvePendingRedirect(
+  tool: string,
+  sessionId: unknown,
+  agent?: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+  now: number = Date.now()
+): number | null {
+  try {
+    const state = loadState(sessionId, agent, env);
+    const pending = state.pendingRedirects[tool];
+    if (!pending) return null;
+
+    delete state.pendingRedirects[tool];
+    saveState(sessionId, state, agent, env);
+
+    if (now - pending.at > PENDING_REDIRECT_TTL_MS) return null;
+    return pending.avoidedBytes;
+  } catch {
+    return null;
   }
 }
 

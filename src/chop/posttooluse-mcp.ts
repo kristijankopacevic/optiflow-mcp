@@ -13,8 +13,9 @@ import { pathToFileURL } from "node:url";
 import { readHookInput, updateMCPOutput, writeHookOutput, type HookOutput } from "../core/hook-io.js";
 import { loadConfig } from "../config/load.js";
 import { appendLedger } from "../core/ledger.js";
-import { countTokens } from "../core/tokens.js";
-import { recordOptimizerToolObservation } from "../optimizer/hooks/lib/capabilities.js";
+import { countTokens, estimateTokens } from "../core/tokens.js";
+import { optimizerToolFromMcpName, recordOptimizerToolObservation } from "../optimizer/hooks/lib/capabilities.js";
+import { resolvePendingRedirect } from "../optimizer/hooks/lib/policy.js";
 import { annotateCcrMarkers, genericFilter } from "./filters/generic.js";
 
 export interface McpContentBlock {
@@ -111,6 +112,16 @@ export function decidePostToolUseMcp(
  */
 export const MCP_COMPRESSION_LEDGER_MODULE = "mcp-compression";
 
+/**
+ * Ledger module for a redirect the model actually complied with: the router
+ * refused a built-in call, named a replacement, and the model called it.
+ * Reported apart from compression in `optiflow savings` because the claim is
+ * different -- a redirect is not free, the replacement still returns
+ * something, so the saving is `what the built-in would have returned` minus
+ * `what the replacement did`.
+ */
+export const REDIRECT_LEDGER_MODULE = "redirect";
+
 export interface BuildHookOutputOptions {
   /**
    * Injected so `buildHookOutput` stays a pure function under test —
@@ -167,6 +178,43 @@ export function buildHookOutput(
   return updateMCPOutput("PostToolUse", newContent);
 }
 
+/**
+ * Writes the ledger row for a complied-with redirect, if this MCP call
+ * closes one. Never throws — accounting must not affect hook output.
+ */
+function recordRedirectSaving(input: PostToolUseMcpHookInput): void {
+  try {
+    const tool = optimizerToolFromMcpName(input.tool_name);
+    if (!tool) return;
+
+    const avoidedBytes = resolvePendingRedirect(
+      tool,
+      input.session_id,
+      input.transcript_path ?? null
+    );
+    if (avoidedBytes === null) return;
+
+    const content = normalizeToolResponse(input.tool_response);
+    const delivered = content ? extractText(content) : "";
+    const deliveredBytes = Buffer.byteLength(delivered, "utf8");
+
+    // A replacement that returned MORE than the original would have is not a
+    // saving, and recording it as one (or clamping it to zero) would both
+    // mislead. Recorded as-is; `optiflow savings` sums honestly and a
+    // negative row correctly drags the total down.
+    appendLedger({
+      module: REDIRECT_LEDGER_MODULE,
+      command_or_context: tool,
+      tokensBefore: estimateTokens(avoidedBytes),
+      tokensAfter: countTokens(delivered),
+      bytesBefore: avoidedBytes,
+      bytesAfter: deliveredBytes,
+    });
+  } catch {
+    // Accounting only.
+  }
+}
+
 export async function runPostToolUseMcp(
   readInput: () => Promise<PostToolUseMcpHookInput | null>,
   loadOptions: { cwd?: string; home?: string } = {}
@@ -186,6 +234,12 @@ export async function runPostToolUseMcp(
     input.session_id,
     input.transcript_path ?? null
   );
+
+  // Close any redirect this call is the answer to. Doing it here, rather
+  // than optimistically at redirect time, is what makes the number honest:
+  // a redirect only saves anything if the model actually complied, and this
+  // is the sole place that can be observed.
+  recordRedirectSaving(input);
 
   const decision = decidePostToolUseMcp(input, loadOptions);
   // The real entry path writes the ledger; buildHookOutput stays pure for tests.

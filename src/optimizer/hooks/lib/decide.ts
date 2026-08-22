@@ -64,6 +64,19 @@ export interface Verdict {
    * totalling them together would overstate both.
    */
   suppressedReadBytes?: number;
+  /**
+   * The replacement MCP tool this verdict points the model at, when it
+   * points at one. Recorded so `pretooluse.ts` can park a pending redirect
+   * and the `PostToolUse` hook can close the pair when the model complies.
+   */
+  redirectTool?: string;
+  /**
+   * How many bytes the built-in call would have pulled into context, set
+   * ONLY where the router genuinely knows it (a file it stat'd). Absent for
+   * `Grep`/`Glob`, whose output size is unknowable without running them --
+   * those redirects are counted as unmeasured rather than guessed at.
+   */
+  avoidedBytes?: number;
 }
 
 /** Whether a path names an existing directory. Never throws. */
@@ -413,6 +426,8 @@ export function decide(
     if (rule && replacementAvailable(availableTools, "smart_read")) {
       return {
         key: `read:${path}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason:
           `${shown} is covered by a fix applied on ${new Date(rule.appliedAt).toISOString().slice(0, 10)}: ` +
           `${rule.why}. Call smart_read with path="${shown}" for its structure, or ` +
@@ -442,6 +457,8 @@ export function decide(
       }
       return {
         key: `read:${path}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason:
           `You already read ${shown} earlier in this session. Call the ` +
           `token-optimizer MCP tool smart_read with path="${shown}" instead -- ` +
@@ -453,6 +470,8 @@ export function decide(
     if (size >= threshold && replacementAvailable(availableTools, "smart_read")) {
       return {
         key: `read:${path}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason:
           `${shown} is ${KB(size)} KB, large enough to cost a meaningful share ` +
           `of the context window. Call the token-optimizer MCP tool smart_read ` +
@@ -469,6 +488,9 @@ export function decide(
     const pattern = (input.pattern as string) || "";
     return {
       key: `grep:${pattern}:${(input.path as string) || ""}`,
+      // No avoidedBytes: nobody can say what the built-in Grep would have
+      // returned without running it. Counted as unmeasured, never guessed.
+      redirectTool: "smart_grep",
       reason:
         `Call the token-optimizer MCP tool smart_grep instead of the built-in ` +
         `Grep (pattern="${pattern}"). It returns deduplicated, context-trimmed ` +
@@ -481,6 +503,7 @@ export function decide(
     const pattern = (input.pattern as string) || "";
     return {
       key: `glob:${pattern}`,
+      redirectTool: "smart_glob",
       reason:
         `Call the token-optimizer MCP tool smart_glob instead of the built-in ` +
         `Glob (pattern="${pattern}"). It returns filtered, paginated paths ` +
@@ -496,6 +519,8 @@ export function decide(
     if (size < threshold) return null;
     return {
       key: `edit:${path}`,
+      redirectTool: "smart_edit",
+      avoidedBytes: size,
       reason:
         `${path} is ${KB(size)} KB. Call the token-optimizer MCP tool ` +
         `smart_edit with path="${path}" instead -- it applies the change and ` +
@@ -510,6 +535,8 @@ export function decide(
     if (!path || content.length < threshold) return null;
     return {
       key: `write:${path}`,
+      redirectTool: "smart_write",
+      avoidedBytes: content.length,
       reason:
         `You are writing ${KB(content.length)} KB to ${path}. Call the ` +
         `token-optimizer MCP tool smart_write instead -- it stores the content ` +
@@ -525,6 +552,8 @@ export function decide(
       if (hit && replacementAvailable(availableTools, "smart_read")) {
         return {
           key: `bash:${hit.path}`,
+          redirectTool: "smart_read",
+          avoidedBytes: hit.size,
           reason:
             `This command prints ${hit.path} (${KB(hit.size)} KB) into the ` +
             `context. Call the token-optimizer MCP tool smart_read with ` +

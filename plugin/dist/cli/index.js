@@ -22249,6 +22249,7 @@ function registerCcrRetrieveCommand(program2) {
 // src/cli/commands/savings.ts
 var COMPRESSION_MODULES = /* @__PURE__ */ new Set(["chop", "mcp-compression", "code-substitute"]);
 var AVOIDED_MODULE = "read-suppressed";
+var REDIRECT_MODULE = "redirect";
 function emptySummary(module) {
   return { module, calls: 0, tokensBefore: 0, tokensAfter: 0, bytesBefore: 0, bytesAfter: 0 };
 }
@@ -22263,6 +22264,7 @@ function summarizeSavings(records) {
   const byModule = /* @__PURE__ */ new Map();
   const compression = emptySummary("compression total");
   let avoided = null;
+  let redirected = null;
   for (const record2 of records) {
     const module = String(record2.module || "unknown");
     let summary = byModule.get(module);
@@ -22274,6 +22276,9 @@ function summarizeSavings(records) {
     if (module === AVOIDED_MODULE) {
       avoided = avoided ?? emptySummary(AVOIDED_MODULE);
       accumulate(avoided, record2);
+    } else if (module === REDIRECT_MODULE) {
+      redirected = redirected ?? emptySummary(REDIRECT_MODULE);
+      accumulate(redirected, record2);
     } else if (COMPRESSION_MODULES.has(module)) {
       accumulate(compression, record2);
     }
@@ -22282,6 +22287,7 @@ function summarizeSavings(records) {
     modules: [...byModule.values()].sort((a, b) => b.tokensBefore - a.tokensBefore),
     compression,
     avoided,
+    redirected,
     totalCalls: records.length
   };
 }
@@ -22337,6 +22343,19 @@ function renderSavings(summary, options) {
   lines.push("");
   lines.push(`  Compression: ${n(c.calls)} calls, ${n(savedTokens)} tokens saved (${pct(c.tokensBefore, c.tokensAfter)} smaller)`);
   lines.push(`               ${n(savedBytes)} bytes saved (${pct(c.bytesBefore, c.bytesAfter)}) \u2014 measured, not derived`);
+  if (summary.redirected) {
+    const r = summary.redirected;
+    const saved = r.tokensBefore - r.tokensAfter;
+    lines.push("");
+    lines.push(
+      `  Redirects taken: ${n(r.calls)}, ~${n(saved)} tokens saved (${pct(r.tokensBefore, r.tokensAfter)})`
+    );
+    lines.push("               A redirect is not free \u2014 the replacement tool still returns");
+    lines.push("               something \u2014 so this is the difference, not the whole file.");
+    if (saved < 0) {
+      lines.push("               NEGATIVE: the replacements returned MORE than the originals.");
+    }
+  }
   if (summary.avoided) {
     const a = summary.avoided;
     lines.push("");

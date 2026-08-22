@@ -4431,6 +4431,7 @@ function fileSize(path5) {
     return -1;
   }
 }
+var PENDING_REDIRECT_TTL_MS = 5 * 6e4;
 var stateRoot = (env = process.env) => env.TOKEN_OPTIMIZER_STATE_DIR || join(tmpdir(), "token-optimizer-hooks");
 function statePath(sessionId, agent, env = process.env) {
   const safe = String(sessionId || "default").replace(/[^A-Za-z0-9_-]/g, "");
@@ -4440,6 +4441,8 @@ function statePath(sessionId, agent, env = process.env) {
 function emptyState() {
   return {
     seen: {},
+    pendingRedirects: {},
+    unmeasuredRedirects: 0,
     denied: {},
     injected: [],
     actCounts: {},
@@ -4470,12 +4473,25 @@ function normalizeSeen(raw) {
   }
   return out2;
 }
+function normalizePendingRedirects(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out2 = {};
+  for (const [tool, value] of Object.entries(raw)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const entry = value;
+    if (!Number.isFinite(entry.avoidedBytes) || !Number.isFinite(entry.at)) continue;
+    out2[tool] = { avoidedBytes: Number(entry.avoidedBytes), at: Number(entry.at) };
+  }
+  return out2;
+}
 function loadState(sessionId, agent, env = process.env) {
   try {
     const parsed = JSON.parse(readFileSync2(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
       seen: normalizeSeen(parsed.seen),
+      pendingRedirects: normalizePendingRedirects(parsed.pendingRedirects),
+      unmeasuredRedirects: Number.isFinite(parsed.unmeasuredRedirects) ? Number(parsed.unmeasuredRedirects) : 0,
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},
@@ -4527,6 +4543,14 @@ function saveState(sessionId, state, agent, env = process.env) {
     const current = loadState(sessionId, agent, env);
     const merged = {
       seen: { ...current.seen, ...state.seen },
+      // Last redirect per tool wins; a resolved one is deleted by the
+      // resolver before saving, so merging `current` first would resurrect
+      // it. `state` is therefore authoritative for this field.
+      pendingRedirects: { ...state.pendingRedirects },
+      unmeasuredRedirects: Math.max(
+        Number(current.unmeasuredRedirects) || 0,
+        Number(state.unmeasuredRedirects) || 0
+      ),
       denied: { ...current.denied, ...state.denied },
       injected: [.../* @__PURE__ */ new Set([...current.injected || [], ...state.injected || []])],
       actCounts: (() => {
@@ -5247,6 +5271,8 @@ function decide(payload, state, availableTools) {
     if (rule && replacementAvailable(availableTools, "smart_read")) {
       return {
         key: `read:${path5}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason: `${shown} is covered by a fix applied on ${new Date(rule.appliedAt).toISOString().slice(0, 10)}: ${rule.why}. Call smart_read with path="${shown}" for its structure, or revert the rule with id "${rule.id}" if it is wrong.`
       };
     }
@@ -5261,12 +5287,16 @@ function decide(payload, state, availableTools) {
       }
       return {
         key: `read:${path5}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason: `You already read ${shown} earlier in this session. Call the token-optimizer MCP tool smart_read with path="${shown}" instead -- it returns only a diff of what changed since that read, typically a few tokens rather than the whole file.`
       };
     }
     if (size >= threshold && replacementAvailable(availableTools, "smart_read")) {
       return {
         key: `read:${path5}`,
+        redirectTool: "smart_read",
+        avoidedBytes: size,
         reason: `${shown} is ${KB(size)} KB, large enough to cost a meaningful share of the context window. Call the token-optimizer MCP tool smart_read with path="${shown}" instead -- it caches the content and returns diffs on later reads.`
       };
     }
@@ -5278,6 +5308,9 @@ function decide(payload, state, availableTools) {
     const pattern = input.pattern || "";
     return {
       key: `grep:${pattern}:${input.path || ""}`,
+      // No avoidedBytes: nobody can say what the built-in Grep would have
+      // returned without running it. Counted as unmeasured, never guessed.
+      redirectTool: "smart_grep",
       reason: `Call the token-optimizer MCP tool smart_grep instead of the built-in Grep (pattern="${pattern}"). It returns deduplicated, context-trimmed matches rather than every raw hit.`
     };
   }
@@ -5286,6 +5319,7 @@ function decide(payload, state, availableTools) {
     const pattern = input.pattern || "";
     return {
       key: `glob:${pattern}`,
+      redirectTool: "smart_glob",
       reason: `Call the token-optimizer MCP tool smart_glob instead of the built-in Glob (pattern="${pattern}"). It returns filtered, paginated paths rather than an unbounded match list.`
     };
   }
@@ -5297,6 +5331,8 @@ function decide(payload, state, availableTools) {
     if (size < threshold) return null;
     return {
       key: `edit:${path5}`,
+      redirectTool: "smart_edit",
+      avoidedBytes: size,
       reason: `${path5} is ${KB(size)} KB. Call the token-optimizer MCP tool smart_edit with path="${path5}" instead -- it applies the change and returns a compact unified diff rather than echoing the file.`
     };
   }
@@ -5307,6 +5343,8 @@ function decide(payload, state, availableTools) {
     if (!path5 || content.length < threshold) return null;
     return {
       key: `write:${path5}`,
+      redirectTool: "smart_write",
+      avoidedBytes: content.length,
       reason: `You are writing ${KB(content.length)} KB to ${path5}. Call the token-optimizer MCP tool smart_write instead -- it stores the content through the cache so later reads of this file diff against it.`
     };
   }
@@ -5317,6 +5355,8 @@ function decide(payload, state, availableTools) {
       if (hit && replacementAvailable(availableTools, "smart_read")) {
         return {
           key: `bash:${hit.path}`,
+          redirectTool: "smart_read",
+          avoidedBytes: hit.size,
           reason: `This command prints ${hit.path} (${KB(hit.size)} KB) into the context. Call the token-optimizer MCP tool smart_read with path="${hit.path}" instead -- same content, cached and diffed.`
         };
       }
@@ -5865,6 +5905,15 @@ ${surfaced.text}` : surfaced.text;
     const repeat = verdict.persistent ? false : alreadyDenied(state, verdict.key);
     const seenThisSession = Boolean(state.seen?.[payload.tool_input?.file_path ?? ""]);
     remember(payload, state);
+    const redirectTool = "redirectTool" in verdict ? verdict.redirectTool : void 0;
+    if (redirectTool) {
+      const avoided = "avoidedBytes" in verdict ? verdict.avoidedBytes : void 0;
+      if (typeof avoided === "number" && avoided > 0) {
+        state.pendingRedirects[redirectTool] = { avoidedBytes: avoided, at: Date.now() };
+      } else {
+        state.unmeasuredRedirects = (state.unmeasuredRedirects || 0) + 1;
+      }
+    }
     saveState(payload.session_id, state, agentScope);
     let reason = verdict.reason;
     let substitute;
