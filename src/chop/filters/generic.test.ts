@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { genericFilter, type GenericFilterOptions, type SmartCrusherFilterConfig } from "./generic.js";
+import { annotateCcrMarkers, genericFilter, type GenericFilterOptions, type SmartCrusherFilterConfig } from "./generic.js";
 import type { FilterInput } from "./types.js";
 import type { ToonConfig } from "../../toon/index.js";
 import { getCcr } from "../../native/ccr-store.js";
@@ -316,5 +316,37 @@ describe("genericFilter — SmartCrusher wiring (Phase 5c)", () => {
     });
     expect(result.formatHint).toBe("json");
     expect(JSON.parse(result.text)).toEqual(value);
+  });
+});
+
+describe("annotateCcrMarkers", () => {
+  it("is a no-op when there is no marker, so uncompressed output pays nothing", () => {
+    const text = '{"a":1}';
+    expect(annotateCcrMarkers(text)).toBe(text);
+  });
+
+  it("names ccr_retrieve when a marker is present", () => {
+    const text = 'head <<ccr:a1b2c3d4e5f6 42_rows_offloaded>> tail';
+    const out = annotateCcrMarkers(text);
+    expect(out.startsWith(text)).toBe(true);
+    expect(out).toContain("ccr_retrieve");
+  });
+
+  it("appends exactly one hint no matter how many markers are present", () => {
+    const text = '<<ccr:aaaaaaaaaaaa 1_rows_offloaded>> and <<ccr:bbbbbbbbbbbb 2_rows_offloaded>>';
+    const out = annotateCcrMarkers(text);
+    expect(out.split("ccr_retrieve").length - 1).toBe(1);
+  });
+
+  it("does NOT run inside genericFilter, which must keep the JSON path parseable", () => {
+    // Pins the boundary decision in annotateCcrMarkers' doc comment: filters
+    // chain into each other, so the hint is added by the hook that hands
+    // text to the model, never by the filter itself.
+    const value = { apiVersion: "v1", items: [{ a: 1 }, { b: 2, c: 3 }] };
+    const result = genericFilter(input(JSON.stringify(value)), {
+      toonConfig: TOON_ENABLED_LOW_BAR,
+      smartCrusherConfig: SMART_CRUSHER_ENABLED_LOW_BAR,
+    });
+    expect(result.text).not.toContain("ccr_retrieve");
   });
 });

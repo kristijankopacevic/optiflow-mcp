@@ -21546,6 +21546,10 @@ function trySmartCrusher(content, config2) {
   if (!guard.approved) return null;
   return { text: result.compressed, strategy: result.strategy, guard };
 }
+function annotateCcrMarkers(text) {
+  if (extractCcrHashes(text).length === 0) return text;
+  return text + "\n\n[optiflow: <<ccr:HASH ...>> marks content omitted from this result. Call the optiflow-optimizer MCP tool ccr_retrieve with that hash to get it back.]";
+}
 function storeCcrMarkers(originalText, parsedTopLevelValue, compressed) {
   const hashes = extractCcrHashes(compressed);
   if (hashes.length === 0) return;
@@ -22072,7 +22076,7 @@ function runWrapper(binary, args, options = {}) {
   if (shouldFilterOutput) {
     const filter = getFilterForBinary(binary);
     const filtered = filter({ stdout: result.stdout, stderr: result.stderr, args, exitCode });
-    outStdout = filtered.text;
+    outStdout = annotateCcrMarkers(filtered.text);
   }
   outStdout = capBytes(outStdout, MAX_PASSTHROUGH_BYTES);
   const outStderr = capBytes(result.stderr, MAX_PASSTHROUGH_BYTES);

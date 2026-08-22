@@ -12,7 +12,7 @@
 import { pathToFileURL } from "node:url";
 import { readHookInput, updateMCPOutput, writeHookOutput, type HookOutput } from "../core/hook-io.js";
 import { loadConfig } from "../config/load.js";
-import { genericFilter } from "./filters/generic.js";
+import { annotateCcrMarkers, genericFilter } from "./filters/generic.js";
 
 export interface McpContentBlock {
   type: string;
@@ -112,8 +112,16 @@ export function buildHookOutput(
   // concatenated text with the filtered version, as a single text block —
   // multiple original text blocks are intentionally collapsed into one,
   // since `extractText` already joined them for the size/filter decision.
+  //
+  // `annotateCcrMarkers` runs here rather than inside the filter: this is
+  // the point where text stops being data and becomes model context, and it
+  // is the only point at which naming `ccr_retrieve` is useful. See its doc
+  // comment for why it cannot live inside `genericFilter`.
   const nonTextBlocks = content.filter((block) => block.type !== "text");
-  const newContent: McpContentBlock[] = [{ type: "text", text: filtered.text }, ...nonTextBlocks];
+  const newContent: McpContentBlock[] = [
+    { type: "text", text: annotateCcrMarkers(filtered.text) },
+    ...nonTextBlocks,
+  ];
 
   return updateMCPOutput("PostToolUse", newContent);
 }

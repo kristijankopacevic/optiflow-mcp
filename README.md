@@ -29,6 +29,10 @@ locked decisions.
 
 ## Status
 
+The MCP server serves **77** tools: the 76 vendored above, plus optiflow's
+own `ccr_retrieve`, which resolves the `<<ccr:HASH ...>>` markers lossy
+compression leaves behind (`src/native/ccr-tool.ts`).
+
 Both major merges are done and wired: the 76-tool + enforcement-hook merge
 from token-optimizer-mcp, and headroom's compression core (WASM SmartCrusher
 + TS CodeCompressor/Kompress) actually called from the shipped pipeline, not

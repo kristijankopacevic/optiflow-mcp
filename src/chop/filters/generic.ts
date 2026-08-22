@@ -179,6 +179,36 @@ function trySmartCrusher(content: string, config: SmartCrusherFilterConfig): Sma
 }
 
 /**
+ * Appends a single line naming `ccr_retrieve` whenever `text` actually
+ * carries `<<ccr:HASH ...>>` markers.
+ *
+ * Without this the marker is inert: a model that encounters one has no way
+ * to know the dropped content is recoverable, let alone how. Emitted ONLY
+ * when at least one marker is present, so output with nothing offloaded
+ * pays nothing for it.
+ *
+ * Applied at the CONSUMPTION boundary (the hook that hands text to the
+ * model), NOT inside `genericFilter` itself, because the generic JSON path
+ * guarantees its output stays parseable JSON — appending a prose line
+ * inside the filter breaks that contract, which is a real invariant and not
+ * merely a test detail: `filters/*.ts` chain into each other and a later
+ * link may re-parse an earlier one's output.
+ *
+ * Consequence worth knowing: `evaluateGuard`'s measured savings are
+ * computed before this is appended, so they exclude the hint's ~140 bytes.
+ * On any payload large enough to clear `minSavingsPercent` that is noise,
+ * but the reported figure is very slightly optimistic.
+ */
+export function annotateCcrMarkers(text: string): string {
+  if (extractCcrHashes(text).length === 0) return text;
+  return (
+    text +
+    "\n\n[optiflow: <<ccr:HASH ...>> marks content omitted from this result. " +
+    "Call the optiflow-optimizer MCP tool ccr_retrieve with that hash to get it back.]"
+  );
+}
+
+/**
  * Persists whatever `<<ccr:HASH ...>>` markers a SmartCrusher-compressed
  * result carries, so `optiflow ccr-retrieve <hash>` (`src/cli/commands/ccr-retrieve.ts`)
  * has something real to serve back. Never throws — `ccr-store.ts`'s

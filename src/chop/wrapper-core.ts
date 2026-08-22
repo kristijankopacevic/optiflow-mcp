@@ -30,6 +30,7 @@
 import { appendLedger } from "../core/ledger.js";
 import { countTokens } from "../core/tokens.js";
 import { getFilterForBinary } from "./filters/index.js";
+import { annotateCcrMarkers } from "./filters/generic.js";
 import { runCommand } from "./win-spawn.js";
 
 /** Output over this many bytes gets hard-capped (not just filtered) to avoid pathological hook-output sizes. */
@@ -106,7 +107,11 @@ export function runWrapper(
   if (shouldFilterOutput) {
     const filter = getFilterForBinary(binary);
     const filtered = filter({ stdout: result.stdout, stderr: result.stderr, args, exitCode });
-    outStdout = filtered.text;
+    // The second of the two boundaries where filtered text becomes model
+    // context (the other is src/chop/posttooluse-mcp.ts). A `<<ccr:HASH>>`
+    // marker is unusable unless something names the tool that resolves it,
+    // and this is a no-op when no marker is present.
+    outStdout = annotateCcrMarkers(filtered.text);
   }
 
   outStdout = capBytes(outStdout, MAX_PASSTHROUGH_BYTES);

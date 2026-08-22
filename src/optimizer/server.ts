@@ -272,6 +272,9 @@ import { getMetricCollector, METRIC_COLLECTOR_TOOL_DEFINITION } from "./tools/da
 import { getMonitoringIntegration, MONITORING_INTEGRATION_TOOL_DEFINITION } from "./tools/dashboard-monitoring/monitoring-integration.js";
 import { createPerformanceTracker, performanceTrackerTool } from "./tools/dashboard-monitoring/performance-tracker.js";
 import { createSmartDashboard, smartDashboardTool } from "./tools/dashboard-monitoring/smart-dashboard.js";
+// Optiflow's own tool (not vendored from token-optimizer-mcp, hence the
+// path outside ./tools/) -- see src/native/ccr-tool.ts's header.
+import { CCR_RETRIEVE_TOOL_DEFINITION, runCcrRetrieveTool } from "../native/ccr-tool.js";
 
 /** All tools currently wired into the dispatch table (not just copied-in). */
 export const ALL_TOOL_DEFINITIONS: Tool[] = [
@@ -351,6 +354,8 @@ export const ALL_TOOL_DEFINITIONS: Tool[] = [
   MONITORING_INTEGRATION_TOOL_DEFINITION,
   performanceTrackerTool,
   smartDashboardTool,
+  // Tool 77: optiflow's own, everything above is vendored.
+  CCR_RETRIEVE_TOOL_DEFINITION,
 ] as unknown as Tool[];
 
 export interface ToolCallResult {
@@ -766,6 +771,14 @@ export function createOptimizerRuntime(): OptimizerRuntime {
     monitoring_integration: async (args) => ok(await monitoringIntegration.run(args as any)),
     "performance-tracker": async (args) => ok(await performanceTracker.run(args as any)),
     "smart-dashboard": async (args) => ok(await smartDashboard.run(args as any)),
+
+    // Optiflow's own tool (everything above is vendored). Uses
+    // `okPreformatted`, not `ok()`: the stored content is arbitrary text
+    // that was already serialized once when it was compressed, so passing
+    // it through `JSON.stringify` would hand the model an escaped string
+    // literal instead of the content it asked for -- the same
+    // double-encoding defect this file's `okPreformatted` header describes.
+    ccr_retrieve: async (args) => okPreformatted(runCcrRetrieveTool(args).text),
   };
 
   // ARCHITECTURAL DECISION (Part 1 of this checkpoint -- see

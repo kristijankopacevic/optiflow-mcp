@@ -15742,6 +15742,10 @@ function trySmartCrusher(content, config2) {
   if (!guard.approved) return null;
   return { text: result.compressed, strategy: result.strategy, guard };
 }
+function annotateCcrMarkers(text) {
+  if (extractCcrHashes(text).length === 0) return text;
+  return text + "\n\n[optiflow: <<ccr:HASH ...>> marks content omitted from this result. Call the optiflow-optimizer MCP tool ccr_retrieve with that hash to get it back.]";
+}
 function storeCcrMarkers(originalText, parsedTopLevelValue, compressed) {
   const hashes = extractCcrHashes(compressed);
   if (hashes.length === 0) return;
@@ -15876,7 +15880,10 @@ function buildHookOutput(input, decision) {
   const text = extractText(content);
   const filtered = genericFilter({ stdout: text, stderr: "", args: [], exitCode: 0 });
   const nonTextBlocks = content.filter((block) => block.type !== "text");
-  const newContent = [{ type: "text", text: filtered.text }, ...nonTextBlocks];
+  const newContent = [
+    { type: "text", text: annotateCcrMarkers(filtered.text) },
+    ...nonTextBlocks
+  ];
   return updateMCPOutput("PostToolUse", newContent);
 }
 async function runPostToolUseMcp(readInput, loadOptions = {}) {
