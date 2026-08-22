@@ -14,6 +14,7 @@ import { readHookInput, updateMCPOutput, writeHookOutput, type HookOutput } from
 import { loadConfig } from "../config/load.js";
 import { appendLedger } from "../core/ledger.js";
 import { countTokens } from "../core/tokens.js";
+import { recordOptimizerToolObservation } from "../optimizer/hooks/lib/capabilities.js";
 import { annotateCcrMarkers, genericFilter } from "./filters/generic.js";
 
 export interface McpContentBlock {
@@ -40,6 +41,10 @@ export type PostToolUseMcpResponse =
 export interface PostToolUseMcpHookInput {
   tool_name?: string;
   tool_response?: PostToolUseMcpResponse;
+  /** Present on every hook payload; needed to scope the capability record. */
+  session_id?: string;
+  /** Identifies the AGENT, so a subagent proves tools for itself only. */
+  transcript_path?: string;
 }
 
 const MCP_TOOL_MATCHER = /^mcp__/;
@@ -168,6 +173,20 @@ export async function runPostToolUseMcp(
 ): Promise<HookOutput> {
   const input = await readInput();
   if (!input) return {};
+
+  // This hook is the ONLY place in the plugin that sees an MCP tool call
+  // actually succeed, which makes it the only honest source of evidence for
+  // whether the enforcement layer may name that tool in a refusal. Without
+  // it the router denies toward tools a client may not be able to reach --
+  // a subagent with a restricted tool list has no MCP access at all, and a
+  // denial pointing it at `smart_grep` is a dead end it cannot escape. See
+  // src/optimizer/hooks/lib/capabilities.ts.
+  recordOptimizerToolObservation(
+    input.tool_name,
+    input.session_id,
+    input.transcript_path ?? null
+  );
+
   const decision = decidePostToolUseMcp(input, loadOptions);
   // The real entry path writes the ledger; buildHookOutput stays pure for tests.
   return buildHookOutput(input, decision, { writeLedger: appendLedger });

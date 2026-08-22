@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readHookInput, toCappedJson } from "../../core/hook-io.js";
 import { decidePreToolUse, runPreToolUse } from "./pretooluse.js";
 import { decidePreCompact, runPreCompact } from "./precompact.js";
+import { HOOK_MCP_TOOLS } from "./lib/capabilities.js";
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/hooks/", import.meta.url));
 
@@ -75,15 +76,24 @@ let projectDir: string;
 let optiflowHome: string;
 let stateDir: string;
 let prevMode: string | undefined;
+let prevCapabilities: string | undefined;
 
 beforeEach(() => {
   projectDir = mkdtempSync(path.join(tmpdir(), "optiflow-optimizer-fixtures-project-"));
   optiflowHome = mkdtempSync(path.join(tmpdir(), "optiflow-optimizer-fixtures-home-"));
   stateDir = mkdtempSync(path.join(tmpdir(), "optiflow-optimizer-fixtures-state-"));
   prevMode = process.env.TOKEN_OPTIMIZER_MODE;
+  prevCapabilities = process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES;
   process.env.OPTIFLOW_HOME = optiflowHome;
   process.env.TOKEN_OPTIMIZER_STATE_DIR = stateDir;
   delete process.env.TOKEN_OPTIMIZER_MODE;
+  // Declare the optimizer MCP tools present, which is what every test in
+  // this file is implicitly about: what the router does WHEN a replacement
+  // is reachable. Without this the router correctly refuses to deny toward
+  // an unproven tool (see lib/capabilities.ts) and every denial here
+  // degrades to advice — right behaviour, wrong scenario for these tests.
+  // The unproven scenario has its own test below.
+  process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES = HOOK_MCP_TOOLS.join(",");
 });
 
 afterEach(() => {
@@ -94,6 +104,8 @@ afterEach(() => {
   delete process.env.TOKEN_OPTIMIZER_STATE_DIR;
   if (prevMode === undefined) delete process.env.TOKEN_OPTIMIZER_MODE;
   else process.env.TOKEN_OPTIMIZER_MODE = prevMode;
+  if (prevCapabilities === undefined) delete process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES;
+  else process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES = prevCapabilities;
 });
 
 describe("decidePreToolUse", () => {
@@ -185,6 +197,29 @@ describe("decidePreToolUse", () => {
     expect(output.hookSpecificOutput?.permissionDecision).toBe("deny");
     expect(String(output.hookSpecificOutput?.permissionDecisionReason)).toMatch(/smart_read/);
     expect(output.hookSpecificOutput?.additionalContext).toBeUndefined();
+  }, 20_000);
+
+  // The scenario that was broken in production. A subagent with a restricted
+  // tool list (`Explore`: Read, Grep, Glob, Bash) has NO MCP tools, so a
+  // denial telling it to "call smart_grep instead" is a dead end it cannot
+  // escape -- it retries and is refused again. The router must not deny
+  // toward a tool nothing has been seen to reach.
+  it("does NOT deny when no optimizer MCP tool has been observed — it advises instead", async () => {
+    // No capabilities declared and no recorded observation: the state a
+    // subagent, or any session whose MCP server failed to start, is in.
+    delete process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES;
+
+    const payload = loadFixtureWithCwd("pretooluse-optimizer-positive-large-unrecognized-read.json", projectDir);
+    const filePath = path.join(projectDir, "notes.txt");
+    writeFileSync(filePath, buildLargeProseFixture(400), "utf8");
+    (payload.tool_input as Record<string, unknown>).file_path = filePath;
+
+    const output = await runPreToolUse(() => readHookInput(stdinFrom(JSON.stringify(payload))));
+
+    expect(output.hookSpecificOutput?.permissionDecision).not.toBe("deny");
+    // The suggestion still reaches the model, which is what lets a client
+    // that CAN call smart_read discover it and switch enforcement on.
+    expect(String(output.hookSpecificOutput?.additionalContext ?? "")).toMatch(/smart_read/);
   }, 20_000);
 });
 

@@ -14891,6 +14891,195 @@ function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
+// src/optimizer/hooks/lib/policy.ts
+import {
+  statSync,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync3,
+  writeFileSync,
+  renameSync,
+  openSync,
+  closeSync,
+  unlinkSync
+} from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+var stateRoot = (env = process.env) => env.TOKEN_OPTIMIZER_STATE_DIR || join(tmpdir(), "token-optimizer-hooks");
+function statePath(sessionId, agent, env = process.env) {
+  const safe = String(sessionId || "default").replace(/[^A-Za-z0-9_-]/g, "");
+  const scope = agent ? `-${createHash("sha256").update(String(agent)).digest("hex").slice(0, 12)}` : "";
+  return join(stateRoot(env), `${safe || "default"}${scope}.json`);
+}
+function emptyState() {
+  return {
+    seen: {},
+    denied: {},
+    injected: [],
+    actCounts: {},
+    forecast: null,
+    edits: 0,
+    editedFiles: [],
+    harvestedEdits: 0,
+    recordingNudged: false,
+    optimizerTools: [],
+    optimizerToolsObservedAt: 0
+  };
+}
+function normalizeSeen(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === true) {
+      out[key] = { hash: "", at: 0 };
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const entry = value;
+      out[key] = {
+        hash: typeof entry.hash === "string" ? entry.hash : "",
+        at: Number.isFinite(entry.at) ? Number(entry.at) : 0
+      };
+    }
+  }
+  return out;
+}
+function loadState(sessionId, agent, env = process.env) {
+  try {
+    const parsed = JSON.parse(readFileSync3(statePath(sessionId, agent, env), "utf8"));
+    if (!parsed || typeof parsed !== "object") return emptyState();
+    return {
+      seen: normalizeSeen(parsed.seen),
+      denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
+      injected: Array.isArray(parsed.injected) ? parsed.injected : [],
+      actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},
+      forecast: parsed.forecast && typeof parsed.forecast === "object" && !Array.isArray(parsed.forecast) && Number.isFinite(parsed.forecast.checkedAt) ? parsed.forecast : null,
+      edits: Number.isFinite(parsed.edits) ? parsed.edits : 0,
+      editedFiles: Array.isArray(parsed.editedFiles) ? parsed.editedFiles : [],
+      harvestedEdits: Number.isFinite(parsed.harvestedEdits) ? parsed.harvestedEdits : 0,
+      recordingNudged: parsed.recordingNudged === true,
+      optimizerTools: Array.isArray(parsed.optimizerTools) ? parsed.optimizerTools.filter((name) => typeof name === "string") : [],
+      optimizerToolsObservedAt: Number.isFinite(parsed.optimizerToolsObservedAt) ? parsed.optimizerToolsObservedAt : 0
+    };
+  } catch {
+    return emptyState();
+  }
+}
+function sleepSync(ms) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+  }
+}
+function takeLock(sessionId, agent, env, { attempts = 20, staleMs = 5e3, waitMs = 15 } = {}) {
+  const path6 = `${statePath(sessionId, agent, env)}.lock`;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const fd = openSync(path6, "wx", 384);
+      closeSync(fd);
+      return path6;
+    } catch {
+      try {
+        if (Date.now() - statSync(path6).mtimeMs > staleMs) {
+          unlinkSync(path6);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (i < attempts - 1) sleepSync(waitMs);
+    }
+  }
+  return null;
+}
+function saveState(sessionId, state, agent, env = process.env) {
+  let lock = null;
+  try {
+    mkdirSync2(stateRoot(env), { recursive: true, mode: 448 });
+    lock = takeLock(sessionId, agent, env);
+    if (!lock) return false;
+    const current = loadState(sessionId, agent, env);
+    const merged = {
+      seen: { ...current.seen, ...state.seen },
+      denied: { ...current.denied, ...state.denied },
+      injected: [.../* @__PURE__ */ new Set([...current.injected || [], ...state.injected || []])],
+      actCounts: (() => {
+        const out = { ...current.actCounts || {} };
+        for (const [k, v] of Object.entries(state.actCounts || {})) {
+          out[k] = Math.max(Number(out[k]) || 0, Number(v) || 0);
+        }
+        return out;
+      })(),
+      edits: Math.max(Number(current.edits) || 0, Number(state.edits) || 0),
+      editedFiles: [.../* @__PURE__ */ new Set([...state.editedFiles || [], ...current.editedFiles || []])].slice(0, 20),
+      harvestedEdits: Math.max(Number(current.harvestedEdits) || 0, Number(state.harvestedEdits) || 0),
+      recordingNudged: Boolean(current.recordingNudged || state.recordingNudged),
+      ...(() => {
+        const mineAt = Number(state.optimizerToolsObservedAt) || 0;
+        const theirsAt = Number(current.optimizerToolsObservedAt) || 0;
+        const mineWins = mineAt >= theirsAt && mineAt > 0;
+        return {
+          optimizerTools: mineWins ? [...state.optimizerTools || []] : [...current.optimizerTools || []],
+          optimizerToolsObservedAt: mineWins ? mineAt : theirsAt
+        };
+      })(),
+      forecast: (() => {
+        const mine = state.forecast || null;
+        const theirs = current.forecast || null;
+        const stamp = (f) => Number.isFinite(f?.checkedAt) ? f.checkedAt : null;
+        if (stamp(mine) === null) return theirs;
+        if (stamp(theirs) === null) return mine;
+        return stamp(mine) >= stamp(theirs) ? mine : theirs;
+      })()
+    };
+    const target = statePath(sessionId, agent, env);
+    const temporary = `${target}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify(merged), { mode: 384 });
+    renameSync(temporary, target);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (lock) {
+      try {
+        unlinkSync(lock);
+      } catch {
+      }
+    }
+  }
+}
+
+// src/optimizer/hooks/lib/capabilities.ts
+var HOOK_MCP_TOOLS = [
+  "smart_read",
+  "smart_write",
+  "smart_edit",
+  "smart_glob",
+  "smart_grep",
+  "optimize_session",
+  "get_optimization_report",
+  "wiki_write"
+];
+var HOOK_MCP_TOOL_SET = new Set(HOOK_MCP_TOOLS);
+function optimizerToolFromMcpName(toolName) {
+  if (typeof toolName !== "string" || !toolName.startsWith("mcp__")) return null;
+  const last = toolName.slice(toolName.lastIndexOf("__") + 2);
+  return HOOK_MCP_TOOL_SET.has(last) ? last : null;
+}
+function recordOptimizerToolObservation(toolName, sessionId, agent, env = process.env) {
+  try {
+    const name = optimizerToolFromMcpName(toolName);
+    if (!name) return false;
+    const state = loadState(sessionId, agent, env);
+    if (state.optimizerTools.includes(name)) return false;
+    state.optimizerTools = [...state.optimizerTools, name];
+    state.optimizerToolsObservedAt = Date.now();
+    return saveState(sessionId, state, agent, env);
+  } catch {
+    return false;
+  }
+}
+
 // src/toon/detect.ts
 function isPlainObject2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15616,7 +15805,7 @@ function maybeConvertToToon(input, config2) {
 }
 
 // src/native/smart-crusher.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync4 } from "node:fs";
 import { createRequire } from "node:module";
 import path4 from "node:path";
@@ -15678,11 +15867,11 @@ function extractCcrHashes(compressed) {
   return hashes;
 }
 function ccrMarkerHashFor(canonicalContent) {
-  return createHash("sha256").update(canonicalContent, "utf8").digest("hex").slice(0, 12);
+  return createHash2("sha256").update(canonicalContent, "utf8").digest("hex").slice(0, 12);
 }
 
 // src/native/ccr-store.ts
-import { appendFileSync as appendFileSync2, existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync3 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync4 } from "node:fs";
 import path5 from "node:path";
 function ccrStorePath(home) {
   return path5.join(home, "ccr-store.jsonl");
@@ -15690,7 +15879,7 @@ function ccrStorePath(home) {
 function putCcr(hash2, content, options = {}) {
   try {
     const home = options.home ?? getOptiflowHome();
-    mkdirSync2(home, { recursive: true });
+    mkdirSync3(home, { recursive: true });
     const record2 = {
       hash: hash2,
       content,
@@ -15925,6 +16114,11 @@ function buildHookOutput(input, decision, options = {}) {
 async function runPostToolUseMcp(readInput, loadOptions = {}) {
   const input = await readInput();
   if (!input) return {};
+  recordOptimizerToolObservation(
+    input.tool_name,
+    input.session_id,
+    input.transcript_path ?? null
+  );
   const decision = decidePostToolUseMcp(input, loadOptions);
   return buildHookOutput(input, decision, { writeLedger: appendLedger });
 }

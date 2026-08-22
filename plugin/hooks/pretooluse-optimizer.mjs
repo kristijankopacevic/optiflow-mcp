@@ -5559,26 +5559,33 @@ var HOOK_MCP_TOOLS = [
   "wiki_write"
 ];
 var HOOK_MCP_TOOL_SET = new Set(HOOK_MCP_TOOLS);
-function optimizerToolsForHook(_raw = {}, _state = {}, env = process.env) {
+function parseOverride(override) {
+  const names = /* @__PURE__ */ new Set();
+  let parsed = null;
+  if (/^\s*\[/.test(override)) {
+    try {
+      parsed = JSON.parse(override);
+    } catch {
+      parsed = null;
+    }
+  }
+  const items = Array.isArray(parsed) ? parsed : override.split(/[\s,]+/);
+  for (const item of items) {
+    const name2 = String(item).trim();
+    if (HOOK_MCP_TOOL_SET.has(name2)) names.add(name2);
+  }
+  return names;
+}
+function optimizerToolsForHook(_raw = {}, state = null, env = process.env) {
   const override = env.TOKEN_OPTIMIZER_MCP_CAPABILITIES;
   if (override !== void 0) {
-    const names = /* @__PURE__ */ new Set();
-    let parsed = null;
-    if (/^\s*\[/.test(override)) {
-      try {
-        parsed = JSON.parse(override);
-      } catch {
-        parsed = null;
-      }
-    }
-    const items = Array.isArray(parsed) ? parsed : override.split(/[\s,]+/);
-    for (const item of items) {
-      const name2 = String(item).trim();
-      if (HOOK_MCP_TOOL_SET.has(name2)) names.add(name2);
-    }
-    return { proven: true, names };
+    return { proven: true, names: parseOverride(override) };
   }
-  return { proven: true, names: new Set(HOOK_MCP_TOOLS) };
+  const observed = Array.isArray(state?.optimizerTools) ? state.optimizerTools.filter((name2) => HOOK_MCP_TOOL_SET.has(name2)) : [];
+  if (observed.length > 0) {
+    return { proven: true, names: new Set(observed) };
+  }
+  return { proven: false, names: new Set(HOOK_MCP_TOOLS) };
 }
 function rememberOptimizerTools(state, _evidence, _observedAt = Date.now()) {
   return state;
@@ -5910,6 +5917,7 @@ ${codeResult.compressed}`;
         }
       }
     }
+    const effectiveMode = toolEvidence.proven || substitute !== void 0 ? currentMode : MODE_ADVISE;
     const suppressedBytes = "suppressedReadBytes" in verdict ? verdict.suppressedReadBytes : void 0;
     if (!repeat && currentMode === MODE_ENFORCE && suppressedBytes) {
       appendLedger({
@@ -5921,7 +5929,7 @@ ${codeResult.compressed}`;
         bytesAfter: 0
       });
     }
-    return verdictToHookOutput(enforceVerdict(reason, repeat, currentMode, substitute));
+    return verdictToHookOutput(enforceVerdict(reason, repeat, effectiveMode, substitute));
   } catch {
     return {};
   }

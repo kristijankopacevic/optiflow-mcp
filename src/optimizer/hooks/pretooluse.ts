@@ -68,6 +68,7 @@ import { estimateTokens } from "../../core/tokens.js";
 import {
   mode,
   MODE_OFF,
+  MODE_ADVISE,
   MODE_ENFORCE,
   loadState,
   saveState,
@@ -423,6 +424,21 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
       }
     }
 
+    // NEVER DENY TOWARD A TOOL NOTHING HAS SEEN WORK. When
+    // `toolEvidence.proven` is false, no optimizer MCP tool has actually been
+    // observed in this session/agent, so a denial would point at something
+    // possibly unreachable — the exact failure a subagent with a restricted
+    // tool list (`Explore`: Read, Grep, Glob, Bash — no MCP at all) hits, with
+    // no way out but to burn turns retrying. Advising instead still names the
+    // tool, so a client that CAN reach it will call it, and that call is what
+    // proves the tool and turns enforcement on. See lib/capabilities.ts.
+    //
+    // A `denyWithSubstitute` is exempt: it carries the compressed content
+    // inline, so it needs no replacement tool to be reachable and is useful
+    // even against a client with no MCP access at all.
+    const effectiveMode =
+      toolEvidence.proven || substitute !== undefined ? currentMode : MODE_ADVISE;
+
     // On a repeat this degrades to a note and lets the call through, which
     // is what bounds the blast radius when the MCP server is unavailable.
     // `substitute` is undefined unless the block above actually produced a
@@ -446,7 +462,7 @@ export async function decidePreToolUse(raw: PreToolUseRawPayload | null): Promis
       });
     }
 
-    return verdictToHookOutput(enforceVerdict(reason, repeat, currentMode, substitute));
+    return verdictToHookOutput(enforceVerdict(reason, repeat, effectiveMode, substitute));
   } catch {
     // Wrapped whole: any defect in this hook must cost the user nothing.
     return {};
