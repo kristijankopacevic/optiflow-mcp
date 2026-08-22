@@ -20504,23 +20504,6 @@ function createCheckpoint(input, options = {}) {
 // src/handoff/restore.ts
 import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
 import path7 from "node:path";
-
-// src/core/hook-io.ts
-async function readHookInput(stdin = process.stdin) {
-  try {
-    const chunks = [];
-    for await (const chunk of stdin) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const raw = Buffer.concat(chunks).toString("utf8").trim();
-    if (raw.length === 0) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-// src/handoff/restore.ts
 function isCheckpointShape(value) {
   if (!value || typeof value !== "object") return false;
   const v = value;
@@ -21079,6 +21062,21 @@ import { readFileSync as readFileSync7 } from "node:fs";
 
 // src/statusline/cli.ts
 import { pathToFileURL } from "node:url";
+
+// src/core/hook-io.ts
+async function readHookInput(stdin = process.stdin) {
+  try {
+    const chunks = [];
+    for await (const chunk of stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const raw = Buffer.concat(chunks).toString("utf8").trim();
+    if (raw.length === 0) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 // src/statusline/segments.ts
 function meterSegment(usedPercentage, exceedsLimit, width) {

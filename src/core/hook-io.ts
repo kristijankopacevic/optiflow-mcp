@@ -250,6 +250,28 @@ export function allowWithContext(
 }
 
 /**
+ * Inject `context` with NO permission decision attached.
+ *
+ * This is the correct builder for events that have no permission decision
+ * to make at all — `SessionStart` above all, which is the one documented
+ * context-re-injection idiom. `allowWithContext` would additionally emit
+ * `permissionDecision: "allow"`, which on such an event is meaningless
+ * noise at best; see `src/chop/posttooluse-mcp.ts`'s module header for the
+ * same reasoning applied to `PostToolUse`.
+ */
+export function withAdditionalContext(
+  hookEventName: HookEventName,
+  context: string
+): HookOutput {
+  return {
+    hookSpecificOutput: {
+      hookEventName,
+      additionalContext: context,
+    },
+  };
+}
+
+/**
  * Deny the tool call, but hand the model the compressed content it would
  * otherwise need a second round trip (e.g. an MCP `smart_read` call) to
  * get. `reason` is shown as the denial explanation, exactly like `deny()`;

@@ -125,6 +125,9 @@ const hookEntries = [
   // PreToolUse hook rather than piggybacking on pretooluse-chop above).
   { in: "src/handoff/precompact-hook.ts", out: "precompact-handoff" },
   { in: "src/handoff/sessionend-hook.ts", out: "sessionend-handoff" },
+  // Reads those checkpoints back on SessionStart[compact] — the one moment
+  // a checkpoint exists to survive. See src/handoff/sessionstart-hook.ts.
+  { in: "src/handoff/sessionstart-hook.ts", out: "sessionstart-handoff" },
   { in: "src/handoff/activity-hook.ts", out: "pretooluse-activity" },
   // v2 Phase 5b: token-optimizer's ported enforcement layer. Imports only
   // sibling ./lib/*.ts files plus src/optimizer/paths.ts and

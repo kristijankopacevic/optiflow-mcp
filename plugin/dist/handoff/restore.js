@@ -14,91 +14,6 @@ var __export = (target, all) => {
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 import path2 from "node:path";
 
-// src/core/hook-io.ts
-var DEFAULT_OUTPUT_CAP_CHARS = 1e4;
-function findLongestStringPath(value, currentPath = [], best = {
-  path: null,
-  len: -1
-}) {
-  if (typeof value === "string") {
-    if (value.length > best.len) {
-      best.len = value.length;
-      best.path = currentPath.slice();
-    }
-  } else if (Array.isArray(value)) {
-    value.forEach(
-      (item, index) => findLongestStringPath(item, [...currentPath, index], best)
-    );
-  } else if (value && typeof value === "object") {
-    for (const key of Object.keys(value)) {
-      findLongestStringPath(
-        value[key],
-        [...currentPath, key],
-        best
-      );
-    }
-  }
-  return best.path;
-}
-function getAtPath(obj, pathParts) {
-  return pathParts.reduce((acc, key) => {
-    if (acc === null || typeof acc !== "object") return void 0;
-    return acc[key];
-  }, obj);
-}
-function setAtPath(obj, pathParts, value) {
-  if (pathParts.length === 0) return;
-  const parentPath = pathParts.slice(0, -1);
-  const lastKey = pathParts[pathParts.length - 1];
-  const parent = parentPath.length === 0 ? obj : getAtPath(obj, parentPath);
-  if (parent && typeof parent === "object") {
-    parent[lastKey] = value;
-  }
-}
-function toCappedJson(value, capChars = DEFAULT_OUTPUT_CAP_CHARS) {
-  const full = JSON.stringify(value);
-  if (full.length <= capChars) return full;
-  const clone2 = JSON.parse(full);
-  const targetPath = findLongestStringPath(clone2);
-  if (!targetPath) {
-    return full;
-  }
-  const originalStr = String(getAtPath(clone2, targetPath));
-  let str = originalStr;
-  let serialized = full;
-  for (let attempt = 0; attempt < 15; attempt++) {
-    const omitted = originalStr.length - str.length;
-    const marker = `...[truncated, ${omitted} chars omitted]`;
-    setAtPath(clone2, targetPath, omitted > 0 ? str + marker : str);
-    serialized = JSON.stringify(clone2);
-    if (serialized.length <= capChars) break;
-    const over = serialized.length - capChars;
-    const trimBy = Math.ceil(over * 1.1) + marker.length + 10;
-    const nextLen = Math.max(0, str.length - trimBy);
-    if (nextLen === str.length) {
-      str = "";
-      break;
-    }
-    str = str.slice(0, nextLen);
-    if (str.length === 0) break;
-  }
-  if (serialized.length > capChars) {
-    const marker = `...[truncated, ${originalStr.length} chars omitted]`;
-    setAtPath(clone2, targetPath, marker);
-    serialized = JSON.stringify(clone2);
-  }
-  return serialized;
-}
-function allowWithContext(hookEventName, context) {
-  return {
-    hookSpecificOutput: {
-      hookEventName,
-      permissionDecision: "allow",
-      additionalContext: context
-    }
-  };
-}
-
 // src/handoff/checkpoint.ts
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -14864,16 +14779,10 @@ function renderRestoreMarkdownFull(checkpoint) {
     bulletList(checkpoint.openFiles, "no open files recorded")
   ].join("\n");
 }
-function renderCappedRestoreOutput(checkpoint, options = {}) {
-  const markdown = renderRestoreMarkdown(checkpoint, { capChars: false });
-  const output = allowWithContext(options.hookEventName ?? "SessionStart", markdown);
-  return toCappedJson(output, options.capChars ?? 1e4);
-}
 export {
   findCheckpointById,
   findLatestCheckpoint,
   loadCheckpoint,
-  renderCappedRestoreOutput,
   renderRestoreMarkdown,
   resolveCheckpoint
 };

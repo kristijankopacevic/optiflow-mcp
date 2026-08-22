@@ -12,26 +12,26 @@
 // (`/optiflow:restore` / `/optiflow:compact-continue`, `optiflow checkpoint
 // --restore`) uses the default, capped path.
 //
-// TWO RENDER FUNCTIONS, because they produce different wire formats:
-//   - `renderRestoreMarkdown` — plain markdown, capped as above. Truncation
-//     (when triggered) slices the whole rendered document and appends a
-//     marker in the SAME TEXT FORMAT `src/core/hook-io.ts`'s `toCappedJson`
-//     uses (`...[truncated, N chars omitted]`) so it reads as one
-//     documented convention, not two — but it does NOT reuse
-//     `toCappedJson` itself: that function shrinks the longest STRING FIELD
-//     inside a JSON VALUE and re-serializes, which doesn't fit a plain
-//     markdown document (there's no JSON structure to walk, and slicing a
-//     markdown string is materially simpler than what `toCappedJson` does).
-//     This is a considered fit judgment, not an oversight.
-//   - `renderCappedRestoreOutput` — a `HookOutput` (see `src/core/
-//     hook-io.ts`), serialized through `toCappedJson` (reused as-is here,
-//     since this path IS a JSON value) so a future hook that emits this as
-//     real hook stdout gets the same cap contract. Nothing in this phase's
-//     hook wiring emits this today — there is no `SessionStart` hook
-//     registered in `plugin/hooks/hooks.json` yet (out of scope: this
-//     phase's brief is `PreCompact`/`SessionEnd` checkpoint-WRITING, not
-//     session-start restore-injection). Exported and tested directly so a
-//     future `SessionStart` hook has a ready, already-correct contract.
+// RENDERING: `renderRestoreMarkdown` produces plain markdown, capped as
+// above. Truncation (when triggered) slices the whole rendered document and
+// appends a marker in the SAME TEXT FORMAT `src/core/hook-io.ts`'s
+// `toCappedJson` uses (`...[truncated, N chars omitted]`) so it reads as one
+// documented convention, not two — but it does NOT reuse `toCappedJson`
+// itself: that function shrinks the longest STRING FIELD inside a JSON VALUE
+// and re-serializes, which doesn't fit a plain markdown document (there's no
+// JSON structure to walk, and slicing a markdown string is materially
+// simpler than what `toCappedJson` does). This is a considered fit judgment,
+// not an oversight.
+//
+// This file used to also export `renderCappedRestoreOutput`, a pre-built
+// `HookOutput` described as "a ready contract for a future SessionStart
+// hook". That hook now exists (`src/handoff/sessionstart-hook.ts`) and
+// deliberately does NOT use it: it emits `withAdditionalContext`, not
+// `allowWithContext`, because `SessionStart` has no tool call to permit, and
+// it caps injected context far lower than 10,000 characters. Keeping a
+// second, differently-shaped "contract" that nothing calls would be a trap
+// for whoever wired the next hook, so it was removed rather than left to
+// drift against the real one.
 //
 // Never throws on a missing/malformed checkpoint: "no checkpoints exist yet"
 // is a normal, expected state (a brand-new project, or one that's never
@@ -39,11 +39,6 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import {
-  allowWithContext,
-  toCappedJson,
-  type HookEventName,
-} from "../core/hook-io.js";
 import { checkpointId, listCheckpointFiles, type Checkpoint } from "./checkpoint.js";
 
 function isCheckpointShape(value: unknown): value is Checkpoint {
@@ -214,30 +209,4 @@ function renderRestoreMarkdownFull(checkpoint: Checkpoint | null): string {
     "### Open files",
     bulletList(checkpoint.openFiles, "no open files recorded"),
   ].join("\n");
-}
-
-export interface RenderCappedRestoreOptions {
-  hookEventName?: HookEventName;
-  capChars?: number;
-}
-
-/**
- * Renders a checkpoint as a `HookOutput` JSON string, capped at
- * `capChars` (default 10,000, via `src/core/hook-io.ts`'s shared
- * `toCappedJson` — never reimplemented). Not wired to a real hook in this
- * phase (see module header) — exported and tested directly so the contract
- * is proven correct ahead of a future `SessionStart` hook consuming it.
- */
-export function renderCappedRestoreOutput(
-  checkpoint: Checkpoint | null,
-  options: RenderCappedRestoreOptions = {}
-): string {
-  // Pass the FULL, unbounded markdown here (not `renderRestoreMarkdown`'s
-  // own default-capped output) — `toCappedJson` below is itself
-  // JSON-size-aware (it accounts for escaping/quoting overhead once
-  // embedded in the HookOutput envelope), so pre-truncating the markdown
-  // text first would risk two independent truncation markers stacking up.
-  const markdown = renderRestoreMarkdown(checkpoint, { capChars: false });
-  const output = allowWithContext(options.hookEventName ?? "SessionStart", markdown);
-  return toCappedJson(output, options.capChars ?? 10_000);
 }

@@ -7,7 +7,6 @@ import {
   findCheckpointById,
   findLatestCheckpoint,
   loadCheckpoint,
-  renderCappedRestoreOutput,
   renderRestoreMarkdown,
   resolveCheckpoint,
 } from "./restore.js";
@@ -184,30 +183,5 @@ describe("renderRestoreMarkdown — round trip and content", () => {
     const full = renderRestoreMarkdown(checkpoint, { capChars: false });
     expect(full.length).toBeGreaterThan(10_000);
     expect(full).not.toContain("...[truncated,");
-  });
-});
-
-describe("renderCappedRestoreOutput — the future SessionStart hook contract", () => {
-  it("produces valid, cap-respecting JSON for a normal checkpoint", () => {
-    const serialized = renderCappedRestoreOutput(fullCheckpoint());
-    expect(serialized.length).toBeLessThanOrEqual(10_000);
-    const parsed = JSON.parse(serialized);
-    expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
-    expect(parsed.hookSpecificOutput.permissionDecision).toBe("allow");
-    expect(typeof parsed.hookSpecificOutput.additionalContext).toBe("string");
-  });
-
-  it("stays valid JSON and under the cap for an oversized checkpoint", () => {
-    const hugeArray = Array.from({ length: 3000 }, (_, i) => `decision number ${i} with padding text to inflate size further`);
-    const checkpoint = fullCheckpoint({ decisions: hugeArray, nextSteps: hugeArray });
-    const serialized = renderCappedRestoreOutput(checkpoint);
-    expect(serialized.length).toBeLessThanOrEqual(10_000);
-    expect(() => JSON.parse(serialized)).not.toThrow();
-  });
-
-  it("honors a custom hookEventName/capChars", () => {
-    const serialized = renderCappedRestoreOutput(fullCheckpoint(), { hookEventName: "SessionEnd", capChars: 300 });
-    expect(serialized.length).toBeLessThanOrEqual(300);
-    expect(JSON.parse(serialized).hookSpecificOutput.hookEventName).toBe("SessionEnd");
   });
 });

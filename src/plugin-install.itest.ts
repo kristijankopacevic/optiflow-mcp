@@ -23,7 +23,7 @@
 // -- and cleans that directory up afterward.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, cpSync, existsSync, writeFileSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, cpSync, existsSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,6 +169,34 @@ describe("isolated marketplace-style plugin install (no node_modules present)", 
     const parent = path.dirname(tmpDir);
     expect(existsSync(path.join(parent, "package.json"))).toBe(false);
     expect(existsSync(path.join(parent, "node_modules"))).toBe(false);
+  });
+
+  it("every hook registered in hooks.json has a bundle that was actually shipped", () => {
+    // A hooks.json entry whose .mjs was never added to esbuild.config.mjs's
+    // `hookEntries` is invisible in development (Claude Code just logs a
+    // failed hook and carries on) and disables that hook for every installed
+    // user. Cheap to check, and it covers the whole manifest rather than
+    // whichever hook someone remembered to test.
+    const manifest = JSON.parse(
+      readFileSync(path.join(pluginDir, "hooks", "hooks.json"), "utf8")
+    ) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
+
+    const missing: string[] = [];
+    let checked = 0;
+    for (const [event, groups] of Object.entries(manifest.hooks)) {
+      for (const group of groups) {
+        for (const hook of group.hooks) {
+          const match = /hooks[/\\]([\w.-]+\.mjs)/.exec(hook.command);
+          expect(match, `unparsable hook command for ${event}: ${hook.command}`).toBeTruthy();
+          const file = path.join(pluginDir, "hooks", (match as RegExpExecArray)[1]);
+          if (!existsSync(file)) missing.push(`${event} -> ${(match as RegExpExecArray)[1]}`);
+          checked++;
+        }
+      }
+    }
+
+    expect(missing).toEqual([]);
+    expect(checked).toBeGreaterThan(0);
   });
 
   it("`optiflow doctor` exits 0 with no stack trace", async () => {
