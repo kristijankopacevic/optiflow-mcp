@@ -102,6 +102,9 @@ is explicit opt-in, backs up your settings first, and `optiflow uninstall`
 reverses it. See [`docs/statusline-manual-setup.md`](docs/statusline-manual-setup.md)
 and [`docs/modules.md`](docs/modules.md).
 
+For what runs by default, what is off and why, and how to turn everything on,
+see [`docs/enabling-everything.md`](docs/enabling-everything.md).
+
 ## License
 
 MIT for optiflow-mcp's own code (see [`LICENSE`](LICENSE)). This repository
