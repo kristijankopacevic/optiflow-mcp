@@ -4078,7 +4078,7 @@ var init_code_compressor = __esm({
 });
 
 // src/optimizer/hooks/pretooluse.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // src/core/hook-io.ts
@@ -4318,6 +4318,12 @@ function largeFileBytes(env = process.env) {
 function refusalFloorBytes(env = process.env) {
   return intEnv(env, "TOKEN_OPTIMIZER_REFUSAL_FLOOR_BYTES", 1024);
 }
+function repeatedReadSuppressionEnabled(env = process.env) {
+  return env.TOKEN_OPTIMIZER_SUPPRESS_REPEAT_READS !== "0";
+}
+function repeatedReadWindowMs(env = process.env) {
+  return intEnv(env, "TOKEN_OPTIMIZER_REPEAT_READ_WINDOW_MINUTES", 30) * 6e4;
+}
 var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   ".png",
   ".jpg",
@@ -4404,12 +4410,30 @@ function emptyState() {
     optimizerToolsObservedAt: 0
   };
 }
+function normalizeSeen(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out2 = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === true) {
+      out2[key] = { hash: "", at: 0 };
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const entry = value;
+      out2[key] = {
+        hash: typeof entry.hash === "string" ? entry.hash : "",
+        at: Number.isFinite(entry.at) ? Number(entry.at) : 0
+      };
+    }
+  }
+  return out2;
+}
 function loadState(sessionId, agent, env = process.env) {
   try {
     const parsed = JSON.parse(readFileSync(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
-      seen: parsed.seen && typeof parsed.seen === "object" ? parsed.seen : {},
+      seen: normalizeSeen(parsed.seen),
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},
@@ -4528,18 +4552,33 @@ function enforceVerdict(reason, deniedBefore, currentMode = mode(), substitute) 
 }
 
 // src/optimizer/hooks/lib/decide.ts
-import { statSync as statSync3 } from "node:fs";
+import { statSync as statSync4 } from "node:fs";
 import { join as join4 } from "node:path";
 
+// src/optimizer/tools/shared/hash-utils.ts
+import { createHash as createHash2 } from "crypto";
+import { readFileSync as readFileSync2, statSync as statSync2 } from "fs";
+function hashContent(content) {
+  return createHash2("sha256").update(content).digest("hex");
+}
+function hashFile(filePath) {
+  try {
+    const content = readFileSync2(filePath);
+    return hashContent(content);
+  } catch (error) {
+    throw new Error(`Failed to hash file ${filePath}: ${error}`);
+  }
+}
+
 // src/optimizer/hooks/lib/remedy.ts
-import { readFileSync as readFileSync2 } from "node:fs";
+import { readFileSync as readFileSync3 } from "node:fs";
 import { join as join2 } from "node:path";
 function rulesPath(dir) {
   return join2(dir, "rules.json");
 }
 function activeRules(dir) {
   try {
-    const parsed = JSON.parse(readFileSync2(rulesPath(dir), "utf8"));
+    const parsed = JSON.parse(readFileSync3(rulesPath(dir), "utf8"));
     return Array.isArray(parsed?.rules) ? parsed.rules.filter((r) => !r.revertedAt) : [];
   } catch {
     return [];
@@ -4549,19 +4588,19 @@ function activeRules(dir) {
 // src/optimizer/hooks/lib/wiki.ts
 import {
   appendFileSync,
-  readFileSync as readFileSync3,
+  readFileSync as readFileSync4,
   existsSync,
   mkdirSync as mkdirSync2,
   chmodSync,
   openSync as openSync2,
   closeSync as closeSync2,
   unlinkSync as unlinkSync2,
-  statSync as statSync2,
+  statSync as statSync3,
   writeFileSync as writeFileSync2,
   renameSync as renameSync2
 } from "node:fs";
 import { join as join3, dirname } from "node:path";
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 
 // src/optimizer/paths.ts
 import path2 from "node:path";
@@ -4622,7 +4661,7 @@ var logPath = (dir) => join3(dir, "graph.jsonl");
 var snapshotsPath = (dir) => join3(dir, "snapshots.jsonl");
 var markerPath = (dir) => join3(dir, "graph.compact.json");
 function nodeId(kind, key) {
-  return `${kind}:${createHash2("sha256").update(canonicalKey(kind, key)).digest("hex").slice(0, 16)}`;
+  return `${kind}:${createHash3("sha256").update(canonicalKey(kind, key)).digest("hex").slice(0, 16)}`;
 }
 function canonicalKey(kind, key) {
   const raw = String(key);
@@ -4636,7 +4675,7 @@ function canonicalKey(kind, key) {
 function contentHash(path4, text) {
   if (text === void 0 && !isFsSafePath(path4)) return null;
   try {
-    return createHash2("sha256").update(text === void 0 ? readFileSync3(path4) : text).digest("hex").slice(0, 16);
+    return createHash3("sha256").update(text === void 0 ? readFileSync4(path4) : text).digest("hex").slice(0, 16);
   } catch {
     return null;
   }
@@ -4651,7 +4690,7 @@ function withLock(dir, write) {
       break;
     } catch {
       try {
-        if (Date.now() - statSync2(lockPath).mtimeMs > 5e3) unlinkSync2(lockPath);
+        if (Date.now() - statSync3(lockPath).mtimeMs > 5e3) unlinkSync2(lockPath);
       } catch {
       }
     }
@@ -4683,7 +4722,7 @@ var SNAPSHOT_DEPENDENT = /* @__PURE__ */ new Set(["finding", "map"]);
 var snapshotBudgetBytes = () => Number(process.env.TOKEN_OPTIMIZER_GRAPH_SNAPSHOT_BYTES) || 8e6;
 function compactionBaseline(dir) {
   try {
-    const raw = JSON.parse(readFileSync3(markerPath(dir), "utf8"));
+    const raw = JSON.parse(readFileSync4(markerPath(dir), "utf8"));
     const n = Number(raw.sizeAfter);
     return Number.isFinite(n) && n > 0 ? n : compactFloorBytes();
   } catch {
@@ -4693,7 +4732,7 @@ function compactionBaseline(dir) {
 function readSnapshots(dir) {
   const out2 = [];
   try {
-    for (const line of readFileSync3(snapshotsPath(dir), "utf8").split("\n")) {
+    for (const line of readFileSync4(snapshotsPath(dir), "utf8").split("\n")) {
       if (!line) continue;
       try {
         const rec = JSON.parse(line);
@@ -4709,12 +4748,12 @@ function compactIfWasteful(dir) {
   const path4 = logPath(dir);
   let size = 0;
   try {
-    size = statSync2(path4).size;
+    size = statSync3(path4).size;
   } catch {
     return;
   }
   try {
-    size += statSync2(snapshotsPath(dir)).size;
+    size += statSync3(snapshotsPath(dir)).size;
   } catch {
   }
   if (size < compactFloorBytes() || size < compactionBaseline(dir) * 2) return;
@@ -4727,7 +4766,7 @@ function compactIfWasteful(dir) {
         snaps.set(rec.id, { at: rec.at || 0, snapshot: rec.snapshot });
       }
     }
-    for (const line of readFileSync3(path4, "utf8").split("\n")) {
+    for (const line of readFileSync4(path4, "utf8").split("\n")) {
       if (!line) continue;
       let record2;
       try {
@@ -4851,7 +4890,7 @@ function load(dir, { snapshots = false } = {}) {
   const path4 = logPath(dir);
   if (!existsSync(path4)) return { nodes, edges };
   const pending = snapshots ? /* @__PURE__ */ new Map() : null;
-  for (const line of readFileSync3(path4, "utf8").split("\n")) {
+  for (const line of readFileSync4(path4, "utf8").split("\n")) {
     if (!line) continue;
     if (line.startsWith('{"t":"s"')) {
       if (!snapshots) continue;
@@ -4898,7 +4937,7 @@ var KB = (bytes) => Math.round(bytes / 1024);
 function isDirectory(path4) {
   if (!isFsSafePath(path4)) return false;
   try {
-    return statSync3(path4).isDirectory();
+    return statSync4(path4).isDirectory();
   } catch {
     return false;
   }
@@ -5182,7 +5221,14 @@ function decide(payload, state, availableTools) {
         reason: `${shown} is covered by a fix applied on ${new Date(rule.appliedAt).toISOString().slice(0, 10)}: ${rule.why}. Call smart_read with path="${shown}" for its structure, or revert the rule with id "${rule.id}" if it is wrong.`
       };
     }
-    if (state.seen[path4] && replacementAvailable(availableTools, "smart_read")) {
+    const seenEntry = state.seen[path4];
+    if (seenEntry && replacementAvailable(availableTools, "smart_read")) {
+      if (unchangedSinceSeen(path4, seenEntry)) {
+        return {
+          key: `read:${path4}`,
+          reason: `${shown} has not changed since you read it earlier in this session -- its contents are already in your context above. If you need a specific region again, re-read it with offset/limit, which is never blocked.`
+        };
+      }
       return {
         key: `read:${path4}`,
         reason: `You already read ${shown} earlier in this session. Call the token-optimizer MCP tool smart_read with path="${shown}" instead -- it returns only a diff of what changed since that read, typically a few tokens rather than the whole file.`
@@ -5256,10 +5302,27 @@ function decide(payload, state, availableTools) {
   }
   return null;
 }
+function unchangedSinceSeen(path4, entry) {
+  if (!repeatedReadSuppressionEnabled()) return false;
+  if (!entry.hash) return false;
+  const windowMs = repeatedReadWindowMs();
+  if (windowMs > 0) {
+    if (!entry.at) return false;
+    if (Date.now() - entry.at > windowMs) return false;
+  }
+  return safeHashFile(path4) === entry.hash;
+}
+function safeHashFile(path4) {
+  try {
+    return hashFile(path4);
+  } catch {
+    return "";
+  }
+}
 function remember(payload, state) {
   const path4 = payload.tool_input?.file_path;
   if (path4 && payload.tool_name === "Read") {
-    state.seen[path4] = true;
+    state.seen[path4] = { hash: safeHashFile(path4), at: Date.now() };
   }
 }
 function readCostBytes(payload) {
@@ -5271,13 +5334,13 @@ function readCostBytes(payload) {
 }
 
 // src/optimizer/hooks/lib/metrics.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, chmodSync as chmodSync2, statSync as statSync4, existsSync as existsSync2, readFileSync as readFileSync4 } from "node:fs";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, chmodSync as chmodSync2, statSync as statSync5, existsSync as existsSync2, readFileSync as readFileSync5 } from "node:fs";
 import { join as join5 } from "node:path";
 import { randomBytes } from "node:crypto";
 var metricsPath = (dir) => join5(dir, "metrics.jsonl");
 function fingerprint(path4) {
   try {
-    const st = statSync4(path4);
+    const st = statSync5(path4);
     return `${st.size}:${Math.round(st.mtimeMs)}`;
   } catch {
     return null;
@@ -5321,7 +5384,7 @@ function maybeSurface(_dir, options = {}) {
 }
 
 // src/optimizer/hooks/lib/recording.ts
-import { readFileSync as readFileSync5, existsSync as existsSync3 } from "node:fs";
+import { readFileSync as readFileSync6, existsSync as existsSync3 } from "node:fs";
 import { join as join6 } from "node:path";
 var NUDGE_AFTER_EDITS = Number(process.env.TOKEN_OPTIMIZER_NUDGE_AFTER) || 8;
 var SUBSTANTIVE = /* @__PURE__ */ new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
@@ -5333,7 +5396,7 @@ function findingCount(dir) {
   if (!existsSync3(path4)) return 0;
   let text;
   try {
-    text = readFileSync5(path4, "utf8");
+    text = readFileSync6(path4, "utf8");
   } catch {
     return 0;
   }
@@ -5492,8 +5555,8 @@ function rememberOptimizerTools(state, _evidence, _observedAt = Date.now()) {
 }
 
 // src/optimizer/hooks/lib/ucr-guard.ts
-import { appendFileSync as appendFileSync3, existsSync as existsSync4, readFileSync as readFileSync6, statSync as statSync5 } from "node:fs";
-import { createHash as createHash3 } from "node:crypto";
+import { appendFileSync as appendFileSync3, existsSync as existsSync4, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
+import { createHash as createHash4 } from "node:crypto";
 import { join as join7, resolve } from "node:path";
 var MAX_INDEX_BYTES = 1e6;
 function canonical(value) {
@@ -5504,16 +5567,16 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 function digest(value) {
-  return createHash3("sha256").update(canonical(value)).digest("hex");
+  return createHash4("sha256").update(canonical(value)).digest("hex");
 }
 function indexRoot() {
   return process.env.TOKEN_OPTIMIZER_UCR_DIR ? resolve(process.env.TOKEN_OPTIMIZER_UCR_DIR) : resolve(process.cwd(), ".token-optimizer", "ucr");
 }
 function loadActiveUcrGuards() {
   const path4 = join7(indexRoot(), "active-guards.json");
-  if (!existsSync4(path4) || statSync5(path4).size > MAX_INDEX_BYTES) return [];
+  if (!existsSync4(path4) || statSync6(path4).size > MAX_INDEX_BYTES) return [];
   try {
-    const parsed = JSON.parse(readFileSync6(path4, "utf8"));
+    const parsed = JSON.parse(readFileSync7(path4, "utf8"));
     const { indexHash, ...body2 } = parsed;
     if (parsed.schemaVersion !== "ucr.active-guards/1") return [];
     if (digest(body2) !== indexHash) return [];
@@ -5746,7 +5809,7 @@ ${surfaced.text}` : surfaced.text;
             if (size > HARVEST_MAX_BYTES) continue;
             const dir = dirFor(path4);
             if (!isFsSafePath(path4)) continue;
-            const source = readFileSync7(path4, "utf8");
+            const source = readFileSync8(path4, "utf8");
             harvest(dir, {
               filePath: path4,
               sessionId: payload.session_id,
@@ -5775,7 +5838,7 @@ ${surfaced.text}` : surfaced.text;
         if (carried) {
           reason = carried;
         } else {
-          const source = readFileSync7(filePath, "utf8");
+          const source = readFileSync8(filePath, "utf8");
           indexFile(dir, filePath, source);
           const substitution = substitutionFor(
             dir,

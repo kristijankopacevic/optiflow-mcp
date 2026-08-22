@@ -204,12 +204,30 @@ function emptyState() {
     optimizerToolsObservedAt: 0
   };
 }
+function normalizeSeen(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === true) {
+      out[key] = { hash: "", at: 0 };
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const entry = value;
+      out[key] = {
+        hash: typeof entry.hash === "string" ? entry.hash : "",
+        at: Number.isFinite(entry.at) ? Number(entry.at) : 0
+      };
+    }
+  }
+  return out;
+}
 function loadState(sessionId, agent, env = process.env) {
   try {
     const parsed = JSON.parse(readFileSync(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
-      seen: parsed.seen && typeof parsed.seen === "object" ? parsed.seen : {},
+      seen: normalizeSeen(parsed.seen),
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts: parsed.actCounts && typeof parsed.actCounts === "object" && !Array.isArray(parsed.actCounts) ? parsed.actCounts : {},

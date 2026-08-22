@@ -87,6 +87,33 @@ export function refusalFloorBytes(env: NodeJS.ProcessEnv = process.env): number 
   return intEnv(env, "TOKEN_OPTIMIZER_REFUSAL_FLOOR_BYTES", 1_024);
 }
 
+/**
+ * Whether to refuse an unranged re-read of a file that is byte-identical to
+ * what the session already read. On by default.
+ *
+ * Env-var-gated rather than `optiflow.config.json`-gated on purpose: this is
+ * the vendored enforcement layer, and every other threshold it exposes
+ * (`largeFileBytes`, `refusalFloorBytes`, `mode`) is an env var. Adding one
+ * config-file knob here would mean two places to look for the same class of
+ * setting.
+ */
+export function repeatedReadSuppressionEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.TOKEN_OPTIMIZER_SUPPRESS_REPEAT_READS !== "0";
+}
+
+/**
+ * How long a recorded read keeps licensing suppression.
+ *
+ * The rule's premise is "you already have this content in front of you".
+ * Compaction is handled exactly (`clearSeen` wipes `seen` on `PreCompact`),
+ * but a very long uncompacted session can still push an early read far
+ * enough back that re-reading is reasonable. This window is the hedge
+ * against that premise quietly going stale; `0` disables the window.
+ */
+export function repeatedReadWindowMs(env: NodeJS.ProcessEnv = process.env): number {
+  return intEnv(env, "TOKEN_OPTIMIZER_REPEAT_READ_WINDOW_MINUTES", 30) * 60_000;
+}
+
 /** Extensions whose bytes are not tokens, so byte thresholds do not apply. */
 const BINARY_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".svg", ".pdf",
@@ -146,8 +173,27 @@ export function fileSize(path: unknown): number {
  * Session state
  * ------------------------------------------------------------------ */
 
+/**
+ * What the session knows about one file it has already read.
+ *
+ * Was a bare `true`. Carrying the content hash is what lets the router tell
+ * "you read this and it hasn't changed" (the model still holds the content,
+ * so a re-read buys nothing) apart from "you read this and it has since
+ * changed" (a re-read is legitimate, and `smart_read` can diff it).
+ *
+ * `hash` is `""` when unknown — either the file could not be hashed, or the
+ * entry was migrated from a state file written before this field existed
+ * (see `normalizeSeen`). An unknown hash never licenses suppression; it
+ * degrades to exactly the redirect behaviour that shipped before.
+ */
+export interface SeenEntry {
+  hash: string;
+  /** Epoch ms of the read that recorded this. `0` for migrated entries. */
+  at: number;
+}
+
 export interface SessionState {
-  seen: Record<string, boolean>;
+  seen: Record<string, SeenEntry>;
   denied: Record<string, boolean>;
   injected: string[];
   actCounts: Record<string, number>;
@@ -195,6 +241,37 @@ function emptyState(): SessionState {
 }
 
 /**
+ * Coerces a `seen` map from disk into the current `SeenEntry` shape.
+ *
+ * MIGRATION, not just validation: `seen` used to be
+ * `Record<string, boolean>`, and a state file written by the previous
+ * version is sitting in the temp dir of every session that is currently
+ * running when this ships. A legacy `true` becomes `{ hash: "", at: 0 }` —
+ * still "seen", but with no hash, so it can never license the new
+ * suppression rule and behaves exactly as it did before. Anything
+ * unrecognisable is dropped rather than carried forward, matching how the
+ * rest of `loadState` treats a shape it does not understand.
+ */
+export function normalizeSeen(raw: unknown): Record<string, SeenEntry> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, SeenEntry> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value === true) {
+      out[key] = { hash: "", at: 0 };
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const entry = value as { hash?: unknown; at?: unknown };
+      out[key] = {
+        hash: typeof entry.hash === "string" ? entry.hash : "",
+        at: Number.isFinite(entry.at) ? Number(entry.at) : 0,
+      };
+    }
+  }
+  return out;
+}
+
+/**
  * Loads session state, validating its SHAPE and not merely that it parsed —
  * a file containing `null`, `{}`, or an older layout must not throw on the
  * next property access inside the router (which would silently disable
@@ -209,7 +286,7 @@ export function loadState(
     const parsed = JSON.parse(readFileSync(statePath(sessionId, agent, env), "utf8"));
     if (!parsed || typeof parsed !== "object") return emptyState();
     return {
-      seen: parsed.seen && typeof parsed.seen === "object" ? parsed.seen : {},
+      seen: normalizeSeen(parsed.seen),
       denied: parsed.denied && typeof parsed.denied === "object" ? parsed.denied : {},
       injected: Array.isArray(parsed.injected) ? parsed.injected : [],
       actCounts:

@@ -160,6 +160,9 @@ describe("ALL_TOOL_DEFINITIONS", () => {
         "monitoring_integration",
         "performance-tracker",
         "smart-dashboard",
+        // optiflow's own tool -- everything above is vendored from
+        // token-optimizer-mcp. See src/native/ccr-tool.ts.
+        "ccr_retrieve",
       ].sort()
     );
   });

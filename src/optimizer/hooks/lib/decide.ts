@@ -22,7 +22,11 @@ import {
   isMachineOwned,
   largeFileBytes,
   refusalFloorBytes,
+  repeatedReadSuppressionEnabled,
+  repeatedReadWindowMs,
+  type SeenEntry,
 } from "./policy.js";
+import { hashFile } from "../../tools/shared/hash-utils.js";
 import { canonicalPath, resolvableCandidates, isFsSafePath } from "./paths.js";
 import { activeRules } from "./remedy.js";
 import { wikiDir, projectRootFor } from "./wiki.js";
@@ -375,7 +379,7 @@ function replacementAvailable(availableTools: Set<string> | string[] | undefined
 
 export function decide(
   payload: NormalizedPayload,
-  state: { seen: Record<string, boolean> },
+  state: { seen: Record<string, SeenEntry> },
   availableTools?: Set<string> | string[]
 ): Verdict | null {
   const tool = payload.tool_name;
@@ -405,7 +409,25 @@ export function decide(
       };
     }
 
-    if (state.seen[path] && replacementAvailable(availableTools, "smart_read")) {
+    const seenEntry = state.seen[path];
+    if (seenEntry && replacementAvailable(availableTools, "smart_read")) {
+      // Byte-identical to the copy already in context: there is nothing to
+      // return, not even a diff, so this refuses outright instead of
+      // spending a second round trip on `smart_read`. Note the ranged-read
+      // escape above (`offset`/`limit` returned null) -- a model narrowing
+      // in on a region is doing the right thing and is never blocked -- and
+      // that a second identical attempt is let through as advisory by
+      // `enforceVerdict`'s repeat handling, so this can't wedge.
+      if (unchangedSinceSeen(path, seenEntry)) {
+        return {
+          key: `read:${path}`,
+          reason:
+            `${shown} has not changed since you read it earlier in this ` +
+            `session -- its contents are already in your context above. If ` +
+            `you need a specific region again, re-read it with offset/limit, ` +
+            `which is never blocked.`,
+        };
+      }
       return {
         key: `read:${path}`,
         reason:
@@ -515,11 +537,51 @@ export function decide(
   return null;
 }
 
-/** Records a successful (allowed) READ so a later repeat is recognised. READ ONLY. */
-export function remember(payload: NormalizedPayload, state: { seen: Record<string, boolean> }): void {
+/**
+ * True when `path` is byte-identical to what the session read, recently
+ * enough for "it's already in your context" to still hold.
+ *
+ * Fails CLOSED (returns false, i.e. no suppression) on anything uncertain:
+ * suppression disabled, no recorded hash (a migrated pre-hash entry), the
+ * window elapsed, or the file unreadable/unhashable now. The cost of a
+ * wrong `false` is one redirect; the cost of a wrong `true` is refusing a
+ * read the model genuinely needed.
+ */
+function unchangedSinceSeen(path: string, entry: SeenEntry): boolean {
+  if (!repeatedReadSuppressionEnabled()) return false;
+  if (!entry.hash) return false;
+
+  const windowMs = repeatedReadWindowMs();
+  if (windowMs > 0) {
+    if (!entry.at) return false;
+    if (Date.now() - entry.at > windowMs) return false;
+  }
+
+  return safeHashFile(path) === entry.hash;
+}
+
+/** `hashFile` throws on an unreadable file; every caller here wants "unknown" instead. */
+function safeHashFile(path: string): string {
+  try {
+    return hashFile(path);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Records a successful (allowed) READ so a later repeat is recognised.
+ * READ ONLY.
+ *
+ * Stores the content hash alongside, which is what lets the router
+ * distinguish an unchanged re-read (nothing to return) from a changed one
+ * (`smart_read` can diff it). An unhashable file records `""`, which never
+ * licenses suppression.
+ */
+export function remember(payload: NormalizedPayload, state: { seen: Record<string, SeenEntry> }): void {
   const path = payload.tool_input?.file_path;
   if (path && payload.tool_name === "Read") {
-    state.seen[path] = true;
+    state.seen[path] = { hash: safeHashFile(path), at: Date.now() };
   }
 }
 
