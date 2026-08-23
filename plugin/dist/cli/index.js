@@ -22473,13 +22473,12 @@ function stripOptiflowAliases(home = homedir5()) {
   }
   return results;
 }
-function defaultRunNpm(args) {
-  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", args, {
-    stdio: "inherit"
-  });
+function runNpmForUpdate(args) {
+  const win = process.platform === "win32";
+  execFileSync(win ? "npm.cmd" : "npm", args, { stdio: "inherit", shell: win });
 }
 function runUpdateCli(options = {}) {
-  const runNpm = options.runNpm ?? defaultRunNpm;
+  const runNpm = options.runNpm ?? runNpmForUpdate;
   const lines = [];
   const stripped = stripOptiflowAliases(options.home);
   for (const result of stripped) {

@@ -120,6 +120,24 @@ jobs:
             if (!sub.includes('export function fn0(')) throw new Error('signature missing from substitute');
             console.log('Windows compression OK: substitute ' + sub.length + ' chars');
           "
+      - name: optiflow update completes without EINVAL (the exact spawn a user hit)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `optiflow update` shells out to `npm.cmd` via execFileSync. On any
+          # Node with the BatBadBut fix (CVE-2024-27980) that throws EINVAL
+          # unless `shell: true` is set -- exactly the failure a real user hit
+          # and the one thing no other job here exercises (the Ubuntu `test`
+          # job spawns plain `npm`, never `npm.cmd`). This runs the update
+          # path for real, from the just-built dist, then confirms the
+          # resulting global install is actually the current build. Uses the
+          # COMMITTED plugin/dist directly (no rebuild) -- same tree the
+          # other steps in this job already exercise as-shipped.
+          node plugin/dist/cli/index.js update
+          optiflow --version
+          optiflow savings --help | grep -q "optiflow savings" || {
+            echo "FAILED: 'optiflow' resolves to a build without the savings command"; exit 1;
+          }
 
   # The OTHER install path the README documents: `npm install -g
   # github:kristijankopacevic/optiflow-mcp`, for running the `optiflow` CLI

@@ -105,8 +105,15 @@ plugin install, reading the same ledger), run the installer once:
 curl -fsSL https://raw.githubusercontent.com/kristijankopacevic/optiflow-mcp/master/scripts/install-cli.sh | bash
 ```
 
-Or, if you would rather read it before running it (reasonable), download
-`scripts/install-cli.sh` and run it yourself. After that first install,
+On Windows PowerShell, use `scripts/install-cli.ps1` instead — same steps,
+native PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/kristijankopacevic/optiflow-mcp/master/scripts/install-cli.ps1 | iex
+```
+
+Or, if you would rather read either one before running it (reasonable),
+download the script and run it yourself. After that first install,
 updating is just:
 
 ```bash

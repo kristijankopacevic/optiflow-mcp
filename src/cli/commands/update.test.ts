@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { runUpdateCli, stripOptiflowAliases, TARBALL_URL } from "./update.js";
+import { runNpmForUpdate, runUpdateCli, stripOptiflowAliases, TARBALL_URL } from "./update.js";
 
 let home: string;
 
@@ -108,4 +108,15 @@ describe("runUpdateCli", () => {
     const out = runUpdateCli({ home, runNpm: () => {} }).join("\n");
     expect(out).not.toContain("unalias");
   });
+});
+
+describe("runNpmForUpdate", () => {
+  it("spawns real npm without throwing, on this platform", () => {
+    // `npm --version` through the EXACT code path `optiflow update` uses.
+    // The version of this function that shipped without a test threw
+    // `spawnSync npm.cmd EINVAL` on every security-patched Node on Windows
+    // (Node's BatBadBut / CVE-2024-27980 fix), and nothing caught it: CI
+    // only ran this on Ubuntu, where plain `npm` spawns fine either way.
+    expect(() => runNpmForUpdate(["--version"])).not.toThrow();
+  }, 30_000);
 });

@@ -89,14 +89,31 @@ export interface RunUpdateOptions {
   home?: string;
 }
 
-function defaultRunNpm(args: string[]): void {
-  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", args, {
-    stdio: "inherit",
-  });
+/**
+ * Runs npm through the exact spawn `optiflow update` uses. Exported (not
+ * just for injection) so a test can exercise the REAL spawn — the version
+ * of this function that shipped without one threw `EINVAL` on every
+ * security-patched Node on Windows and no test noticed.
+ *
+ * `shell: true` is REQUIRED on Windows: Node's BatBadBut fix
+ * (CVE-2024-27980) makes spawning `.cmd`/`.bat` files throw `EINVAL`
+ * unless a shell is requested. That combination (an argv array + `shell:
+ * true`) makes Node print a DEP0190 deprecation warning about unescaped
+ * concatenation on every run. Deliberately left as-is rather than
+ * "fixed" by hand-building a quoted command string: a first attempt at
+ * that broke the actual spawn (`runNpmForUpdate(["--version"])` started
+ * throwing) and was caught immediately by this file's own test — proof
+ * that the naive fix is worse than the warning. Safe as shipped because
+ * every argument this command ever passes is a static constant
+ * (subcommand names, `-g`, the tarball URL); no user input reaches argv.
+ */
+export function runNpmForUpdate(args: string[]): void {
+  const win = process.platform === "win32";
+  execFileSync(win ? "npm.cmd" : "npm", args, { stdio: "inherit", shell: win });
 }
 
 export function runUpdateCli(options: RunUpdateOptions = {}): string[] {
-  const runNpm = options.runNpm ?? defaultRunNpm;
+  const runNpm = options.runNpm ?? runNpmForUpdate;
   const lines: string[] = [];
 
   const stripped = stripOptiflowAliases(options.home);
