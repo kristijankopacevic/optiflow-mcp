@@ -22529,7 +22529,7 @@ function buildProgram() {
   const program2 = new Command();
   program2.name("optiflow").description(
     "A single plugin merging token-optimizer-mcp's smart_*/analytics MCP tools and enforcement hooks with headroom's real Rust compression core (via WASM), plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion."
-  ).version("0.1.0").enablePositionalOptions();
+  ).version("0.2.0").enablePositionalOptions();
   registerDoctorCommand(program2);
   registerToonCommand(program2);
   registerReportCommand(program2);

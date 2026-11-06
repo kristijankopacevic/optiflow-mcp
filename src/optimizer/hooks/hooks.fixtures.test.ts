@@ -86,7 +86,10 @@ beforeEach(() => {
   prevCapabilities = process.env.TOKEN_OPTIMIZER_MCP_CAPABILITIES;
   process.env.OPTIFLOW_HOME = optiflowHome;
   process.env.TOKEN_OPTIMIZER_STATE_DIR = stateDir;
-  delete process.env.TOKEN_OPTIMIZER_MODE;
+  // Routing is opt-in since 0.2.0 (see lib/policy.ts `mode()`). Every test in
+  // this file is about what the router does WHEN it is enabled, so enable it
+  // explicitly; the unset default has its own test below.
+  process.env.TOKEN_OPTIMIZER_MODE = "enforce";
   // Declare the optimizer MCP tools present, which is what every test in
   // this file is implicitly about: what the router does WHEN a replacement
   // is reachable. Without this the router correctly refuses to deny toward
@@ -126,6 +129,13 @@ describe("decidePreToolUse", () => {
 
   it("negative: Read on a nonexistent/tiny file is allowed (below the refusal floor, no state to redirect from)", async () => {
     const payload = loadFixtureWithCwd("pretooluse-optimizer-negative-small-read.json", projectDir);
+    const output = await runPreToolUse(() => readHookInput(stdinFrom(JSON.stringify(payload))));
+    expect(output).toEqual({});
+  });
+
+  it("routing is OFF by default: with TOKEN_OPTIMIZER_MODE unset, an otherwise-denied call passes untouched", async () => {
+    delete process.env.TOKEN_OPTIMIZER_MODE;
+    const payload = loadFixtureWithCwd("pretooluse-optimizer-positive-grep.json", projectDir);
     const output = await runPreToolUse(() => readHookInput(stdinFrom(JSON.stringify(payload))));
     expect(output).toEqual({});
   });

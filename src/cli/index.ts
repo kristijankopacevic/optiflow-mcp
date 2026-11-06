@@ -24,7 +24,7 @@ export function buildProgram(): Command {
     .description(
       "A single plugin merging token-optimizer-mcp's smart_*/analytics MCP tools and enforcement hooks with headroom's real Rust compression core (via WASM), plus chop-style Bash interception, transcript analytics, a statusline context meter, session-handoff checkpoints, and TOON conversion."
     )
-    .version("0.1.0")
+    .version("0.2.0")
     // Required for the `chop` subcommand's .passThroughOptions() (see
     // chop.ts) — without it, Commander refuses to let a subcommand pass
     // options through untouched, because the root program's own global

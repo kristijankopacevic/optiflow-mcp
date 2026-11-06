@@ -6,7 +6,22 @@
 // non-blocking allowWithContext that drops the substitute).
 
 import { describe, expect, it } from "vitest";
-import { MODE_ADVISE, MODE_ENFORCE, MODE_OFF, enforceVerdict, withEscape } from "./policy.js";
+import { MODE_ADVISE, MODE_ENFORCE, MODE_OFF, enforceVerdict, mode, withEscape } from "./policy.js";
+
+describe("mode()", () => {
+  it("defaults to off when TOKEN_OPTIMIZER_MODE is unset (routing is opt-in since 0.2.0)", () => {
+    expect(mode({})).toBe(MODE_OFF);
+  });
+
+  it("falls back to off, not enforce, on an unrecognised value", () => {
+    expect(mode({ TOKEN_OPTIMIZER_MODE: "enforcee" })).toBe(MODE_OFF);
+  });
+
+  it("honours explicit advise and enforce, case- and whitespace-insensitively", () => {
+    expect(mode({ TOKEN_OPTIMIZER_MODE: " Advise " })).toBe(MODE_ADVISE);
+    expect(mode({ TOKEN_OPTIMIZER_MODE: "ENFORCE" })).toBe(MODE_ENFORCE);
+  });
+});
 
 describe("enforceVerdict — denyWithSubstitute", () => {
   it("emits denyWithSubstitute when enforcing, not previously denied, and a substitute is supplied", () => {

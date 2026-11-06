@@ -363,9 +363,14 @@ export interface ToolCallResult {
   isError?: boolean;
 }
 
+/**
+ * Compact JSON, not pretty-printed: every result goes straight into the
+ * model's context, and two-space indentation was pure overhead there
+ * (measured ~15-30% of a typical smart_grep/smart_read response).
+ */
 function ok(result: unknown): ToolCallResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(result) }],
   };
 }
 
@@ -844,7 +849,7 @@ export function createOptimizerServer(): Server {
       // Vendor hardcoded 'token-optimizer-mcp' here; this is optiflow's own
       // merged server identity.
       name: "optiflow-optimizer",
-      version: "0.1.0",
+      version: "0.2.0",
     },
     {
       capabilities: {
