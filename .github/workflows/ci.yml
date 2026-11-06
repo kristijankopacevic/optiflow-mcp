@@ -112,7 +112,10 @@ jobs:
                 env: { ...process.env,
                   OPTIFLOW_HOME: path.resolve('of-home'),
                   TOKEN_OPTIMIZER_STATE_DIR: path.resolve('of-state'),
-                  TOKEN_OPTIMIZER_MCP_CAPABILITIES: 'smart_read' } });
+                  TOKEN_OPTIMIZER_MCP_CAPABILITIES: 'smart_read',
+                  // Routing is opt-in since 0.2.0; this gate checks that the
+                  // compression path works on Windows WHEN it is enabled.
+                  TOKEN_OPTIMIZER_MODE: 'enforce' } });
             const o = JSON.parse(out).hookSpecificOutput || {};
             if (o.permissionDecision !== 'deny') throw new Error('expected deny, got ' + o.permissionDecision);
             const sub = String(o.additionalContext || '');
