@@ -4357,9 +4357,9 @@ var MODE_ADVISE = "advise";
 var MODE_OFF = "off";
 function mode(env = process.env) {
   const raw = (env.TOKEN_OPTIMIZER_MODE || "").trim().toLowerCase();
-  if (raw === MODE_OFF) return MODE_OFF;
+  if (raw === MODE_ENFORCE) return MODE_ENFORCE;
   if (raw === MODE_ADVISE) return MODE_ADVISE;
-  return MODE_ENFORCE;
+  return MODE_OFF;
 }
 function intEnv(env, name2, fallback) {
   const parsed = Number(env[name2]);

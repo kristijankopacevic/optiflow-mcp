@@ -65594,8 +65594,7 @@ var SmartReadTool = class {
           finalContent = truncateResult.truncated;
         }
       }
-      const truncatedTokens = this.tokenCounter.count(finalContent).tokens;
-      tokensSaved = originalTokens - truncatedTokens;
+      tokensSaved = compressionStrategy === "code-compressed" || compressionStrategy === "kompressed" ? Math.max(0, originalTokens - this.tokenCounter.count(finalContent).tokens) : 0;
     } else if (!isDiff && rawContent.length > chunkSize && rawContent.length <= maxSize) {
       const allChunks = chunkBySyntax(rawContent, chunkSize).chunks;
       chunked = true;
@@ -65605,16 +65604,12 @@ var SmartReadTool = class {
       finalContent = allChunks[chunkIndex] + `
 
 // [chunk ${chunkIndex + 1} of ${allChunks.length}. Call smart_read again with chunkIndex=<n> for another.]`;
-      const returnedTokens = this.tokenCounter.count(finalContent).tokens;
-      tokensSaved = Math.max(0, originalTokens - returnedTokens);
+      tokensSaved = 0;
     }
     if (enableCache && !fromCache) {
       cacheSet(this.cache, cacheKey, rawContent);
     }
     const finalTokens = this.tokenCounter.count(finalContent).tokens;
-    if (tokensSaved === 0 && (truncated || chunked)) {
-      tokensSaved = Math.max(0, originalTokens - finalTokens);
-    }
     const compressionRatio = finalContent.length / rawContent.length;
     this.metrics.record({
       operation: "smart_read",
@@ -123664,7 +123659,7 @@ var ALL_TOOL_DEFINITIONS = [
 ];
 function ok(result) {
   return {
-    content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+    content: [{ type: "text", text: JSON.stringify(result) }]
   };
 }
 function okPreformatted(text) {
@@ -123999,7 +123994,7 @@ function createOptimizerServer() {
       // Vendor hardcoded 'token-optimizer-mcp' here; this is optiflow's own
       // merged server identity.
       name: "optiflow-optimizer",
-      version: "0.1.0"
+      version: "0.2.0"
     },
     {
       capabilities: {

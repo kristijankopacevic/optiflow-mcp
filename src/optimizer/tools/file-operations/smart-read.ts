@@ -348,8 +348,17 @@ export class SmartReadTool {
         }
       }
 
-      const truncatedTokens = this.tokenCounter.count(finalContent).tokens;
-      tokensSaved = originalTokens - truncatedTokens;
+      // Withholding is not saving. Blunt truncation cuts tokens that never
+      // reached the caller -- but a built-in Read with limit/offset withholds
+      // them just as well, and a caller that needs them pays again. Crediting
+      // them produced 95% of this tool's lifetime "savings" from ten reads of
+      // huge files (0.2.0 audit). Only a STRUCTURAL rewrite (CodeCompressor's
+      // outline, Kompress) delivers the same file in fewer tokens, so only
+      // that is credited.
+      tokensSaved =
+        compressionStrategy === 'code-compressed' || compressionStrategy === 'kompressed'
+        ? Math.max(0, originalTokens - this.tokenCounter.count(finalContent).tokens)
+        : 0;
     } else if (
       !isDiff &&
       rawContent.length > chunkSize &&
@@ -391,8 +400,11 @@ export class SmartReadTool {
       // downstream precisely because it is non-zero. "-14 tokens saved" is a
       // cost reported as a saving with a minus sign in front of it; the honest
       // number for a call that saved nothing is zero.
-      const returnedTokens = this.tokenCounter.count(finalContent).tokens;
-      tokensSaved = Math.max(0, originalTokens - returnedTokens);
+      //
+      // 0.2.0: and the chunks NOT returned are not a saving either -- they are
+      // pagination, exactly what Read's limit/offset does, and reading the rest
+      // costs another call. Chunking reports zero.
+      tokensSaved = 0;
     }
     if (enableCache && !fromCache) {
       cacheSet(this.cache, cacheKey, rawContent);
@@ -400,10 +412,8 @@ export class SmartReadTool {
 
     // Calculate final metrics
     const finalTokens = this.tokenCounter.count(finalContent).tokens;
-    // Only recalculate tokensSaved if it hasn't been set by diff mode or truncation
-    if (tokensSaved === 0 && (truncated || chunked)) {
-      tokensSaved = Math.max(0, originalTokens - finalTokens);
-    }
+    // (Pre-0.2.0 this re-credited truncated/chunked reads with everything they
+    // withheld. Removed: see the truncation and chunking branches above.)
 
     const compressionRatio = finalContent.length / rawContent.length;
 

@@ -57,15 +57,26 @@ export const MODE_OFF = "off" as const;
 export type Mode = typeof MODE_ENFORCE | typeof MODE_ADVISE | typeof MODE_OFF;
 
 /**
- * Reads the mode. Enforcement is the DEFAULT — an unrecognised value falls
- * back to enforce rather than silently disabling, so a typo cannot quietly
- * turn the product off.
+ * Reads the mode. OFF is the DEFAULT (since 0.2.0); routing is opt-in.
+ *
+ * Why: measured across ~1,000 real Claude Code sessions, the router denied
+ * ~3,500 built-in calls (Grep, Glob, large Read, recursive shell searches)
+ * and every denial forced an extra model turn that re-sent the whole cached
+ * context (~100k tokens on average). The `smart_*` tools it redirected to
+ * returned as much or more than the built-ins on identical queries
+ * (smart_grep 1.3-1.7x the characters of Grep), and the server's own
+ * verified-savings report stayed at 0. Claude Code's built-in Read/Grep
+ * already cap and de-duplicate, so the redirect had nothing left to win.
+ *
+ * Set TOKEN_OPTIMIZER_MODE=advise (a note, never a block) or =enforce (the
+ * pre-0.2.0 behaviour) to opt back in. An unrecognised value still falls
+ * back to the default rather than to enforcement.
  */
 export function mode(env: NodeJS.ProcessEnv = process.env): Mode {
   const raw = (env.TOKEN_OPTIMIZER_MODE || "").trim().toLowerCase();
-  if (raw === MODE_OFF) return MODE_OFF;
+  if (raw === MODE_ENFORCE) return MODE_ENFORCE;
   if (raw === MODE_ADVISE) return MODE_ADVISE;
-  return MODE_ENFORCE;
+  return MODE_OFF;
 }
 
 function intEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): number {

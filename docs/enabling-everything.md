@@ -15,11 +15,31 @@ No configuration needed. These are on by default:
 | `toon` | `enabled: true`, `minSavingsPercent: 30`, `minRows: 5` | Tabular re-encoding of uniform JSON arrays |
 | `smartCrusher` | `enabled: true`, `minSavingsPercent: 20` | Rust→WASM lossy compression, with `ccr_retrieve` to recover what it drops |
 | `handoff` | `enabled: true`, `keep: 20` | Checkpoints on PreCompact/SessionEnd, auto-restored on `SessionStart[compact]` |
-| Enforcement hooks | mode `enforce` | Routes large/repeat reads; substitutes compressed code inline |
 | MCP server | 77 tools | `smart_*`, analytics, dashboards, `ccr_retrieve` |
 
-The enforcement layer is the part that saves the most, and it needs nothing
-from you.
+## Routing (enforcement hooks) — off by default since 0.2.0
+
+Up to 0.1.0 the `PreToolUse` router ran in `enforce` mode out of the box: it
+denied built-in `Grep`, `Glob`, large `Read`s and recursive shell searches and
+told the model to call a `smart_*` tool instead. 0.2.0 turns it **off** by
+default, because measured on ~1,000 real Claude Code sessions it cost far more
+than it saved:
+
+- ~3,500 denials, each forcing an extra model turn that re-sent the whole
+  (cached) context — on average ~100k tokens of cache reads per denial;
+- on identical queries `smart_grep` returned 1.3–1.7× the characters of the
+  built-in `Grep` (which already caps at 250 lines), so the redirect target
+  was not smaller than what it replaced;
+- the server's own verified-savings report (`get_optimization_report`)
+  stayed at 0 for the whole period.
+
+Claude Code's built-in tools already cap, page and de-duplicate unchanged
+re-reads, which leaves a redirect little to win. If you still want it:
+
+```bash
+TOKEN_OPTIMIZER_MODE=advise   # a one-line note, never a block, never an extra turn
+TOKEN_OPTIMIZER_MODE=enforce  # the pre-0.2.0 behaviour
+```
 
 ## Things that are off, and why
 
@@ -103,7 +123,7 @@ vendored enforcement layer.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `TOKEN_OPTIMIZER_MODE` | `enforce` | `advise` downgrades every denial to a note; `off` disables routing |
+| `TOKEN_OPTIMIZER_MODE` | `off` (since 0.2.0) | `advise` turns routing on as non-blocking notes; `enforce` turns on denials (pre-0.2.0 default) |
 | `TOKEN_OPTIMIZER_LARGE_READ_BYTES` | `25600` | Size at which a `Read` is challenged |
 | `TOKEN_OPTIMIZER_REFUSAL_FLOOR_BYTES` | `1024` | Below this, a refusal costs more than it saves, so none is made |
 | `TOKEN_OPTIMIZER_SUPPRESS_REPEAT_READS` | on (`0` disables) | Refuse an unchanged unranged re-read outright |
@@ -196,7 +216,9 @@ optiflow install --statusline
 npm install better-sqlite3 tiktoken
 ```
 
-Everything else is already on.
+Everything else is already on, except routing, which is an environment
+variable rather than a config key (`TOKEN_OPTIMIZER_MODE=advise` or
+`=enforce`, see above) — read the measurements above before enabling it.
 
 ## What this does not claim
 

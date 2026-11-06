@@ -179,9 +179,9 @@ var MODE_ADVISE = "advise";
 var MODE_OFF = "off";
 function mode(env = process.env) {
   const raw = (env.TOKEN_OPTIMIZER_MODE || "").trim().toLowerCase();
-  if (raw === MODE_OFF) return MODE_OFF;
+  if (raw === MODE_ENFORCE) return MODE_ENFORCE;
   if (raw === MODE_ADVISE) return MODE_ADVISE;
-  return MODE_ENFORCE;
+  return MODE_OFF;
 }
 var PENDING_REDIRECT_TTL_MS = 5 * 6e4;
 var stateRoot = (env = process.env) => env.TOKEN_OPTIMIZER_STATE_DIR || join(tmpdir(), "token-optimizer-hooks");

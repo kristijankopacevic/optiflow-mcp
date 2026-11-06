@@ -297,6 +297,9 @@ describe("isolated marketplace-style plugin install (no node_modules present)", 
           // Keep all session scratch state inside the temp tree, so this
           // never reads or writes the real ~/.optiflow.
           OPTIFLOW_HOME: path.join(tmpDir, "optiflow-home"),
+          // Routing is opt-in since 0.2.0; this test is about whether the
+          // compression path works from a bare tree WHEN it is enabled.
+          TOKEN_OPTIMIZER_MODE: "enforce",
         }
       );
 

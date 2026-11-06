@@ -43,6 +43,23 @@ count. Building from source needs a Rust toolchain (`rustup`, the
 install does not (the compiled `.wasm` is committed, same reasoning as
 `plugin/dist/`).
 
+### 0.2.0: routing is opt-in
+
+The `PreToolUse` router that denied built-in `Grep`/`Glob`/large `Read`/
+recursive shell searches and redirected them to `smart_*` tools is now **off
+by default** (`TOKEN_OPTIMIZER_MODE=advise` or `=enforce` turns it back on).
+Measured on real sessions, every denial cost an extra model turn while the
+redirect target was no smaller than the built-in — see
+[`docs/enabling-everything.md`](docs/enabling-everything.md#routing-enforcement-hooks--off-by-default-since-020).
+Also in 0.2.0: MCP results are serialised as compact JSON (no indentation),
+and `smart_read` no longer reports withheld chunks/truncation as tokens
+saved — only a structural rewrite (code outline) is credited.
+
+The version bump matters on its own: Claude Code only re-installs a plugin
+whose version changed, so installs made while the version stayed at 0.1.0
+kept running the original build. After updating the marketplace, reinstall
+or update the plugin and restart the session.
+
 ## Getting started
 
 Works identically in the Claude Code CLI and in the VS Code / JetBrains
